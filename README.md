@@ -1,5 +1,10 @@
 # Router Hub
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
+[![Platform](https://img.shields.io/badge/Platform-Asuswrt--Merlin-red.svg)](https://www.asuswrt-merlin.net/)
+[![Target](https://img.shields.io/badge/Target-aarch64--musl-informational.svg)](#requirements-and-support)
+
 Router Hub is a lightweight management hub for Asuswrt-Merlin routers. Its
 purpose is to bring a useful set of self-hosted network services together on
 the router—without adding a database, a frontend build system, or a large
