@@ -1,0 +1,239 @@
+use axum::{Json, extract::State};
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    adguard::{AdGuardClient, get_lan_ip},
+    api::ApiError,
+    config::AdGuardConfig,
+    models::ApiMessage,
+    nginx,
+    state::AppState,
+};
+
+#[derive(Serialize)]
+pub struct AdGuardInfo {
+    pub enabled: bool,
+    pub api_endpoint: String,
+    pub username: String,
+    pub lan_ip: String,
+    pub launch_url: String,
+}
+
+#[derive(Deserialize)]
+pub struct ProtectionRequest {
+    pub enabled: bool,
+    pub duration_minutes: Option<u64>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateAdGuardRequest {
+    pub enabled: bool,
+    pub api_endpoint: String,
+    pub username: String,
+    pub password: Option<String>,
+    pub lan_ip: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct RewriteEntry {
+    pub domain: String,
+    pub answer: String,
+}
+
+pub async fn get_effective_config(state: &AppState) -> AdGuardConfig {
+    let mut config = if let Some(saved) = &*state.stores.adguard.read().await {
+        saved.clone()
+    } else {
+        state.config.adguard.clone()
+    };
+
+    if config.lan_ip.is_empty() || config.lan_ip == "192.168.1.1" {
+        let fetched_ip = get_lan_ip(&state.runner, &state.config.commands.nvram).await;
+        if config.lan_ip.is_empty()
+            || (fetched_ip != "192.168.1.1" && config.lan_ip == "192.168.1.1")
+        {
+            config.lan_ip = fetched_ip;
+        }
+    }
+    config
+}
+
+pub async fn get_config(State(state): State<AppState>) -> Json<AdGuardInfo> {
+    let cfg = get_effective_config(&state).await;
+    let launch_url = if !cfg.api_endpoint.trim().is_empty() {
+        cfg.api_endpoint.clone()
+    } else {
+        format!("http://{}:3000", cfg.lan_ip)
+    };
+
+    Json(AdGuardInfo {
+        enabled: cfg.enabled,
+        api_endpoint: cfg.api_endpoint,
+        username: cfg.username,
+        lan_ip: cfg.lan_ip,
+        launch_url,
+    })
+}
+
+pub async fn update_config(
+    State(state): State<AppState>,
+    Json(req): Json<UpdateAdGuardRequest>,
+) -> Result<Json<ApiMessage>, ApiError> {
+    let mut current = get_effective_config(&state).await;
+    current.enabled = req.enabled;
+    current.api_endpoint = req.api_endpoint;
+    current.username = req.username;
+    if let Some(pwd) = req.password {
+        if !pwd.is_empty() || current.password.is_empty() {
+            current.password = pwd;
+        }
+    }
+    current.lan_ip = req.lan_ip;
+
+    *state.stores.adguard.write().await = Some(current);
+    state
+        .stores
+        .save_adguard()
+        .await
+        .map_err(ApiError::internal)?;
+
+    Ok(Json(ApiMessage::new("AdGuard configuration updated")))
+}
+
+pub async fn set_protection(
+    State(state): State<AppState>,
+    Json(req): Json<ProtectionRequest>,
+) -> Result<Json<ApiMessage>, ApiError> {
+    let cfg = get_effective_config(&state).await;
+    if !cfg.enabled {
+        return Err(ApiError::bad_request(
+            "AdGuard Home integration is disabled",
+        ));
+    }
+
+    let client = AdGuardClient::new(&cfg).map_err(ApiError::internal)?;
+
+    let duration_ms = req.duration_minutes.map(|m| m * 60 * 1000);
+
+    client
+        .toggle_protection(req.enabled, duration_ms)
+        .await
+        .map_err(ApiError::internal)?;
+
+    let status = if req.enabled { "enabled" } else { "disabled" };
+    Ok(Json(ApiMessage::new(format!("Protection {}", status))))
+}
+
+async fn managed_domains(state: &AppState) -> Result<std::collections::HashSet<String>, ApiError> {
+    let objects = nginx::list_objects(&state.config, super::nginx::nginx_running(state).await)
+        .map_err(ApiError::internal)?;
+    let mut domains = std::collections::HashSet::new();
+    for object in objects {
+        let content = nginx::read_object(&state.config, object.kind, &object.domain, &object.name)
+            .map_err(ApiError::internal)?;
+        let names = nginx::extract_server_names(&content);
+        if names.is_empty() {
+            let domain = match object.kind {
+                crate::models::NginxObjectKind::Domain => object.domain,
+                crate::models::NginxObjectKind::Subdomain => {
+                    format!("{}.{}", object.name, object.domain)
+                }
+                crate::models::NginxObjectKind::Subfolder => continue,
+            };
+            domains.insert(domain.to_ascii_lowercase());
+        } else {
+            domains.extend(names.into_iter().map(|name| name.to_ascii_lowercase()));
+        }
+    }
+    Ok(domains)
+}
+
+async fn editable_rewrites(
+    state: &AppState,
+    client: &AdGuardClient,
+) -> Result<Vec<RewriteEntry>, ApiError> {
+    let managed = managed_domains(state).await?;
+    Ok(client
+        .get_rewrites()
+        .await
+        .map_err(ApiError::internal)?
+        .into_iter()
+        .filter(|rewrite| !managed.contains(&rewrite.domain.to_ascii_lowercase()))
+        .map(|rewrite| RewriteEntry {
+            domain: rewrite.domain,
+            answer: rewrite.answer,
+        })
+        .collect())
+}
+
+pub async fn get_rewrites(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<RewriteEntry>>, ApiError> {
+    let cfg = get_effective_config(&state).await;
+    if !cfg.enabled {
+        return Err(ApiError::bad_request(
+            "AdGuard Home integration is disabled",
+        ));
+    }
+    let client = AdGuardClient::new(&cfg).map_err(ApiError::internal)?;
+    Ok(Json(editable_rewrites(&state, &client).await?))
+}
+
+pub async fn update_rewrites(
+    State(state): State<AppState>,
+    Json(requested): Json<Vec<RewriteEntry>>,
+) -> Result<Json<Vec<RewriteEntry>>, ApiError> {
+    let cfg = get_effective_config(&state).await;
+    if !cfg.enabled {
+        return Err(ApiError::bad_request(
+            "AdGuard Home integration is disabled",
+        ));
+    }
+    let client = AdGuardClient::new(&cfg).map_err(ApiError::internal)?;
+    let managed = managed_domains(&state).await?;
+    let mut desired = Vec::new();
+    for rewrite in requested {
+        let domain = rewrite.domain.trim().to_string();
+        let answer = rewrite.answer.trim().to_string();
+        if domain.is_empty() || answer.is_empty() {
+            return Err(ApiError::bad_request(
+                "DNS rewrite domain and answer are required",
+            ));
+        }
+        if managed.contains(&domain.to_ascii_lowercase()) {
+            return Err(ApiError::bad_request(format!(
+                "DNS rewrite for nginx site {domain} is managed by Router Hub"
+            )));
+        }
+        let entry = RewriteEntry { domain, answer };
+        if !desired.contains(&entry) {
+            desired.push(entry);
+        }
+    }
+
+    let existing = client.get_rewrites().await.map_err(ApiError::internal)?;
+    for rewrite in existing.iter().filter(|rewrite| {
+        !managed.contains(&rewrite.domain.to_ascii_lowercase())
+            && !desired
+                .iter()
+                .any(|wanted| wanted.domain == rewrite.domain && wanted.answer == rewrite.answer)
+    }) {
+        client
+            .delete_rewrite(&rewrite.domain, &rewrite.answer)
+            .await
+            .map_err(ApiError::internal)?;
+    }
+    for rewrite in &desired {
+        if !existing
+            .iter()
+            .any(|current| current.domain == rewrite.domain && current.answer == rewrite.answer)
+        {
+            client
+                .ensure_rewrite(&rewrite.domain, &rewrite.answer)
+                .await
+                .map_err(ApiError::internal)?;
+        }
+    }
+
+    Ok(Json(editable_rewrites(&state, &client).await?))
+}

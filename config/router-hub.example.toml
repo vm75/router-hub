@@ -1,0 +1,101 @@
+test_mode = false
+
+[server]
+bind = "192.168.192.168"
+port = 3030
+auth_token = "REPLACE-WITH-AT-LEAST-24-RANDOM-CHARACTERS"
+allowed_origins = ["https://dwar.aalay.top", "http://192.168.192.168:8443", "http://router.asus.com", "http://192.168.1.1"]
+max_request_bytes = 1048576
+
+[paths]
+data_dir = "/opt/etc/router-hub"
+runtime_dir = "/opt/var/run/router-hub"
+
+[commands]
+mount = "/bin/mount"
+umount = "/bin/umount"
+nginx = "/opt/sbin/nginx"
+service = "/sbin/service"
+ipset = "/opt/sbin/ipset"
+iptables = "/usr/sbin/iptables"
+ip6tables = "/usr/sbin/ip6tables"
+dehydrated = "/opt/etc/router-hub/dehydrated"
+openssl = "/usr/sbin/openssl"
+logread = "/opt/sbin/logread"
+nvram = "/bin/nvram"
+ip = "/opt/sbin/ip"
+ping = "/bin/ping"
+
+[asus_ui]
+enabled = true
+# Specify rendered_page using any available custom ASP file from user1.asp through user20.asp (e.g., /tmp/var/wwwext/user1.asp .. /tmp/var/wwwext/user20.asp).
+rendered_page = "/tmp/var/wwwext/user20.asp"
+menu_tree = "/www/require/modules/menuTree.js"
+# Existing ASUS menu index to replace; its icon class is retained.
+menu_index = "menu_Alexa_IFTTT"
+# Empty means http://<current-router-host>:<server.port>.
+# When the ASUS UI is served over HTTPS, use an HTTPS reverse-proxy URL here.
+api_base_url = "https://router-hub.aalay.top"
+
+[services]
+init_dir = "/opt/etc/init.d"
+log_dirs = ["/opt/var/log", "/tmp"]
+status_timeout_seconds = 5
+action_timeout_seconds = 30
+log_tail_lines = 300
+
+[nginx]
+root_dir = "/opt/etc/nginx"
+config_path = "/opt/etc/nginx/nginx.conf"
+pid_path = "/opt/var/run/nginx.pid"
+domains_available_dir = "/opt/etc/nginx/domains-available"
+domains_enabled_dir = "/opt/etc/nginx/domains-enabled"
+templates_dir = "/opt/etc/nginx/templates"
+# Router Hub updates these includes when sites are created or edited.
+subdomain_upstream_map_path = "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
+subfolder_upstream_map_path = "/opt/etc/nginx/conf.d/04_subfolder_upstream_map.conf"
+http_forwarder_path = "/opt/etc/nginx/conf.d/05-http-to-https.conf"
+log_dir = "/opt/var/log/nginx"
+log_read_bytes = 524288
+reload_timeout_seconds = 15
+
+[certificates]
+certs_dir = "/opt/var/lib/router-hub/dehydrated/certs"
+renew_interval_hours = 12
+renew_before_days = 30
+command_timeout_seconds = 300
+
+[firewall]
+poll_interval_ms = 1000
+cleanup_interval_seconds = 60
+set_name_v4 = "router_hub_bans4"
+set_name_v6 = "router_hub_bans6"
+subnet_prefix_v4 = 24
+subnet_prefix_v6 = 64
+ip_failures = 4
+subnet_failures = 8
+promote_after_banned_ips = 2
+regex_dfa_cache_bytes = 2097152
+regex_size_limit_bytes = 1048576
+reverify_interval_seconds = 60
+protect_input = true
+protect_forward = true
+score_retention_seconds = 259200
+reputation_retention_seconds = 7776000
+subnet_promotion_window_seconds = 259200
+subnet_ban_seconds = 604800
+first_ban_seconds = 86400
+second_ban_seconds = 604800
+third_ban_seconds = 2592000
+max_ban_seconds = 7776000
+max_tracked_ips = 10000
+max_tracked_subnets = 2048
+max_reputation_entries = 4096
+max_active_bans = 8192
+max_status_entries = 100
+persist_interval_seconds = 30
+command_timeout_seconds = 5
+log_dirs = ["/opt/var/log/nginx"]
+max_read_bytes_per_file_poll = 262144
+max_lines_per_file_poll = 1000
+max_line_bytes = 16384

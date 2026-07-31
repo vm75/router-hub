@@ -1,0 +1,27 @@
+{
+  "enabled": false,
+  "observe_only": true,
+  "allowlist": [],
+  "rules": [
+    {
+      "id": "fdbb696d-bb25-41b8-8670-cf86656a69db",
+      "name": "nginx-bad-request",
+      "enabled": false,
+      "log_paths": ["/opt/var/log/nginx/access.log"],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*\"[^\"]*\" 400 ",
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 1
+    },
+    {
+      "id": "c9871362-9b6b-45ca-a8dd-c5f43e213375",
+      "name": "php-url-fopen",
+      "enabled": false,
+      "log_paths": ["/opt/var/log/nginx/access.log"],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*\"(?:GET|POST) [^ ]*\\?[^ ]*=(?:https?|php|data|expect|phar)://[^ ]* HTTP/[^\"]+\"",
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 1
+    }
+  ]
+}

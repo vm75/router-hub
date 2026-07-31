@@ -1,0 +1,97 @@
+{
+  "enabled": true,
+  "observe_only": false,
+  "rules": [
+    {
+      "id": "34482ea8-19e0-4ec0-a9e2-b35cfd3b6cb5",
+      "name": "nginx-high-confidence-trap",
+      "enabled": true,
+      "log_paths": [
+        "/opt/var/log/nginx/traps.log"
+      ],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*trap=\"1\"",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 5,
+      "updated_at": "2026-07-30T22:53:25.588223015Z"
+    },
+    {
+      "id": "90205ddd-bdc6-4704-a280-c6b4f76b3a65",
+      "name": "nginx-bad-bot",
+      "enabled": true,
+      "log_paths": [
+        "/opt/var/log/nginx/traps.log"
+      ],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*trap=\"0\".*badbot=\"1\"",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 4,
+      "updated_at": "2026-07-30T22:53:25.588243796Z"
+    },
+    {
+      "id": "91d241d1-079f-44c2-9efa-73d474f8961e",
+      "name": "nginx-http-authentication-failure",
+      "enabled": true,
+      "log_paths": [
+        "/opt/var/log/nginx/error.log"
+      ],
+      "pattern": "(?:no user/password was provided for basic authentication|user \"[^\"]*\" was not found in|password mismatch).*client: (?P<ip>[0-9A-Fa-f:.]+)",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-07-30T22:53:25.588250756Z"
+    },
+    {
+      "id": "6bd32f9e-c4ad-43d7-b476-9c22a11ca154",
+      "name": "nginx-rate-limit-violation",
+      "enabled": true,
+      "log_paths": [
+        "/opt/var/log/nginx/error.log"
+      ],
+      "pattern": "limiting requests, excess: [0-9.]+ by zone \"[^\"]+\", client: (?P<ip>[0-9A-Fa-f:.]+)",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-07-30T22:53:25.588255596Z"
+    },
+    {
+      "id": "2c6afbed-c822-417a-ac59-3fbd366423e5",
+      "name": "application-authentication-failure",
+      "enabled": true,
+      "log_paths": [
+        "/opt/var/log/nginx/access.log"
+      ],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*\"(?:POST|PUT) /(?:api/)?(?:login|session|auth)[^ ]* HTTP/[^\"]+\" (?:401|403) ",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-07-30T22:53:25.588260616Z"
+    },
+    {
+      "id": "d5b2d1b8-31be-4a2c-9c4f-6f3d4b28f0a1",
+      "name": "vaultwarden-login-failure",
+      "enabled": true,
+      "log_paths": [
+        "/opt/var/log/nginx/access.log"
+      ],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*\\\"POST /identity/connect/token[^\\\"]* HTTP/[^\\\"]+\\\" (?:400|401|403) ",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-07-31T00:00:00Z"
+    }
+  ],
+  "allowlist": [
+    "127.0.0.0/8",
+    "::1/128",
+    "10.0.0.0/8",
+    "192.168.0.0/16",
+    "172.16.0.0/12"
+  ]
+}
