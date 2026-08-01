@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     api::ApiError,
+    config::days_to_seconds,
     models::{ApiMessage, BanRecord, BanRule, FirewallPolicy, FirewallStatus},
     state::AppState,
 };
@@ -95,16 +96,20 @@ pub async fn delete_rule(
 
 #[derive(Deserialize)]
 pub struct NetworkRequest {
-    network: IpNet,
+    network: String,
 }
 
 pub async fn add_allowlist(
     State(state): State<AppState>,
     Json(request): Json<NetworkRequest>,
 ) -> Result<Json<FirewallPolicy>, ApiError> {
+    let network: IpNet = request
+        .network
+        .parse()
+        .map_err(|error| ApiError::bad_request(format!("invalid network: {error}")))?;
     let mut policy = state.stores.firewall_policy.read().await.clone();
-    if !policy.allowlist.contains(&request.network) {
-        policy.allowlist.push(request.network);
+    if !policy.allowlist.contains(&network) {
+        policy.allowlist.push(network);
     }
     let updated = policy.clone();
     state.firewall.replace_policy(policy).await?;
@@ -143,10 +148,11 @@ pub async fn manual_ban(
     State(state): State<AppState>,
     Json(request): Json<BanRequest>,
 ) -> Result<Json<BanRecord>, ApiError> {
-    if request.seconds < 60 || request.seconds > state.config.firewall.max_ban_seconds {
+    let max_ban_seconds = days_to_seconds(state.config.firewall.max_ban_days).unwrap_or_default();
+    if request.seconds < 60 || request.seconds > max_ban_seconds {
         return Err(ApiError::bad_request(format!(
             "seconds must be between 60 and {}",
-            state.config.firewall.max_ban_seconds
+            max_ban_seconds
         )));
     }
     if request.reason.trim().is_empty() {

@@ -2,6 +2,22 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.2.0
+
+### Changed
+
+- Simplified firewall retention and ban duration configuration parameters to use days instead of seconds.
+- Added strict validation for firewall ban escalation tiers and retention durations.
+
+### Added
+
+- Added separate counters for active IP bans and active subnet bans to the dashboard overview.
+
+### Fixed & Improved
+
+- Hardened post-mount reconciliation, firewall hooks execution scripts, and token authentication.
+- Disabled ANSI color formatting in standard tracing output for clean router syslog logging.
+
 ## 0.1.0 — Initial release
 
 The first release provides a resource-conscious management hub for

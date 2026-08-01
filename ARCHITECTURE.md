@@ -232,7 +232,7 @@ and syncs the parent directory; failed writes remove only the temporary file.
 
 - Production configuration rejects short or shipped placeholder API tokens.
 - Management routes require constant-time bearer-token matching; only health,
-  version, and token-gated UI access are outside the management layer.
+  version, and the public standalone UI shell are outside the management layer.
 - API-originated values never become shell-interpolated commands.
 - Firewall commands have separate argument boundaries, bounded stdin and
   execution deadlines, and reconciliation swaps fully prepared staging sets

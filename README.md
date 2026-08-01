@@ -197,7 +197,8 @@ definitions and deployed nginx certificates can be imported at startup.
 ## Security and operational notes
 
 - Management routes require `Authorization: Bearer <token>`. The standalone
-  page receives its token through its initial query string; the Asuswrt page
+  page is opened with a URL fragment such as `/#token=<token>`; fragments are
+  not sent to the server or written to HTTP access logs. The Asuswrt page
   embeds the configured token because the ASUS page and Axum listener are
   separate request contexts.
 - Production configuration rejects placeholder or short tokens. Protect the

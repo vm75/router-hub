@@ -7,12 +7,12 @@ pub mod wol;
 
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{delete, get, post, put},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -21,7 +21,7 @@ use tower_http::{
 
 use crate::{
     asus_ui,
-    auth::{require_auth, token_matches},
+    auth::require_auth,
     models::{ApiMessage, Dashboard, RuntimeInfo},
     state::AppState,
 };
@@ -164,28 +164,8 @@ pub fn router() -> Router<AppState> {
         .route("/adguard/protection", post(adguard::set_protection))
 }
 
-#[derive(Debug, Deserialize)]
-pub struct IndexQuery {
-    token: Option<String>,
-}
-
-pub async fn index(State(state): State<AppState>, Query(query): Query<IndexQuery>) -> Response {
-    let authorized = state.config.test_mode
-        || query
-            .token
-            .as_deref()
-            .is_some_and(|token| token_matches(token, &state.config.server.auth_token));
-    if authorized {
-        Html(asus_ui::render_ui(&state.config)).into_response()
-    } else {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiMessage::new(
-                "standalone UI requires ?token=<server.auth_token>; the ASUS extension page is served by the router UI",
-            )),
-        )
-            .into_response()
-    }
+pub async fn index(State(state): State<AppState>) -> Response {
+    Html(asus_ui::render_ui(&state.config)).into_response()
 }
 
 pub async fn health() -> &'static str {
@@ -227,6 +207,8 @@ async fn dashboard(State(state): State<AppState>) -> Result<Json<Dashboard>, Api
     let firewall_status = state.firewall.status().await;
     let firewall_enabled = firewall_status.policy.enabled;
     let active_bans = firewall_status.snapshot.active_ban_count;
+    let active_ip_bans = firewall_status.snapshot.banned_ips.len();
+    let active_subnet_bans = firewall_status.snapshot.banned_subnets.len();
     let mut certificates_due = 0;
     for certificate in &certificates {
         if state.certificate_status(certificate).await.renewal_due {
@@ -244,6 +226,8 @@ async fn dashboard(State(state): State<AppState>) -> Result<Json<Dashboard>, Api
         certificates_due,
         wol_machines: machines_len,
         active_bans,
+        active_ip_bans,
+        active_subnet_bans,
         firewall_enabled,
     }))
 }

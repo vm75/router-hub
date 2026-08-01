@@ -158,6 +158,28 @@ impl AppConfig {
         {
             bail!("firewall persistence, command, and log limits must be greater than zero");
         }
+        let durations = [
+            self.firewall.score_retention_days,
+            self.firewall.reputation_retention_days,
+            self.firewall.subnet_promotion_window_days,
+            self.firewall.subnet_ban_days,
+            self.firewall.first_ban_days,
+            self.firewall.second_ban_days,
+            self.firewall.third_ban_days,
+            self.firewall.max_ban_days,
+        ];
+        if durations
+            .iter()
+            .any(|days| *days == 0 || days.checked_mul(SECONDS_PER_DAY).is_none())
+        {
+            bail!("firewall retention and ban durations must be valid, non-zero day values");
+        }
+        if self.firewall.first_ban_days > self.firewall.second_ban_days
+            || self.firewall.second_ban_days > self.firewall.third_ban_days
+            || self.firewall.third_ban_days > self.firewall.max_ban_days
+        {
+            bail!("firewall ban durations must be monotonically increasing");
+        }
         if self.firewall.log_dirs.is_empty() {
             bail!("firewall.log_dirs must contain at least one allowed root");
         }
@@ -199,6 +221,13 @@ impl AppConfig {
         }
         Ok(())
     }
+}
+
+pub(crate) const SECONDS_PER_DAY: u64 = 86_400;
+
+pub(crate) fn days_to_seconds(days: u64) -> Result<u64> {
+    days.checked_mul(SECONDS_PER_DAY)
+        .context("duration in days exceeds the supported range")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -417,14 +446,14 @@ pub struct FirewallRuntimeConfig {
     pub reverify_interval_seconds: u64,
     pub protect_input: bool,
     pub protect_forward: bool,
-    pub score_retention_seconds: u64,
-    pub reputation_retention_seconds: u64,
-    pub subnet_promotion_window_seconds: u64,
-    pub subnet_ban_seconds: u64,
-    pub first_ban_seconds: u64,
-    pub second_ban_seconds: u64,
-    pub third_ban_seconds: u64,
-    pub max_ban_seconds: u64,
+    pub score_retention_days: u64,
+    pub reputation_retention_days: u64,
+    pub subnet_promotion_window_days: u64,
+    pub subnet_ban_days: u64,
+    pub first_ban_days: u64,
+    pub second_ban_days: u64,
+    pub third_ban_days: u64,
+    pub max_ban_days: u64,
     pub max_tracked_ips: usize,
     pub max_tracked_subnets: usize,
     pub max_reputation_entries: usize,
@@ -455,14 +484,14 @@ impl Default for FirewallRuntimeConfig {
             reverify_interval_seconds: 60,
             protect_input: true,
             protect_forward: true,
-            score_retention_seconds: 259_200,
-            reputation_retention_seconds: 7_776_000,
-            subnet_promotion_window_seconds: 259_200,
-            subnet_ban_seconds: 604_800,
-            first_ban_seconds: 86_400,
-            second_ban_seconds: 604_800,
-            third_ban_seconds: 2_592_000,
-            max_ban_seconds: 7_776_000,
+            score_retention_days: 3,
+            reputation_retention_days: 90,
+            subnet_promotion_window_days: 3,
+            subnet_ban_days: 7,
+            first_ban_days: 1,
+            second_ban_days: 7,
+            third_ban_days: 30,
+            max_ban_days: 90,
             max_tracked_ips: 10_000,
             max_tracked_subnets: 2_048,
             max_reputation_entries: 4_096,

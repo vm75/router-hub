@@ -1,3 +1,4 @@
+use crate::{models::ApiMessage, state::AppState};
 use axum::{
     extract::{Request, State},
     http::{StatusCode, header},
@@ -6,12 +7,9 @@ use axum::{
 };
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
-use url::form_urlencoded;
-
-use crate::{models::ApiMessage, state::AppState};
 
 pub async fn require_auth(State(state): State<AppState>, request: Request, next: Next) -> Response {
-    let supplied = bearer_token(&request).or_else(|| query_token(&request));
+    let supplied = bearer_token(&request);
     if supplied
         .as_deref()
         .is_some_and(|token| token_matches(token, &state.config.server.auth_token))
@@ -33,14 +31,6 @@ fn bearer_token(request: &Request) -> Option<String> {
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .map(ToOwned::to_owned)
-}
-
-fn query_token(request: &Request) -> Option<String> {
-    request.uri().query().and_then(|query| {
-        form_urlencoded::parse(query.as_bytes())
-            .find(|(key, _)| key == "token")
-            .map(|(_, value)| value.into_owned())
-    })
 }
 
 pub(crate) fn token_matches(candidate: &str, expected: &str) -> bool {
@@ -74,20 +64,5 @@ mod tests {
             .body(axum::body::Body::empty())
             .unwrap();
         assert_eq!(bearer_token(&req_invalid), None);
-    }
-
-    #[test]
-    fn test_query_token_extraction() {
-        let req = HttpRequest::builder()
-            .uri("/api/dashboard?foo=bar&token=query-token-123&baz=qux")
-            .body(axum::body::Body::empty())
-            .unwrap();
-        assert_eq!(query_token(&req), Some("query-token-123".to_string()));
-
-        let req_no_token = HttpRequest::builder()
-            .uri("/api/dashboard?foo=bar")
-            .body(axum::body::Body::empty())
-            .unwrap();
-        assert_eq!(query_token(&req_no_token), None);
     }
 }

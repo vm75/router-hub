@@ -14,7 +14,7 @@ use crate::{
         EngineState, FileConfig, FirewallConfig as BanFirewallConfig,
         IpSetConfig as BanIpSetConfig, RuleConfig as BanRuleConfig, StartAt,
     },
-    config::AppConfig,
+    config::{AppConfig, days_to_seconds},
     models::{BanRecord, FirewallPolicy, FirewallSettings, FirewallStatus},
     storage::Stores,
 };
@@ -147,17 +147,18 @@ impl FirewallManager {
             health,
             settings: FirewallSettings {
                 global_threshold: self.config.firewall.ip_failures,
-                score_retention_seconds: self.config.firewall.score_retention_seconds,
+                score_retention_seconds: days_to_seconds(self.config.firewall.score_retention_days)
+                    .unwrap_or_default(),
                 escalation_seconds: [
-                    self.config.firewall.first_ban_seconds,
-                    self.config.firewall.second_ban_seconds,
-                    self.config.firewall.third_ban_seconds,
-                    self.config.firewall.max_ban_seconds,
+                    days_to_seconds(self.config.firewall.first_ban_days).unwrap_or_default(),
+                    days_to_seconds(self.config.firewall.second_ban_days).unwrap_or_default(),
+                    days_to_seconds(self.config.firewall.third_ban_days).unwrap_or_default(),
+                    days_to_seconds(self.config.firewall.max_ban_days).unwrap_or_default(),
                 ],
-                subnet_promotion_window_seconds: self
-                    .config
-                    .firewall
-                    .subnet_promotion_window_seconds,
+                subnet_promotion_window_seconds: days_to_seconds(
+                    self.config.firewall.subnet_promotion_window_days,
+                )
+                .unwrap_or_default(),
             },
         }
     }
@@ -357,17 +358,20 @@ impl FirewallManager {
                 promote_after_banned_ips: self.config.firewall.promote_after_banned_ips,
                 ipv4_prefix: self.config.firewall.subnet_prefix_v4,
                 ipv6_prefix: self.config.firewall.subnet_prefix_v6,
-                score_retention_seconds: self.config.firewall.score_retention_seconds,
-                reputation_retention_seconds: self.config.firewall.reputation_retention_seconds,
-                subnet_promotion_window_seconds: self
-                    .config
-                    .firewall
-                    .subnet_promotion_window_seconds,
-                subnet_ban_seconds: self.config.firewall.subnet_ban_seconds,
-                first_ban_seconds: self.config.firewall.first_ban_seconds,
-                second_ban_seconds: self.config.firewall.second_ban_seconds,
-                third_ban_seconds: self.config.firewall.third_ban_seconds,
-                max_ban_seconds: self.config.firewall.max_ban_seconds,
+                score_retention_seconds: days_to_seconds(
+                    self.config.firewall.score_retention_days,
+                )?,
+                reputation_retention_seconds: days_to_seconds(
+                    self.config.firewall.reputation_retention_days,
+                )?,
+                subnet_promotion_window_seconds: days_to_seconds(
+                    self.config.firewall.subnet_promotion_window_days,
+                )?,
+                subnet_ban_seconds: days_to_seconds(self.config.firewall.subnet_ban_days)?,
+                first_ban_seconds: days_to_seconds(self.config.firewall.first_ban_days)?,
+                second_ban_seconds: days_to_seconds(self.config.firewall.second_ban_days)?,
+                third_ban_seconds: days_to_seconds(self.config.firewall.third_ban_days)?,
+                max_ban_seconds: days_to_seconds(self.config.firewall.max_ban_days)?,
                 max_tracked_ips: self.config.firewall.max_tracked_ips,
                 max_tracked_subnets: self.config.firewall.max_tracked_subnets,
                 max_reputation_entries: self.config.firewall.max_reputation_entries,

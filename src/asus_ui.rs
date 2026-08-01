@@ -8,6 +8,10 @@ const UI: &str = include_str!("../web/index.html");
 const ASP_TEMPLATE: &str = include_str!("../config/asus-wrt.asp.template");
 
 pub fn render_ui(config: &AppConfig) -> String {
+    render_ui_with_token(config, None)
+}
+
+fn render_ui_with_token(config: &AppConfig, token: Option<&str>) -> String {
     let api_base = if config.asus_ui.api_base_url.trim().is_empty() {
         format!("{{PROTOCOL}}//{{HOST}}:{}", config.server.port)
     } else {
@@ -16,7 +20,7 @@ pub fn render_ui(config: &AppConfig) -> String {
     let version_json =
         serde_json::to_string(env!("CARGO_PKG_VERSION")).expect("version is JSON safe");
     let api_base_json = serde_json::to_string(&api_base).expect("API base is JSON safe");
-    let token_json = serde_json::to_string(&config.server.auth_token).expect("token is JSON safe");
+    let token_json = serde_json::to_string(&token).expect("token is JSON safe");
     UI.replace("__ROUTER_HUB_VERSION__", env!("CARGO_PKG_VERSION"))
         .replace("__ROUTER_HUB_VERSION_JSON__", &version_json)
         .replace("__ROUTER_HUB_API_BASE_JSON__", &api_base_json)
@@ -24,7 +28,7 @@ pub fn render_ui(config: &AppConfig) -> String {
 }
 
 pub fn render_asus_ui(config: &AppConfig) -> String {
-    let rendered_ui = render_ui(config);
+    let rendered_ui = render_ui_with_token(config, Some(&config.server.auth_token));
     let styles = fragment_between(&rendered_ui, "<style>", "</style>");
     let contents = fragment_between(&rendered_ui, "<body class=\"rh-page\">", "</body>");
 
@@ -141,7 +145,7 @@ mod tests {
         assert!(!standalone.contains("__ROUTER_HUB_VERSION_JSON__"));
         assert!(!standalone.contains("__ROUTER_HUB_API_BASE_JSON__"));
         assert!(!standalone.contains("__ROUTER_HUB_TOKEN_JSON__"));
-        assert!(standalone.contains("my-secret-token"));
+        assert!(!standalone.contains("my-secret-token"));
         assert_eq!(standalone.matches("<html").count(), 1);
         assert_eq!(standalone.matches("<body").count(), 1);
         assert!(standalone.contains("<details class=\"card nginx-root\">"));

@@ -23,12 +23,18 @@ if [ ! -f "$CONFIG_DIR/router-hub.toml" ]; then
     sed -i "s/REPLACE-WITH-AT-LEAST-24-RANDOM-CHARACTERS/$TOKEN/" "$CONFIG_DIR/router-hub.toml"
     echo "Created $CONFIG_DIR/router-hub.toml. Review rendered_page and menu_tree before starting."
 fi
+# Repair permissions on existing installations as well as new ones.
+chmod 0600 "$CONFIG_DIR/router-hub.toml"
+if [ -d /opt/etc/nginx/certs ]; then
+    find /opt/etc/nginx/certs -type f -name 'privkey*.pem' -exec chmod 0644 {} \; # read access needed for nobody
+fi
 if [ ! -f "$CONFIG_DIR/firewall-policy.json" ] && [ -f "$REPO_DIR/config/firewall-policy.example.json" ]; then
     cp "$REPO_DIR/config/firewall-policy.example.json" "$CONFIG_DIR/firewall-policy.json"
 fi
 if [ ! -f "$DATA_DIR/firewall-policy.json" ] && [ -f "$REPO_DIR/config/firewall-policy.example.json" ]; then
     cp "$REPO_DIR/config/firewall-policy.example.json" "$DATA_DIR/firewall-policy.json"
 fi
+chmod 0600 "$CONFIG_DIR/firewall-policy.json" "$DATA_DIR/firewall-policy.json" 2>/dev/null || true
 
 POST_MOUNT=/jffs/scripts/post-mount
 if [ ! -f "$POST_MOUNT" ]; then
@@ -74,4 +80,4 @@ fi
 
 /opt/bin/router-hub --config "$CONFIG_DIR/router-hub.toml" check-config
 /opt/etc/init.d/S99router-hub restart
-printf '\nRouter Hub installed. Use the ASUS menu entry, or open http://<router-ip>:3030/?token=<auth-token>.\n'
+printf '\nRouter Hub installed. Use the ASUS menu entry, or open http://<router-ip>:3030/#token=<auth-token>.\n'

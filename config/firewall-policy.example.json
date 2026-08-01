@@ -7,7 +7,8 @@
       "name": "nginx-high-confidence-trap",
       "enabled": true,
       "log_paths": [
-        "/opt/var/log/nginx/traps.log"
+        "/opt/var/log/nginx/traps.log",
+        "/opt/var/log/nginx/unknown-host.log"
       ],
       "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*trap=\"1\"",
       "attempts": 5,
@@ -21,13 +22,14 @@
       "name": "nginx-bad-bot",
       "enabled": true,
       "log_paths": [
-        "/opt/var/log/nginx/traps.log"
+        "/opt/var/log/nginx/traps.log",
+        "/opt/var/log/nginx/unknown-host.log"
       ],
       "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*trap=\"0\".*badbot=\"1\"",
       "attempts": 5,
       "ip_group": "ip",
       "group_values": {},
-      "weight": 4,
+      "weight": 1,
       "updated_at": "2026-07-30T22:53:25.588243796Z"
     },
     {
@@ -85,6 +87,54 @@
       "group_values": {},
       "weight": 2,
       "updated_at": "2026-07-31T00:00:00Z"
+    },
+    {
+      "id": "d6c3e5cf-18c2-4de6-8d78-8e8bf2dcf4d7",
+      "name": "vaultwarden-invalid-credentials",
+      "enabled": true,
+      "log_paths": ["/opt/var/log/vaultwarden.log"],
+      "pattern": "Username or password is incorrect.*IP: (?P<ip>[0-9A-Fa-f:.]+)",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "id": "f05d28c7-ae64-4b64-b6d8-6d4b1fa7cbd7",
+      "name": "vaultwarden-invalid-admin-token",
+      "enabled": true,
+      "log_paths": ["/opt/var/log/vaultwarden.log"],
+      "pattern": "Invalid admin token\\. IP: (?P<ip>[0-9A-Fa-f:.]+)",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "id": "3fb9f50c-7546-4f9b-a7de-e38b76d4c86e",
+      "name": "vaultwarden-invalid-totp",
+      "enabled": true,
+      "log_paths": ["/opt/var/log/vaultwarden.log"],
+      "pattern": "Invalid TOTP code!.*IP: (?P<ip>[0-9A-Fa-f:.]+)",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 2,
+      "updated_at": "2026-08-01T00:00:00Z"
+    },
+    {
+      "id": "f8edc4e2-2b26-43d3-87d4-9f292c2d0ac3",
+      "name": "nginx-suspicious-probe",
+      "enabled": true,
+      "log_paths": ["/opt/var/log/nginx/access.log"],
+      "pattern": "^(?P<ip>[0-9A-Fa-f:.]+).*\\\"(?:GET|POST|HEAD) [^\\\"]*(?:\\.env|\\.git(?:/|\\?)|cgi-bin|phpunit|wp-config|xmlrpc\\.php|phpinfo\\.php|adminer\\.php|(?:shell|webshell)\\.php)[^\\\"]* HTTP/[^\\\"]+\\\" (?:400|403|404) ",
+      "attempts": 5,
+      "ip_group": "ip",
+      "group_values": {},
+      "weight": 1,
+      "updated_at": "2026-08-01T00:00:00Z"
     }
   ],
   "allowlist": [

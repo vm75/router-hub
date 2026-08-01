@@ -225,6 +225,8 @@ pub struct Dashboard {
     pub certificates_due: usize,
     pub wol_machines: usize,
     pub active_bans: usize,
+    pub active_ip_bans: usize,
+    pub active_subnet_bans: usize,
     pub firewall_enabled: bool,
 }
 

@@ -57,6 +57,7 @@ async fn test_unauthenticated_endpoints() {
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
+
     let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -116,13 +117,13 @@ async fn test_auth_protection() {
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    // Valid Query token -> 200
+    // Query tokens are deliberately not accepted.
     let req = Request::builder()
         .uri("/api/auth/check?token=router-hub-test-token")
         .body(Body::empty())
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -413,6 +414,18 @@ async fn test_firewall_policy_api() {
 
     // POST /api/firewall/allowlist (Add allowlist network)
     let payload = serde_json::json!({ "network": "10.0.0.0/8" });
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/firewall/allowlist")
+        .header(auth_header.0, auth_header.1)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Host-network allowlist entries are accepted after UI normalization.
+    let payload = serde_json::json!({ "network": "10.0.0.42/32" });
     let req = Request::builder()
         .method("POST")
         .uri("/api/firewall/allowlist")
