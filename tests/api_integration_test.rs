@@ -482,6 +482,15 @@ async fn test_services_api() {
             .all(|service| service["enabled"].as_bool() == Some(true))
     );
 
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/services/S99router-hub/disable")
+        .header(auth_header.0, auth_header.1)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
     for (action, expected_command) in [
         ("restart", "restart"),
         ("reconfigure", "reconfigure"),

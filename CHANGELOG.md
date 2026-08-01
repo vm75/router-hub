@@ -27,7 +27,8 @@ API, and configurable router integrations in one Rust executable.
   IPv4 `/24` and IPv6 `/64` subnet promotion, escalating bans, allowlists, and
   ipset/iptables enforcement.
 - Persistent JSON state with atomic writes, configurable paths and commands,
-  bounded resource usage, timeout handling, and firewall-start reconciliation.
+  bounded resource usage, timeout handling, and post-mount and firewall-start
+  reconciliation.
 - Fixture-backed test mode that redirects router paths, simulates privileged
   commands, skips Asuswrt menu changes, and prevents Wake-on-LAN transmission.
 - Router installation and release helpers for cross-compiled artifacts,

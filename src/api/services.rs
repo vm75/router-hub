@@ -119,6 +119,9 @@ pub async fn action(
         "status" | "check" => "check",
         _ => return Err(ApiError::bad_request("unsupported service action")),
     };
+    if action == "disable" && is_router_hub_service(&name) {
+        return Err(ApiError::bad_request("Router Hub cannot be disabled"));
+    }
     if action == "enable" && state.config.test_mode {
         return Ok(Json(CommandResult {
             success: true,
@@ -137,10 +140,7 @@ pub async fn action(
     // Router Hub cannot synchronously restart its own init script: rc.func's
     // `killall router-hub` terminates this API process. Run the init script in a
     // new session so it survives the server shutdown and can complete the restart.
-    if matches!(action.as_str(), "restart" | "disable")
-        && is_router_hub_service(&name)
-        && !state.config.test_mode
-    {
+    if action == "restart" && is_router_hub_service(&name) && !state.config.test_mode {
         let mut command = Command::new(&path);
 
         command

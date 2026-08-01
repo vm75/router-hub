@@ -179,9 +179,11 @@ bounded staging sets with `ipset restore`, swapping them into place, and
 destroying the staging sets. It is used at startup, every 60 seconds while
 enabled, on an explicit worker request, and after `SIGUSR1`. The installer
 appends a token-free `S99router-hub reconcile` action to
-`/jffs/scripts/firewall-start`; `S99router-hub` sends `SIGUSR1` to the running
-process. A bounded 2 MiB stdin limit and five-second default command deadline
-apply to backend commands; timed-out children are killed and reaped.
+`/jffs/scripts/post-mount` and a background retry loop to
+`/jffs/scripts/firewall-start` to re-apply hooks when Asuswrt rebuilds its
+firewall; `S99router-hub` sends `SIGUSR1` to the running process. A bounded 2 MiB
+stdin limit and five-second default command deadline apply to backend commands;
+timed-out children are killed and reaped.
 
 `observe_only` prevents backend set, rule, and hook changes and removes owned
 hooks during reconciliation, but the current worker still aggregates matches
@@ -258,6 +260,8 @@ and syncs the parent directory; failed writes remove only the temporary file.
   checks each resolved IP with a bounded ping.
 - The UI remains a single self-contained HTML/ASP asset and must work without
   a frontend package manager or third-party CDN.
+- Router Hub service (`S99router-hub`) cannot be disabled via API request, init
+  script, or UI action to ensure management engine availability.
 
 ## Security and trust boundaries
 

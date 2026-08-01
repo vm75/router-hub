@@ -583,15 +583,15 @@ impl BanBackend for CommandIpSet {
                     FORWARD_CHAIN,
                     &self.config.v4_set,
                 )?;
-            } else {
-                self.remove_hook(&self.firewall.iptables_command, "FORWARD", FORWARD_CHAIN)?;
-                self.remove_hook(&self.firewall.ip6tables_command, "FORWARD", FORWARD_CHAIN)?;
                 self.ensure_owned_chain(
                     &self.firewall.ip6tables_command,
                     "FORWARD",
                     FORWARD_CHAIN,
                     &self.config.v6_set,
                 )?;
+            } else {
+                self.remove_hook(&self.firewall.iptables_command, "FORWARD", FORWARD_CHAIN)?;
+                self.remove_hook(&self.firewall.ip6tables_command, "FORWARD", FORWARD_CHAIN)?;
             }
         }
         Ok(())
@@ -761,5 +761,300 @@ mod tests {
 
         assert_eq!(report.restored_entries, 1);
         assert_eq!(backend.entries(), HashSet::from([desired]));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Spy-script helpers for hook-placement tests.
+    //
+    // Each test creates a tiny shell script that appends its own name and
+    // arguments to a log file.  CommandIpSet is built with test_mode=false and
+    // all three tool paths pointing at this script, so every branch in ensure()
+    // and disable() leaves a textual record that can be asserted on without
+    // root or real iptables/ipset binaries.
+    //
+    // The script exits 0 for every invocation (simulating success).  For
+    // ensure_owned_chain this means the -C parent hook check "succeeds" (rule
+    // present), so the function issues -D then unconditionally -I.  For
+    // remove_hook the -C success causes -D to be issued.  Assertions target
+    // -I (install) and -D (remove) on the parent chain as the key signals.
+    //
+    // SERIALIZATION: WSL2 triggers ETXTBSY when multiple threads concurrently
+    // execve() freshly-written shell scripts, even from distinct tempdirs.
+    // Spy tests acquire SPY_LOCK before running to prevent the race.
+    // ---------------------------------------------------------------------------
+
+    static SPY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Writes the spy script to `dir` and returns its path.
+    fn write_spy_script(dir: &std::path::Path, log: &std::path::Path) -> std::path::PathBuf {
+        use std::io::Write;
+        let script = dir.join("spy.sh");
+        let log_str = log.to_str().unwrap();
+        let content = format!(
+            r#"#!/bin/sh
+LOG="{log_str}"
+printf '%s\n' "$0 $*" >> "$LOG"
+# ipset list <name>: emit just enough for ensure_set verification
+if [ "$1" = "list" ]; then
+    printf 'Type: hash:net\nfamily inet\nfamily inet6\nmaxelem 65536\n'
+fi
+exit 0
+"#
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o755)
+                .open(&script)
+                .unwrap();
+            file.write_all(content.as_bytes()).unwrap();
+            // sync_all() ensures the write handle is fully closed in the
+            // kernel before any execve call, preventing ETXTBSY under
+            // parallel test execution on Linux.
+            file.sync_all().unwrap();
+        }
+        #[cfg(not(unix))]
+        {
+            std::fs::write(&script, content).unwrap();
+        }
+        script
+    }
+
+    /// Reads recorded invocation lines from the spy log.
+    fn spy_lines(log: &std::path::Path) -> Vec<String> {
+        std::fs::read_to_string(log)
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Returns true if any recorded line's arguments contain all of `needles`.
+    fn any_line_contains(lines: &[String], needles: &[&str]) -> bool {
+        lines
+            .iter()
+            .any(|line| needles.iter().all(|n| line.contains(n)))
+    }
+
+    fn make_ipset(spy: &std::path::Path, firewall: FirewallConfig) -> CommandIpSet {
+        CommandIpSet::new_with_options(
+            IpSetConfig {
+                command: spy.to_path_buf(),
+                v4_set: "rh_ban_v4".to_owned(),
+                v6_set: "rh_ban_v6".to_owned(),
+                max_entries: 65536,
+            },
+            firewall,
+            false, // real mode — not test_mode
+        )
+    }
+
+    // -------------------------------------------------------------------------
+    // protect_forward = true (default)
+    // -------------------------------------------------------------------------
+
+    /// When protect_forward is true, ensure() must install the FORWARD chain
+    /// hook for BOTH iptables (IPv4) and ip6tables (IPv6).
+    #[test]
+    fn protect_forward_true_installs_both_ipv4_and_ipv6_forward_hooks() {
+        let _guard = SPY_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("spy.log");
+        let spy = write_spy_script(dir.path(), &log);
+
+        let backend = make_ipset(
+            &spy,
+            FirewallConfig {
+                enabled: true,
+                protect_input: false,
+                protect_forward: true,
+                iptables_command: spy.clone(),
+                ip6tables_command: spy.clone(),
+                ..FirewallConfig::default()
+            },
+        );
+        backend.ensure().unwrap();
+
+        let lines = spy_lines(&log);
+        assert!(
+            any_line_contains(&lines, &["FORWARD", FORWARD_CHAIN, "rh_ban_v4"]),
+            "IPv4 FORWARD hook not installed;\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+        assert!(
+            any_line_contains(&lines, &["FORWARD", FORWARD_CHAIN, "rh_ban_v6"]),
+            "IPv6 FORWARD hook not installed (Bug 1 regression);\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+    }
+
+    /// With protect_forward false, ensure() must issue remove_hook calls (-D)
+    /// for FORWARD but must NOT install any FORWARD rules (-I).
+    #[test]
+    fn protect_forward_false_issues_remove_not_install() {
+        let _guard = SPY_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("spy.log");
+        let spy = write_spy_script(dir.path(), &log);
+
+        let backend = make_ipset(
+            &spy,
+            FirewallConfig {
+                enabled: true,
+                protect_input: false,
+                protect_forward: false,
+                iptables_command: spy.clone(),
+                ip6tables_command: spy.clone(),
+                ..FirewallConfig::default()
+            },
+        );
+        backend.ensure().unwrap();
+
+        let lines = spy_lines(&log);
+        // remove_hook checks for the parent hook with -C then issues -D;
+        // the spy exits 0 for -C so -D must appear.
+        assert!(
+            any_line_contains(&lines, &["-D", "FORWARD", FORWARD_CHAIN]),
+            "ensure() with protect_forward=false must call remove_hook (-D);\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+        // No -I on the parent FORWARD chain (ensure_owned_chain not called).
+        assert!(
+            !any_line_contains(&lines, &["-I", "FORWARD"]),
+            "ensure() with protect_forward=false must not insert any FORWARD rule;\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // protect_forward = false
+    // -------------------------------------------------------------------------
+
+    /// When protect_forward is false, ensure() must not install any FORWARD
+    /// hook for either address family (Bug 2 regression guard).
+    #[test]
+    fn protect_forward_false_does_not_install_any_forward_hooks() {
+        let _guard = SPY_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("spy.log");
+        let spy = write_spy_script(dir.path(), &log);
+
+        let backend = make_ipset(
+            &spy,
+            FirewallConfig {
+                enabled: true,
+                protect_input: false,
+                protect_forward: false,
+                iptables_command: spy.clone(),
+                ip6tables_command: spy.clone(),
+                ..FirewallConfig::default()
+            },
+        );
+        backend.ensure().unwrap();
+
+        let lines = spy_lines(&log);
+        // -I inserts a rule; there must be no FORWARD insertion at all.
+        assert!(
+            !any_line_contains(&lines, &["-I", "FORWARD"]),
+            "ensure() with protect_forward=false must not insert any FORWARD rule (Bug 2 regression);\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+        // ip6tables FORWARD hook must specifically not be installed.
+        assert!(
+            !any_line_contains(&lines, &["FORWARD", FORWARD_CHAIN, "rh_ban_v6"]),
+            "ensure() with protect_forward=false must not install the IPv6 FORWARD hook;\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // protect_input = true (symmetric correctness check)
+    // -------------------------------------------------------------------------
+
+    /// Both IPv4 and IPv6 INPUT hooks must be installed when protect_input=true.
+    #[test]
+    fn protect_input_true_installs_both_ipv4_and_ipv6_input_hooks() {
+        let _guard = SPY_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("spy.log");
+        let spy = write_spy_script(dir.path(), &log);
+
+        let backend = make_ipset(
+            &spy,
+            FirewallConfig {
+                enabled: true,
+                protect_input: true,
+                protect_forward: false,
+                iptables_command: spy.clone(),
+                ip6tables_command: spy.clone(),
+                ..FirewallConfig::default()
+            },
+        );
+        backend.ensure().unwrap();
+
+        let lines = spy_lines(&log);
+        assert!(
+            any_line_contains(&lines, &["INPUT", INPUT_CHAIN, "rh_ban_v4"]),
+            "IPv4 INPUT hook not installed;\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+        assert!(
+            any_line_contains(&lines, &["INPUT", INPUT_CHAIN, "rh_ban_v6"]),
+            "IPv6 INPUT hook not installed;\nrecorded calls:\n{}",
+            lines.join("\n")
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // disable()
+    // -------------------------------------------------------------------------
+
+    /// disable() must remove both IPv4 and IPv6 hooks for both INPUT and
+    /// FORWARD chains, regardless of the protect_* settings.
+    #[test]
+    fn disable_removes_all_four_chain_hooks() {
+        let _guard = SPY_LOCK.lock().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("spy.log");
+        let spy = write_spy_script(dir.path(), &log);
+
+        let backend = make_ipset(
+            &spy,
+            FirewallConfig {
+                enabled: true,
+                iptables_command: spy.clone(),
+                ip6tables_command: spy.clone(),
+                ..FirewallConfig::default()
+            },
+        );
+        // The spy exits 0 for every command including -C, so remove_hook finds
+        // each hook "present" and issues -D.  Call disable() directly so the log
+        // only contains its commands, not any ensure() calls.
+        backend.disable().unwrap();
+
+        let lines = spy_lines(&log);
+        // Four remove_hook calls: {iptables,ip6tables} × {INPUT,FORWARD}.
+        let removals = [
+            (&["-D", "INPUT", INPUT_CHAIN][..]),
+            &["-D", "FORWARD", FORWARD_CHAIN],
+        ];
+        for needle_set in &removals {
+            // Both iptables and ip6tables variants must appear.
+            let count = lines
+                .iter()
+                .filter(|line| needle_set.iter().all(|n| line.contains(n)))
+                .count();
+            assert!(
+                count >= 2,
+                "expected at least 2 -D calls for {:?} (one per address family); got {};\nrecorded calls:\n{}",
+                needle_set,
+                count,
+                lines.join("\n")
+            );
+        }
     }
 }

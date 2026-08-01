@@ -30,20 +30,46 @@ if [ ! -f "$DATA_DIR/firewall-policy.json" ] && [ -f "$REPO_DIR/config/firewall-
     cp "$REPO_DIR/config/firewall-policy.example.json" "$DATA_DIR/firewall-policy.json"
 fi
 
+POST_MOUNT=/jffs/scripts/post-mount
+if [ ! -f "$POST_MOUNT" ]; then
+    printf '#!/bin/sh\n' >"$POST_MOUNT"
+    chmod 0755 "$POST_MOUNT"
+fi
+if ! grep -qF 'router-hub firewall reconciliation' "$POST_MOUNT"; then
+    cat >> "$POST_MOUNT" <<'EOF'
+
+# Router Hub: firewall reconciliation
+/opt/etc/init.d/S99router-hub reconcile
+EOF
+fi
+
 FIREWALL_START=/jffs/scripts/firewall-start
 if [ ! -f "$FIREWALL_START" ]; then
     printf '#!/bin/sh\n' >"$FIREWALL_START"
     chmod 0755 "$FIREWALL_START"
 fi
-if ! grep -Fq '# router-hub firewall reconciliation' "$FIREWALL_START"; then
-    if tail -n 1 "$FIREWALL_START" | grep -Eq '^[[:space:]]*exit([[:space:]]|$)'; then
-        sed -i '$i\
-# router-hub firewall reconciliation\
-/opt/etc/init.d/S99router-hub reconcile\
-' "$FIREWALL_START"
-    else
-        printf '\n# router-hub firewall reconciliation\n/opt/etc/init.d/S99router-hub reconcile\n' >>"$FIREWALL_START"
-    fi
+if ! grep -qF 'Router Hub: restore firewall hooks after Asuswrt rebuilds its firewall' "$FIREWALL_START"; then
+    cat >> "$FIREWALL_START" <<'EOF'
+
+# Router Hub: restore firewall hooks after Asuswrt rebuilds its firewall
+(
+    attempt=0
+
+    while [ "$attempt" -lt 30 ]; do
+        if /opt/etc/init.d/S99router-hub reconcile; then
+            logger -t router-hub \
+                "firewall-start reconciliation completed"
+            exit 0
+        fi
+
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    logger -t router-hub \
+        "firewall-start reconciliation failed after 30 attempts"
+) &
+EOF
 fi
 
 /opt/bin/router-hub --config "$CONFIG_DIR/router-hub.toml" check-config

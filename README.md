@@ -46,8 +46,9 @@ second nginx, DNS server, or certificate authority.
 - Track weighted activity per address and IPv4 `/24` or IPv6 `/64` subnet.
 - Escalate ban durations, promote distributed attacks to subnet bans, and
   enforce bans through owned ipset and iptables/ip6tables chains.
-- Maintain allowlists, persistent state, firewall-start reconciliation, and an
-  `observe_only` mode for evaluating rules without enforcement.
+- Maintain allowlists, persistent state, post-mount and firewall-start
+  reconciliation, and an `observe_only` mode for evaluating rules without
+  enforcement.
 
 The engine is deliberately bounded: log reads, line sizes, tracked addresses,
 subnets, reputation, active bans, command input, and command deadlines all have
@@ -57,7 +58,8 @@ dedicated IDS or high-volume firewall appliance.
 ### Router and LAN administration
 
 - Discover executable Entware init scripts, show bounded logs, and start,
-  stop, restart, reconfigure, enable, or disable services.
+  stop, restart, reconfigure, enable, or disable services (disabling Router Hub
+  itself is restricted).
 - Manage AdGuard Home connection settings, protection state, and DNS rewrites.
   Router Hub can hide nginx-managed domains and aliases from the rewrite editor
   so the two systems do not compete over the same names.
@@ -125,7 +127,13 @@ file under `dist/`:
 ./scripts/build-release.sh aarch64-unknown-linux-musl
 ```
 
-Copy the resulting binary, `config/`, and `scripts/` to the router, then run
+Alternatively, build and deploy to a remote target in one step using:
+
+```sh
+./scripts/build-and-deploy.sh user@router-host
+```
+
+Or copy the resulting binary, `config/`, and `scripts/` to the router, then run
 the installer as root from that copied repository:
 
 ```sh
@@ -140,7 +148,8 @@ The installer:
    token on first install;
 3. creates the runtime/data directories and installs the example firewall
    policy when needed;
-4. adds a token-free reconciliation call to `/jffs/scripts/firewall-start`;
+4. adds token-free reconciliation calls to `/jffs/scripts/post-mount` and
+   `/jffs/scripts/firewall-start` (with a background retry loop);
 5. validates the configuration and restarts Router Hub.
 
 Review the generated TOML before starting. In particular, set the correct
@@ -159,7 +168,7 @@ The service supports the usual Entware init actions:
 ```
 
 `reconcile` requests an immediate firewall reconciliation from the running
-process and is used by the installed `firewall-start` hook.
+process and is used by the installed `post-mount` and `firewall-start` hooks.
 
 ## Configuration
 

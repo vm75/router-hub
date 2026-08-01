@@ -16,13 +16,4 @@ if [ "${1:-}" = "reconcile" ]; then
     exit 0
 fi
 
-if [ "${1:-}" = "disable" ]; then
-    DISABLED_PATH="$(dirname "$0")/.disabled.$(basename "$0")"
-    [ -e "$DISABLED_PATH" ] && exit 1
-    "$0" stop >/dev/null 2>&1 || true
-    [ -n "$(pidof "$PROCS" 2>/dev/null)" ] && exit 1
-    mv "$0" "$DISABLED_PATH"
-    exit 0
-fi
-
 . /opt/etc/init.d/rc.func
