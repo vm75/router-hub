@@ -1035,3 +1035,39 @@ async fn test_adguard_rewrites_require_enabled_integration() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn test_adguard_hosts_are_saved_and_read_back() {
+    let (app, state, _temp) = setup_test_app().await;
+    let payload = serde_json::json!([
+        {"ip": "192.168.1.10", "hostnames": ["xyz", "xyz.example.com"]}
+    ]);
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/adguard/hosts")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        std::fs::read_to_string(&state.config.paths.hosts_add).unwrap(),
+        "192.168.1.10 xyz xyz.example.com\n"
+    );
+
+    let req = Request::builder()
+        .uri("/api/adguard/hosts")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
+        payload
+    );
+}

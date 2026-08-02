@@ -228,6 +228,18 @@ changes, cleanup, and shutdown force a save. Each save creates a unique mode
 0600 sibling temporary file, writes and syncs it, renames it over the target,
 and syncs the parent directory; failed writes remove only the temporary file.
 
+## AdGuard integration
+
+Nginx site reconciliation creates only dot-delimited AdGuard rewrites. Domains
+containing an underscore are rejected before an add, and existing underscore
+entries are excluded from startup deduplication, the rewrite editor, and nginx
+disable cleanup; Router Hub does not remove those legacy entries.
+
+The authenticated AdGuard hosts API reads and atomically replaces the
+configured `paths.hosts_add` file (default `/jffs/configs/hosts.add`). Each
+entry contains one IP address and one or more hostnames. A successful save
+restarts dnsmasq through the configured service command and arguments.
+
 ## Invariants
 
 - Production configuration rejects short or shipped placeholder API tokens.

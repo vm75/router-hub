@@ -10,6 +10,7 @@ max_request_bytes = 1048576
 [paths]
 data_dir = "/opt/etc/router-hub"
 runtime_dir = "/opt/var/run/router-hub"
+hosts_add = "/jffs/configs/hosts.add"
 
 [commands]
 mount = "/bin/mount"

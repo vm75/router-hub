@@ -177,7 +177,7 @@ reference. The main sections are:
 
 - `[server]` — bind address, port, bearer token, CORS origins, and request
   limits;
-- `[paths]` — persistent data and runtime directories;
+- `[paths]` — persistent data, runtime, and configurable `hosts.add` path;
 - `[commands]` — absolute paths to nginx, Entware utilities, firewall tools,
   dehydrated, OpenSSL, NVRAM, and network commands;
 - `[asus_ui]` — extension-page rendering and ASUS menu integration;
@@ -242,7 +242,8 @@ Management endpoints require the bearer token and are grouped as follows:
   dehydrated lock handling, and script update;
 - `/api/wol` — machine management, wake, and status;
 - `/api/firewall` — policy, rules, allowlists, bans, counters, and status;
-- `/api/adguard` — AdGuard configuration, protection, and staged rewrites;
+- `/api/adguard` — AdGuard configuration, protection, staged rewrites, and
+  `hosts.add` management (saving hosts restarts dnsmasq);
 - `/api/dashboard`, `/api/runtime`, and `/api/auth/check` — authenticated
   status views.
 

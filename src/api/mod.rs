@@ -161,6 +161,10 @@ pub fn router() -> Router<AppState> {
             "/adguard/rewrites",
             get(adguard::get_rewrites).put(adguard::update_rewrites),
         )
+        .route(
+            "/adguard/hosts",
+            get(adguard::get_hosts).put(adguard::update_hosts),
+        )
         .route("/adguard/protection", post(adguard::set_protection))
 }
 

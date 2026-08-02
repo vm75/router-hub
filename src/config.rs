@@ -70,6 +70,7 @@ impl AppConfig {
         self.server.allowed_origins = vec!["*".into()];
         self.paths.data_dir = root.join("data");
         self.paths.runtime_dir = root.join("test-fixtures/runtime");
+        self.paths.hosts_add = root.join("test-fixtures/hosts.add");
         self.services.init_dir = root.join("test-fixtures/init.d");
         self.services.log_dirs = vec![root.join("test-fixtures/logs")];
         self.nginx.root_dir = root.join("test-fixtures/nginx");
@@ -272,6 +273,7 @@ pub struct PathsConfig {
     pub data_dir: PathBuf,
     pub runtime_dir: PathBuf,
     pub log_file: PathBuf,
+    pub hosts_add: PathBuf,
 }
 
 impl Default for PathsConfig {
@@ -280,6 +282,7 @@ impl Default for PathsConfig {
             data_dir: "/opt/var/lib/router-hub".into(),
             runtime_dir: "/opt/var/run/router-hub".into(),
             log_file: "/opt/var/log/router-hub.log".into(),
+            hosts_add: "/jffs/configs/hosts.add".into(),
         }
     }
 }

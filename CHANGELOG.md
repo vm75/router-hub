@@ -2,6 +2,18 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.3.0
+
+### Added
+
+- Added authenticated `hosts.add` management for AdGuard-compatible local DNS
+  entries, with atomic writes and dnsmasq restart after saves.
+
+### Changed
+
+- Excluded underscore-containing AdGuard rewrite domains from Router Hub's
+  managed rewrite workflows.
+
 ## 0.2.0
 
 ### Changed

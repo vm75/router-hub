@@ -40,6 +40,10 @@ pub struct AdGuardClient {
     endpoint: String,
 }
 
+pub fn has_underscore_domain(domain: &str) -> bool {
+    domain.split('.').any(|label| label.contains('_'))
+}
+
 impl AdGuardClient {
     pub fn new(config: &AdGuardConfig) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -91,6 +95,9 @@ impl AdGuardClient {
     /// only add when the rewrite is absent; if old duplicates exist, remove
     /// the extras while retaining one entry.
     pub async fn ensure_rewrite(&self, domain: &str, answer: &str) -> Result<()> {
+        if has_underscore_domain(domain) {
+            bail!("DNS rewrite domains may not contain underscores: {domain}");
+        }
         let existing = self.get_rewrites().await?;
         let matching = existing
             .iter()
@@ -122,7 +129,8 @@ impl AdGuardClient {
         let existing = self.get_rewrites().await?;
         let mut duplicate_keys = Vec::new();
         for rewrite in &existing {
-            if existing.iter().filter(|item| *item == rewrite).count() > 1
+            if !has_underscore_domain(&rewrite.domain)
+                && existing.iter().filter(|item| *item == rewrite).count() > 1
                 && !duplicate_keys.contains(rewrite)
             {
                 duplicate_keys.push(rewrite.clone());
@@ -152,6 +160,9 @@ impl AdGuardClient {
     }
 
     pub async fn remove_all_rewrites(&self, domain: &str, answer: &str) -> Result<()> {
+        if has_underscore_domain(domain) {
+            return Ok(());
+        }
         let count = self
             .get_rewrites()
             .await?
@@ -236,6 +247,12 @@ mod tests {
         let client = AdGuardClient::new(&config);
         assert!(client.is_ok());
         assert_eq!(client.unwrap().endpoint, "http://127.0.0.1:80");
+    }
+
+    #[test]
+    fn underscore_domains_are_rejected_for_reconciliation() {
+        assert!(has_underscore_domain("sutradhar_aalay_top.aalay.top"));
+        assert!(!has_underscore_domain("sutradhar-aalay-top.aalay.top"));
     }
 
     #[tokio::test]

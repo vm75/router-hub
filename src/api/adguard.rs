@@ -1,8 +1,10 @@
+use std::{net::IpAddr, time::Duration};
+
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    adguard::{AdGuardClient, get_lan_ip},
+    adguard::{AdGuardClient, get_lan_ip, has_underscore_domain},
     api::ApiError,
     config::AdGuardConfig,
     models::ApiMessage,
@@ -38,6 +40,106 @@ pub struct UpdateAdGuardRequest {
 pub struct RewriteEntry {
     pub domain: String,
     pub answer: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct HostsEntry {
+    pub ip: String,
+    pub hostnames: Vec<String>,
+}
+
+fn validate_hostname(hostname: &str) -> bool {
+    !hostname.is_empty()
+        && hostname.len() <= 253
+        && !hostname.starts_with('.')
+        && !hostname.ends_with('.')
+        && !hostname.chars().any(|c| c.is_whitespace() || c == '#')
+}
+
+fn parse_hosts(content: &str) -> Result<Vec<HostsEntry>, ApiError> {
+    let mut entries = Vec::new();
+    for (line_number, line) in content.lines().enumerate() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut fields = line.split_whitespace();
+        let ip = fields.next().unwrap_or_default();
+        if ip.parse::<IpAddr>().is_err() {
+            return Err(ApiError::internal(anyhow::anyhow!(
+                "invalid IP address on hosts.add line {}",
+                line_number + 1
+            )));
+        }
+        let hostnames: Vec<_> = fields.map(str::to_string).collect();
+        if hostnames.is_empty() || hostnames.iter().any(|host| !validate_hostname(host)) {
+            return Err(ApiError::internal(anyhow::anyhow!(
+                "invalid hostname on hosts.add line {}",
+                line_number + 1
+            )));
+        }
+        entries.push(HostsEntry {
+            ip: ip.to_string(),
+            hostnames,
+        });
+    }
+    Ok(entries)
+}
+
+fn hosts_content(entries: &[HostsEntry]) -> Result<String, ApiError> {
+    let mut content = String::new();
+    for entry in entries {
+        if entry.ip.parse::<IpAddr>().is_err()
+            || entry.hostnames.is_empty()
+            || entry.hostnames.iter().any(|host| !validate_hostname(host))
+        {
+            return Err(ApiError::bad_request(
+                "each hosts.add entry requires a valid IP and one or more hostnames",
+            ));
+        }
+        content.push_str(&entry.ip);
+        for hostname in &entry.hostnames {
+            content.push(' ');
+            content.push_str(hostname);
+        }
+        content.push('\n');
+    }
+    Ok(content)
+}
+
+pub async fn get_hosts(State(state): State<AppState>) -> Result<Json<Vec<HostsEntry>>, ApiError> {
+    let path = &state.config.paths.hosts_add;
+    let content = match tokio::fs::read_to_string(path).await {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(ApiError::internal(error)),
+    };
+    Ok(Json(parse_hosts(&content)?))
+}
+
+pub async fn update_hosts(
+    State(state): State<AppState>,
+    Json(entries): Json<Vec<HostsEntry>>,
+) -> Result<Json<Vec<HostsEntry>>, ApiError> {
+    let content = hosts_content(&entries)?;
+    crate::nginx::atomic_write(&state.config.paths.hosts_add, content.as_bytes())
+        .map_err(ApiError::internal)?;
+    let result = state
+        .runner
+        .run(
+            &state.config.commands.service,
+            ["dnsmasq", "restart"],
+            Duration::from_secs(30),
+        )
+        .await
+        .map_err(ApiError::internal)?;
+    if !result.success {
+        return Err(ApiError::conflict(format!(
+            "dnsmasq restart failed: {}",
+            result.stderr
+        )));
+    }
+    Ok(Json(entries))
 }
 
 pub async fn get_effective_config(state: &AppState) -> AdGuardConfig {
@@ -158,7 +260,10 @@ async fn editable_rewrites(
         .await
         .map_err(ApiError::internal)?
         .into_iter()
-        .filter(|rewrite| !managed.contains(&rewrite.domain.to_ascii_lowercase()))
+        .filter(|rewrite| {
+            !has_underscore_domain(&rewrite.domain)
+                && !managed.contains(&rewrite.domain.to_ascii_lowercase())
+        })
         .map(|rewrite| RewriteEntry {
             domain: rewrite.domain,
             answer: rewrite.answer,
@@ -200,6 +305,11 @@ pub async fn update_rewrites(
                 "DNS rewrite domain and answer are required",
             ));
         }
+        if has_underscore_domain(&domain) {
+            return Err(ApiError::bad_request(
+                "DNS rewrite domains may not contain underscores",
+            ));
+        }
         if managed.contains(&domain.to_ascii_lowercase()) {
             return Err(ApiError::bad_request(format!(
                 "DNS rewrite for nginx site {domain} is managed by Router Hub"
@@ -213,7 +323,8 @@ pub async fn update_rewrites(
 
     let existing = client.get_rewrites().await.map_err(ApiError::internal)?;
     for rewrite in existing.iter().filter(|rewrite| {
-        !managed.contains(&rewrite.domain.to_ascii_lowercase())
+        !has_underscore_domain(&rewrite.domain)
+            && !managed.contains(&rewrite.domain.to_ascii_lowercase())
             && !desired
                 .iter()
                 .any(|wanted| wanted.domain == rewrite.domain && wanted.answer == rewrite.answer)
