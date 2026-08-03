@@ -244,6 +244,7 @@ async fn dashboard(State(state): State<AppState>) -> Result<Json<Dashboard>, Api
         active_ip_bans,
         active_subnet_bans,
         firewall_enabled,
+        firewall_health: firewall_status.health,
     }))
 }
 

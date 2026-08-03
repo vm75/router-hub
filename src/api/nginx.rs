@@ -33,6 +33,13 @@ pub struct FileContent {
     content: String,
 }
 
+#[derive(Deserialize)]
+pub struct TemplateContent {
+    content: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct ObjectContent {
     object: NginxObject,
@@ -783,11 +790,16 @@ pub async fn get_template(
 pub async fn put_template(
     State(state): State<AppState>,
     Path((kind, name)): Path<(String, String)>,
-    Json(body): Json<FileContent>,
+    Json(body): Json<TemplateContent>,
 ) -> Result<Json<ApiMessage>, ApiError> {
     let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
-    nginx_core::write_template(&state.config, kind, &name, &body.content)
-        .map_err(conflict_or_bad_request)?;
+    if let Some(new_name) = body.name.as_deref().filter(|value| *value != name) {
+        nginx_core::rename_template(&state.config, kind, &name, new_name, &body.content)
+            .map_err(conflict_or_bad_request)?;
+    } else {
+        nginx_core::write_template(&state.config, kind, &name, &body.content)
+            .map_err(conflict_or_bad_request)?;
+    }
     Ok(Json(ApiMessage::new("nginx template saved")))
 }
 

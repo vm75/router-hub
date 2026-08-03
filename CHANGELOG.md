@@ -2,6 +2,15 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.5.0
+
+### Added
+
+- Added firewall health and capacity reporting to the dashboard.
+- Added sortable columns to nginx, firewall, DNS, and DHCP tables.
+- Added nginx template duplication and renaming support.
+- Added upstream port display for nginx objects.
+
 ## 0.4.0
 
 ### Added

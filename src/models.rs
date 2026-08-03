@@ -38,6 +38,8 @@ pub struct NginxObject {
     pub path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
     pub enabled: bool,
     pub running: bool,
     pub modified: Option<DateTime<Utc>>,
@@ -228,6 +230,7 @@ pub struct Dashboard {
     pub active_ip_bans: usize,
     pub active_subnet_bans: usize,
     pub firewall_enabled: bool,
+    pub firewall_health: EngineHealth,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

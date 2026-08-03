@@ -231,6 +231,18 @@ fn object_entry(
             .to_string_lossy()
             .to_string(),
         template: template_name(&content),
+        port: site_upstream_with_key(
+            config,
+            kind,
+            domain,
+            name,
+            &extract_server_names(&content),
+            (kind == NginxObjectKind::Subfolder)
+                .then(|| subfolder_map_key(&content, name))
+                .transpose()?
+                .as_deref(),
+        )?
+        .and_then(|upstream| url::Url::parse(&upstream).ok()?.port()),
         enabled,
         running: enabled && parent_enabled && nginx_running,
         modified: metadata.modified().ok().map(DateTime::<Utc>::from),
@@ -1055,6 +1067,27 @@ pub fn write_template(
     content: &str,
 ) -> Result<()> {
     atomic_write(&template_path(config, kind, name)?, content.as_bytes())
+}
+
+pub fn rename_template(
+    config: &AppConfig,
+    kind: NginxObjectKind,
+    old_name: &str,
+    new_name: &str,
+    content: &str,
+) -> Result<()> {
+    let old_path = template_path(config, kind, old_name)?;
+    let new_path = template_path(config, kind, new_name)?;
+    ensure_regular_file(&old_path, "nginx template")?;
+    if new_path.exists() {
+        bail!("nginx template already exists");
+    }
+    fs::rename(&old_path, &new_path)?;
+    if let Err(error) = atomic_write(&new_path, content.as_bytes()) {
+        let _ = fs::rename(&new_path, &old_path);
+        return Err(error);
+    }
+    Ok(())
 }
 
 pub fn delete_template(config: &AppConfig, kind: NginxObjectKind, name: &str) -> Result<()> {
