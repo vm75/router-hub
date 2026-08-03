@@ -4,6 +4,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <link rel="shortcut icon" href="/favicon.png">
+  <link rel="icon" href="/favicon.png">
   <title>Router Hub</title>
   <style>
     /* ── Standalone-mode base (ASUS owns the outer page when this body is embedded) ── */
@@ -968,7 +970,7 @@
         <div class="card pad">
           <div class="toolbar">
             <div><strong>AdGuard Home</strong> <span id="adguard-status"></span></div>
-            <div class="actions"><button class="btn" onclick="openAdguardRewrites()">Manage DNS rewrites</button><button class="btn" onclick="openAdguardHosts()">Manage hosts.add</button><button class="btn primary" onclick="launchAdGuard()">Launch Web UI</button></div>
+            <div class="actions"><button class="btn primary" onclick="launchAdGuard()">Launch Web UI</button></div>
           </div>
           <div class="grid" style="margin-top:12px">
             <div class="span-6">
@@ -987,6 +989,10 @@
               </div>
             </div>
           </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="card pad">
+          <div class="toolbar"><div><strong>Router Hub DNS files</strong><div class="hint">Manage local DNS overrides and DHCP reservations.</div></div><div class="actions"><button class="btn" onclick="openAdguardRewrites()">Manage DNS rewrites</button><button class="btn" onclick="openAdguardHosts()">Manage hosts.add</button><button class="btn" onclick="openDnsmasqHosts()">Manage dnsmasq.conf.add</button></div></div>
         </div>
         <div style="height:12px"></div>
         <div class="card pad">
@@ -1196,6 +1202,11 @@
       <div class="modal-foot"><button class="btn" onclick="closeEditor()">Cancel</button><button class="btn primary"
           id="editor-save">Save</button></div>
     </dialog>
+    <dialog class="modal rewrites-modal" id="dnsmasq-hosts-modal">
+      <div class="modal-head"><h3>DHCP reservations</h3><button class="btn small" onclick="closeDnsmasqHosts()">✕</button></div>
+      <div class="modal-body"><p class="hint">Only <code>dhcp-host</code> lines are managed. Interfaces, comments, and other directives are kept in <code>/jffs/configs/dnsmasq.conf.add</code> but are not shown here.</p><div class="table-wrap"><table class="table"><thead><tr><th>MAC address</th><th>Hostname</th><th>IP address</th><th>Actions</th></tr></thead><tbody id="dnsmasq-hosts-body"></tbody></table></div><div style="margin-top:12px"><button class="btn" onclick="addDnsmasqHost()">Add DHCP reservation</button></div></div>
+      <div class="modal-foot"><button class="btn" onclick="closeDnsmasqHosts()">Cancel</button><button class="btn primary" onclick="saveDnsmasqHosts()">Save and restart dnsmasq</button></div>
+    </dialog>
     <dialog class="modal" id="log-modal">
       <div class="modal-head">
         <h3 id="log-title">Output</h3><button class="btn small"
@@ -1271,15 +1282,17 @@
     if (fragmentToken) { sessionStorage.setItem('router-hub-token', fragmentToken); history.replaceState(null, '', location.pathname + location.search); }
     const CONFIG = { version: __ROUTER_HUB_VERSION_JSON__, apiBase: __ROUTER_HUB_API_BASE_JSON__, token: __ROUTER_HUB_TOKEN_JSON__ || sessionStorage.getItem('router-hub-token') };
     const apiBase = CONFIG.apiBase.replace('{PROTOCOL}', location.protocol).replace('{HOST}', location.hostname).replace(/\/$/, '');
-    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [] };
+    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [] };
     let wolStatusTimer;
     let wolStatusRequest;
     let wolStatusGeneration = 0;
     const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'] };
+    const requestedTab = new URLSearchParams(location.search).get('tab');
+    if (requestedTab && Object.prototype.hasOwnProperty.call(titles, requestedTab)) state.view = requestedTab;
     function esc(v = '') { return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
     function toast(message, error = false) { const el = document.getElementById('toast'); el.textContent = message; el.className = 'toast show' + (error ? ' error' : ''); clearTimeout(el.timer); el.timer = setTimeout(() => el.className = 'toast', 3600) }
     function setConnection(ok, label) { const status = document.getElementById('connection-status'); document.getElementById('connection').textContent = label || (ok ? 'Connected' : 'Offline'); status.classList.toggle('ok', ok); status.classList.toggle('bad', !ok) }
-    async function api(path, options = {}) { const headers = { ...(options.headers || {}), Authorization: `Bearer ${CONFIG.token}` }; if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json'; let response; try { response = await fetch(apiBase + '/api' + path, { ...options, headers }) } catch (error) { setConnection(false); throw error } setConnection(response.ok, response.ok ? 'Connected' : 'API error'); if (!response.ok) { let body = {}; try { body = await response.json() } catch { } throw new Error(body.error || body.message || `${response.status} ${response.statusText}`) } const type = response.headers.get('content-type') || ''; return type.includes('json') ? response.json() : response.text() }
+    async function api(path, options = {}) { const headers = { ...(options.headers || {}), Authorization: `Bearer ${CONFIG.token}` }; if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json'; if (options.body && (path === '/nginx/objects/domain' || path.startsWith('/nginx/objects/domain/'))) { try { const body = JSON.parse(options.body); const upstream = document.querySelector('#nginx-object-form [name=upstream], #nginx-object-edit [name=upstream]')?.value?.trim() || ''; body.upstream = upstream; options = { ...options, body: JSON.stringify(body) } } catch { } } let response; try { response = await fetch(apiBase + '/api' + path, { ...options, headers }) } catch (error) { setConnection(false); throw error } setConnection(response.ok, response.ok ? 'Connected' : 'API error'); if (!response.ok) { let body = {}; try { body = await response.json() } catch { } throw new Error(body.error || body.message || `${response.status} ${response.statusText}`) } const type = response.headers.get('content-type') || ''; return type.includes('json') ? response.json() : response.text() }
     function showOutput(title, value) { document.getElementById('log-title').textContent = title; document.getElementById('log-content').textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); document.getElementById('log-modal').showModal() }
     function emptyRow(cols, text = 'No items configured') { return `<tr><td colspan="${cols}" class="empty">${esc(text)}</td></tr>` }
     function status(ok, on = 'Running', off = 'Stopped') { return `<span class="status ${ok ? 'ok' : 'off'}">${ok ? on : off}</span>` }
@@ -1303,6 +1316,16 @@
       asusTabs.querySelectorAll('[data-view]').forEach(tab => {
         tab.classList.toggle('tabClicked', tab.dataset.view === state.view);
         tab.classList.toggle('tab', tab.dataset.view !== state.view);
+      });
+    }
+    function rhApplyView() {
+      document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === 'view-' + state.view));
+      document.getElementById('page-title').textContent = titles[state.view][0];
+      document.getElementById('page-subtitle').textContent = titles[state.view][1];
+      document.querySelectorAll('[data-view]').forEach(tab => {
+        const selected = tab.dataset.view === state.view;
+        tab.classList.toggle('tabClicked', selected);
+        tab.classList.toggle('tab', !selected);
       });
     }
     function rhSetupTabs() {
@@ -1333,6 +1356,9 @@
           document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
           const previousView = state.view;
           state.view = tab.dataset.view;
+          const url = new URL(location.href);
+          url.searchParams.set('tab', state.view);
+          history.replaceState(null, '', url);
           if (previousView === 'wol' && state.view !== 'wol') stopWolStatusPolling();
           document.getElementById('view-' + state.view).classList.add('active');
           document.getElementById('page-title').textContent = titles[state.view][0];
@@ -1340,6 +1366,7 @@
           refreshCurrent();
         });
       }
+      rhApplyView();
     }
     // Install before the ASUS window load handler so the observer sees both menu
     // renders. Keep the initial() hook as a fallback even if ASUS setup throws.
@@ -1379,7 +1406,7 @@
       let templates = [];
       try { templates = await api(`/nginx/templates/${kind}`) } catch (e) { return toast(e.message, true) }
       const nameField = kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" name="name" required placeholder="${kind === 'subdomain' ? 'app' : 'media'}"></div>`;
-      const upstreamField = kind === 'domain' ? '' : `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" placeholder="http://192.168.1.10:8080"><span class="hint">Optional. Router Hub adds this site to the hostname or subfolder upstream map.</span></div>`;
+      const upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" placeholder="http://192.168.1.10:8080"><span class="hint">Optional. Router Hub adds this site to the hostname or subfolder upstream map.</span></div>`;
       openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label><input class="input" name="domain" required placeholder="example.com"></div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates)}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-custom-config><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: kind === 'domain' ? null : v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
       wireNginxObjectForm(document.getElementById('nginx-object-form'), kind)
     }
@@ -1463,6 +1490,13 @@
     async function openAdguardHosts() { const modal = document.getElementById('hosts-modal'); try { state.adguardHosts = await api('/adguard/hosts'); renderAdguardHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
     function closeAdguardHosts() { document.getElementById('hosts-modal').close() }
     async function saveAdguardHosts() { try { state.adguardHosts = await api('/adguard/hosts', { method: 'PUT', body: JSON.stringify(state.adguardHosts) }); closeAdguardHosts(); toast('hosts.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
+    function renderDnsmasqHosts() { const body = document.getElementById('dnsmasq-hosts-body'); body.innerHTML = state.dnsmasqHosts.length ? state.dnsmasqHosts.map((entry, index) => `<tr><td><input class="input" value="${esc(entry.mac)}" oninput="dnsmasqHostChanged(${index},'mac',this.value)"></td><td><input class="input" value="${esc(entry.hostname)}" oninput="dnsmasqHostChanged(${index},'hostname',this.value)"></td><td><input class="input" value="${esc(entry.ip)}" oninput="dnsmasqHostChanged(${index},'ip',this.value)"></td><td><button class="btn small danger" onclick="removeDnsmasqHost(${index})">Delete</button></td></tr>`).join('') : emptyRow(4, 'No DHCP reservations') }
+    function dnsmasqHostChanged(index, key, value) { if (state.dnsmasqHosts[index]) state.dnsmasqHosts[index][key] = value }
+    function addDnsmasqHost() { state.dnsmasqHosts.push({ mac: '', hostname: '', ip: '' }); renderDnsmasqHosts(); document.querySelector('#dnsmasq-hosts-body input')?.focus() }
+    function removeDnsmasqHost(index) { state.dnsmasqHosts.splice(index, 1); renderDnsmasqHosts() }
+    async function openDnsmasqHosts() { const modal = document.getElementById('dnsmasq-hosts-modal'); try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts'); renderDnsmasqHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
+    function closeDnsmasqHosts() { document.getElementById('dnsmasq-hosts-modal').close() }
+    async function saveDnsmasqHosts() { try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts', { method: 'PUT', body: JSON.stringify(state.dnsmasqHosts) }); closeDnsmasqHosts(); toast('dnsmasq.conf.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
     function launchAdGuard() { if (state.adguard?.launch_url) window.open(state.adguard.launch_url, '_blank'); else if (state.adguard?.api_endpoint) window.open(state.adguard.api_endpoint, '_blank'); else toast('API endpoint not configured', true) }
     async function toggleAdguardProtection(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/protection', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard protection ${enabled ? 'enabled' : 'paused/disabled'}`); loadAdguard() } catch (e) { toast(e.message, true) } }
     async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
@@ -1498,7 +1532,7 @@
     }
     new MutationObserver(applyCertificateLockUi).observe(document.getElementById('certs-body'), { childList: true });
 
-    loadDashboard();
+    refreshCurrent();
   </script>
 </body>
 

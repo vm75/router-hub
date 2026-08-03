@@ -15,6 +15,7 @@ async fn setup_test_app() -> (axum::Router, AppState, tempfile::TempDir) {
     let mut config = AppConfig::default();
     config.apply_test_mode(&config_path).unwrap();
     config.paths.data_dir = temp.path().join("data");
+    config.paths.dnsmasq_conf_add = temp.path().join("dnsmasq.conf.add");
     config.commands.dehydrated = temp.path().join("dehydrated/dehydrated");
     config.certificates.certs_dir = temp.path().join("dehydrated/certs");
     config.nginx.root_dir = temp.path().join("nginx");
@@ -31,6 +32,10 @@ async fn setup_test_app() -> (axum::Router, AppState, tempfile::TempDir) {
         .nginx
         .root_dir
         .join("conf.d/04_subfolder_upstream_map.conf");
+    config.nginx.domain_upstream_map_path = config
+        .nginx
+        .root_dir
+        .join("conf.d/02_domain_upstream_map.conf");
     config.nginx.http_forwarder_path = config.nginx.root_dir.join("conf.d/05-http-to-https.conf");
     config.nginx.log_dir = temp.path().join("logs/nginx");
     config.firewall.log_dirs = vec![temp.path().to_path_buf()];
@@ -62,6 +67,20 @@ async fn test_unauthenticated_endpoints() {
         .await
         .unwrap();
     assert_eq!(bytes.as_ref(), b"ok");
+
+    let req = Request::builder()
+        .uri("/favicon.png")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "image/png");
+    assert!(
+        !axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Test GET /api/version
     let req = Request::builder()
@@ -576,6 +595,7 @@ async fn test_nginx_files_templates_objects_actions_and_logs_api() {
         "domain": "example.test",
         "name": "example.test",
         "template": "basic",
+        "upstream": "http://127.0.0.1:8080",
         "enabled": true
     });
     let req = Request::builder()
@@ -587,6 +607,16 @@ async fn test_nginx_files_templates_objects_actions_and_logs_api() {
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let domain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(domain["upstream"], "http://127.0.0.1:8080");
+    assert!(
+        std::fs::read_to_string(&state.config.nginx.domain_upstream_map_path)
+            .unwrap()
+            .contains("example.test http://127.0.0.1:8080;")
+    );
 
     let req = Request::builder()
         .method("PUT")
@@ -1069,5 +1099,50 @@ async fn test_adguard_hosts_are_saved_and_read_back() {
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
         payload
+    );
+}
+
+#[tokio::test]
+async fn test_dnsmasq_hosts_manage_only_dhcp_host_lines() {
+    let (app, state, _temp) = setup_test_app().await;
+    std::fs::write(
+        &state.config.paths.dnsmasq_conf_add,
+        "interface=wg*     # WireGuard\n\n# keep this\ndhcp-host=AA:BB:CC:DD:EE:FF,set:AA:BB:CC:DD:EE:FF,old,192.168.1.20\n",
+    )
+    .unwrap();
+    let req = Request::builder()
+        .uri("/api/adguard/dnsmasq-hosts")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
+        serde_json::json!([
+            {"mac":"AA:BB:CC:DD:EE:FF","hostname":"old","ip":"192.168.1.20"}
+        ])
+    );
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/adguard/dnsmasq-hosts")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!([
+                {"mac":"AA:BB:CC:DD:EE:FF","hostname":"new","ip":"192.168.1.21"}
+            ])
+            .to_string(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        std::fs::read_to_string(&state.config.paths.dnsmasq_conf_add).unwrap(),
+        "interface=wg*     # WireGuard\n\n# keep this\ndhcp-host=AA:BB:CC:DD:EE:FF,set:AA:BB:CC:DD:EE:FF,new,192.168.1.21\n"
     );
 }

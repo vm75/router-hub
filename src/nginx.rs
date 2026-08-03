@@ -395,13 +395,10 @@ pub fn render_template(
         .replace("{{server_name}}", &server_name))
 }
 
-pub fn validate_site_upstream(kind: NginxObjectKind, upstream: Option<&str>) -> Result<()> {
+pub fn validate_site_upstream(_kind: NginxObjectKind, upstream: Option<&str>) -> Result<()> {
     let Some(upstream) = upstream.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(());
     };
-    if kind == NginxObjectKind::Domain {
-        bail!("domain objects do not use an upstream map");
-    }
     if !(upstream.starts_with("http://") || upstream.starts_with("https://"))
         || upstream
             .chars()
@@ -421,7 +418,20 @@ pub fn site_upstream_with_key(
     map_key: Option<&str>,
 ) -> Result<Option<String>> {
     match kind {
-        NginxObjectKind::Domain => Ok(None),
+        NginxObjectKind::Domain => {
+            let names = normalize_server_names(kind, domain, name, server_names)?;
+            for server_name in names {
+                if let Some(value) = read_map_value(
+                    config,
+                    &config.nginx.domain_upstream_map_path,
+                    "map $host $domain_upstream",
+                    &server_name,
+                )? {
+                    return Ok(Some(value));
+                }
+            }
+            Ok(None)
+        }
         NginxObjectKind::Subdomain => {
             let names = normalize_server_names(kind, domain, name, server_names)?;
             for server_name in names {
@@ -493,8 +503,7 @@ pub fn sync_site_upstream(
     validate_site_upstream(kind, upstream)?;
 
     match kind {
-        NginxObjectKind::Domain => Ok(()),
-        NginxObjectKind::Subdomain => {
+        NginxObjectKind::Domain | NginxObjectKind::Subdomain => {
             let old_names = old_server_names.to_vec();
             let new_names = if new_server_names.is_empty() {
                 Vec::new()
@@ -508,16 +517,20 @@ pub fn sync_site_upstream(
                 validate_map_key(name, "server name")?;
             }
 
+            let (map_path, map_header) = if kind == NginxObjectKind::Domain {
+                (
+                    &config.nginx.domain_upstream_map_path,
+                    "map $host $domain_upstream",
+                )
+            } else {
+                (
+                    &config.nginx.subdomain_upstream_map_path,
+                    "map $host $subdomain_upstream",
+                )
+            };
             let has_existing = remove.iter().try_fold(false, |found, name| {
                 Ok::<_, anyhow::Error>(
-                    found
-                        || read_map_value(
-                            config,
-                            &config.nginx.subdomain_upstream_map_path,
-                            "map $host $subdomain_upstream",
-                            name,
-                        )?
-                        .is_some(),
+                    found || read_map_value(config, map_path, map_header, name)?.is_some(),
                 )
             })?;
             if upstream.is_none() && !has_existing {
@@ -532,8 +545,8 @@ pub fn sync_site_upstream(
             });
             update_map_file(
                 config,
-                &config.nginx.subdomain_upstream_map_path,
-                "map $host $subdomain_upstream",
+                map_path,
+                map_header,
                 additions.as_deref().unwrap_or(&[]),
                 |line| map_entry_key(line).is_some_and(|key| remove.contains(key)),
             )
@@ -1224,6 +1237,7 @@ mod tests {
         config.nginx.templates_dir = root.join("templates");
         config.nginx.subdomain_upstream_map_path =
             root.join("conf.d/03_subdomain_upstream_map.conf");
+        config.nginx.domain_upstream_map_path = root.join("conf.d/02_domain_upstream_map.conf");
         config.nginx.subfolder_upstream_map_path =
             root.join("conf.d/04_subfolder_upstream_map.conf");
         config.nginx.http_forwarder_path = root.join("conf.d/05-http-to-https.conf");
@@ -1454,6 +1468,18 @@ mod tests {
         .unwrap();
         sync_site_upstream(
             &config,
+            NginxObjectKind::Domain,
+            "example.test",
+            "example.test",
+            None,
+            None,
+            &[],
+            &["example.test".to_string()],
+            Some("http://127.0.0.1:8083"),
+        )
+        .unwrap();
+        sync_site_upstream(
+            &config,
             NginxObjectKind::Subfolder,
             "example.test",
             "media",
@@ -1481,6 +1507,21 @@ mod tests {
             .unwrap()
             .as_deref(),
             Some("http://127.0.0.1:8080")
+        );
+        let domain_map = fs::read_to_string(&config.nginx.domain_upstream_map_path).unwrap();
+        assert!(domain_map.contains("example.test http://127.0.0.1:8083;"));
+        assert_eq!(
+            site_upstream_with_key(
+                &config,
+                NginxObjectKind::Domain,
+                "example.test",
+                "example.test",
+                &["example.test".to_string()],
+                None,
+            )
+            .unwrap()
+            .as_deref(),
+            Some("http://127.0.0.1:8083")
         );
         let subfolder_map = fs::read_to_string(&config.nginx.subfolder_upstream_map_path).unwrap();
         assert!(subfolder_map.contains("media http://127.0.0.1:8081;"));

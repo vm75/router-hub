@@ -148,6 +148,7 @@ mod tests {
         assert!(!standalone.contains("my-secret-token"));
         assert_eq!(standalone.matches("<html").count(), 1);
         assert_eq!(standalone.matches("<body").count(), 1);
+        assert!(standalone.contains("rel=\"icon\" href=\"/favicon.png\""));
         assert!(standalone.contains("<details class=\"card nginx-root\">"));
         assert_eq!(
             standalone
@@ -164,6 +165,7 @@ mod tests {
         assert!(rendered.contains("my-secret-token"));
         assert!(!rendered.contains("<!-- contents -->"));
         assert!(!rendered.contains("<!-- router-hub-head -->"));
+        assert!(rendered.contains("rel=\"icon\" href=\"images/favicon.png\""));
         assert!(rendered.contains("<div id=\"TopBanner\"></div>"));
         assert_eq!(rendered.matches("<html").count(), 1);
         assert_eq!(rendered.matches("<body").count(), 1);

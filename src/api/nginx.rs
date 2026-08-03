@@ -52,7 +52,7 @@ pub struct CreateObject {
     content: Option<String>,
     #[serde(default)]
     server_names: Vec<String>,
-    /// Optional target for the generated subdomain/subfolder upstream map.
+    /// Optional target for the generated domain/subdomain/subfolder upstream map.
     #[serde(default)]
     upstream: Option<String>,
     #[serde(default)]

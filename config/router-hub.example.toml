@@ -11,6 +11,7 @@ max_request_bytes = 1048576
 data_dir = "/opt/etc/router-hub"
 runtime_dir = "/opt/var/run/router-hub"
 hosts_add = "/jffs/configs/hosts.add"
+dnsmasq_conf_add = "/jffs/configs/dnsmasq.conf.add"
 
 [commands]
 mount = "/bin/mount"
@@ -54,6 +55,7 @@ domains_enabled_dir = "/opt/etc/nginx/domains-enabled"
 templates_dir = "/opt/etc/nginx/templates"
 # Router Hub updates these includes when sites are created or edited.
 subdomain_upstream_map_path = "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
+domain_upstream_map_path = "/opt/etc/nginx/conf.d/02_domain_upstream_map.conf"
 subfolder_upstream_map_path = "/opt/etc/nginx/conf.d/04_subfolder_upstream_map.conf"
 http_forwarder_path = "/opt/etc/nginx/conf.d/05-http-to-https.conf"
 log_dir = "/opt/var/log/nginx"

@@ -14,6 +14,8 @@ use axum::{
 };
 use serde::Serialize;
 
+const FAVICON: &[u8] = include_bytes!("../../data/www/images/favicon.png");
+
 use tower_http::{
     cors::{Any, CorsLayer},
     limit::RequestBodyLimitLayer,
@@ -53,6 +55,7 @@ pub fn app(state: AppState) -> anyhow::Result<Router> {
 
     Ok(Router::new()
         .route("/", get(index))
+        .route("/favicon.png", get(favicon))
         .route("/healthz", get(health))
         .route("/api/version", get(version))
         .nest("/api", api)
@@ -165,11 +168,19 @@ pub fn router() -> Router<AppState> {
             "/adguard/hosts",
             get(adguard::get_hosts).put(adguard::update_hosts),
         )
+        .route(
+            "/adguard/dnsmasq-hosts",
+            get(adguard::get_dnsmasq_hosts).put(adguard::update_dnsmasq_hosts),
+        )
         .route("/adguard/protection", post(adguard::set_protection))
 }
 
 pub async fn index(State(state): State<AppState>) -> Response {
     Html(asus_ui::render_ui(&state.config)).into_response()
+}
+
+pub async fn favicon() -> Response {
+    ([("content-type", "image/png")], FAVICON).into_response()
 }
 
 pub async fn health() -> &'static str {

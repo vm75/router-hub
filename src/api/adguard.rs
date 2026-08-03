@@ -48,6 +48,13 @@ pub struct HostsEntry {
     pub hostnames: Vec<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct DnsmasqHostEntry {
+    pub mac: String,
+    pub hostname: String,
+    pub ip: String,
+}
+
 fn validate_hostname(hostname: &str) -> bool {
     !hostname.is_empty()
         && hostname.len() <= 253
@@ -105,6 +112,132 @@ fn hosts_content(entries: &[HostsEntry]) -> Result<String, ApiError> {
         content.push('\n');
     }
     Ok(content)
+}
+
+fn validate_dnsmasq_field(value: &str, label: &str) -> Result<(), ApiError> {
+    if value.is_empty() || value.chars().any(|c| c.is_whitespace() || ",#".contains(c)) {
+        return Err(ApiError::bad_request(format!("invalid dnsmasq {label}")));
+    }
+    Ok(())
+}
+
+fn parse_dnsmasq_hosts(content: &str) -> Result<Vec<DnsmasqHostEntry>, ApiError> {
+    let mut entries = Vec::new();
+    for (line_number, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("dhcp-host=") {
+            continue;
+        }
+        let fields: Vec<_> = trimmed["dhcp-host=".len()..].split(',').collect();
+        if fields.len() < 4 {
+            return Err(ApiError::internal(anyhow::anyhow!(
+                "invalid dhcp-host line {}",
+                line_number + 1
+            )));
+        }
+        let mac = fields[0].trim().to_string();
+        let hostname = fields[2].trim().to_string();
+        let ip = fields[3]
+            .split('#')
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        validate_dnsmasq_field(&mac, "MAC address")?;
+        validate_hostname(&hostname).then_some(()).ok_or_else(|| {
+            ApiError::internal(anyhow::anyhow!(
+                "invalid hostname on dhcp-host line {}",
+                line_number + 1
+            ))
+        })?;
+        if ip.parse::<IpAddr>().is_err() {
+            return Err(ApiError::internal(anyhow::anyhow!(
+                "invalid IP address on dhcp-host line {}",
+                line_number + 1
+            )));
+        }
+        entries.push(DnsmasqHostEntry { mac, hostname, ip });
+    }
+    Ok(entries)
+}
+
+fn dnsmasq_hosts_content(entries: &[DnsmasqHostEntry]) -> Result<String, ApiError> {
+    let mut content = String::new();
+    for entry in entries {
+        validate_dnsmasq_field(entry.mac.trim(), "MAC address")?;
+        validate_hostname(entry.hostname.trim())
+            .then_some(())
+            .ok_or_else(|| ApiError::bad_request("invalid dnsmasq hostname"))?;
+        if entry.ip.parse::<IpAddr>().is_err() {
+            return Err(ApiError::bad_request("invalid dnsmasq IP address"));
+        }
+        let mac = entry.mac.trim();
+        content.push_str(&format!(
+            "dhcp-host={mac},set:{mac},{},{}\n",
+            entry.hostname.trim(),
+            entry.ip
+        ));
+    }
+    Ok(content)
+}
+
+async fn read_dnsmasq_hosts(state: &AppState) -> Result<(String, Vec<DnsmasqHostEntry>), ApiError> {
+    let path = &state.config.paths.dnsmasq_conf_add;
+    let content = match tokio::fs::read_to_string(path).await {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(ApiError::internal(error)),
+    };
+    let entries = parse_dnsmasq_hosts(&content)?;
+    Ok((content, entries))
+}
+
+pub async fn get_dnsmasq_hosts(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<DnsmasqHostEntry>>, ApiError> {
+    Ok(Json(read_dnsmasq_hosts(&state).await?.1))
+}
+
+pub async fn update_dnsmasq_hosts(
+    State(state): State<AppState>,
+    Json(entries): Json<Vec<DnsmasqHostEntry>>,
+) -> Result<Json<Vec<DnsmasqHostEntry>>, ApiError> {
+    let (existing, _) = read_dnsmasq_hosts(&state).await?;
+    let managed = dnsmasq_hosts_content(&entries)?;
+    let mut content = String::new();
+    let mut inserted = false;
+    for line in existing.lines() {
+        if line.trim().starts_with("dhcp-host=") {
+            if !inserted {
+                content.push_str(&managed);
+                inserted = true;
+            }
+            continue;
+        }
+        content.push_str(line);
+        content.push('\n');
+    }
+    if !inserted {
+        content.push_str(&managed);
+    }
+    crate::nginx::atomic_write(&state.config.paths.dnsmasq_conf_add, content.as_bytes())
+        .map_err(ApiError::internal)?;
+    let result = state
+        .runner
+        .run(
+            &state.config.commands.service,
+            ["dnsmasq", "restart"],
+            Duration::from_secs(30),
+        )
+        .await
+        .map_err(ApiError::internal)?;
+    if !result.success {
+        return Err(ApiError::conflict(format!(
+            "dnsmasq restart failed: {}",
+            result.stderr
+        )));
+    }
+    Ok(Json(entries))
 }
 
 pub async fn get_hosts(State(state): State<AppState>) -> Result<Json<Vec<HostsEntry>>, ApiError> {

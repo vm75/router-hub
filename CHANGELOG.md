@@ -2,6 +2,20 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.0
+
+### Added
+
+- Added authenticated management of dnsmasq DHCP reservations while preserving
+  unmanaged directives and comments.
+- Added favicon serving and navigation support for direct links to UI tabs.
+
+### Changed
+
+- Added domain upstream-map support alongside existing subdomain and subfolder
+  upstream maps.
+- Added the DNS reservation controls to the web UI.
+
 ## 0.3.0
 
 ### Added

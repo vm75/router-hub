@@ -71,6 +71,7 @@ impl AppConfig {
         self.paths.data_dir = root.join("data");
         self.paths.runtime_dir = root.join("test-fixtures/runtime");
         self.paths.hosts_add = root.join("test-fixtures/hosts.add");
+        self.paths.dnsmasq_conf_add = root.join("test-fixtures/dnsmasq.conf.add");
         self.services.init_dir = root.join("test-fixtures/init.d");
         self.services.log_dirs = vec![root.join("test-fixtures/logs")];
         self.nginx.root_dir = root.join("test-fixtures/nginx");
@@ -81,6 +82,8 @@ impl AppConfig {
         self.nginx.templates_dir = root.join("test-fixtures/nginx/templates");
         self.nginx.subdomain_upstream_map_path =
             root.join("test-fixtures/nginx/conf.d/03_subdomain_upstream_map.conf");
+        self.nginx.domain_upstream_map_path =
+            root.join("test-fixtures/nginx/conf.d/02_domain_upstream_map.conf");
         self.nginx.subfolder_upstream_map_path =
             root.join("test-fixtures/nginx/conf.d/04_subfolder_upstream_map.conf");
         self.nginx.http_forwarder_path =
@@ -274,6 +277,7 @@ pub struct PathsConfig {
     pub runtime_dir: PathBuf,
     pub log_file: PathBuf,
     pub hosts_add: PathBuf,
+    pub dnsmasq_conf_add: PathBuf,
 }
 
 impl Default for PathsConfig {
@@ -283,6 +287,7 @@ impl Default for PathsConfig {
             runtime_dir: "/opt/var/run/router-hub".into(),
             log_file: "/opt/var/log/router-hub.log".into(),
             hosts_add: "/jffs/configs/hosts.add".into(),
+            dnsmasq_conf_add: "/jffs/configs/dnsmasq.conf.add".into(),
         }
     }
 }
@@ -380,6 +385,8 @@ pub struct NginxConfig {
     pub templates_dir: PathBuf,
     /// Nginx `map $host $subdomain_upstream` include managed by site changes.
     pub subdomain_upstream_map_path: PathBuf,
+    /// Nginx `map $host $domain_upstream` include managed by domain changes.
+    pub domain_upstream_map_path: PathBuf,
     /// Nginx subfolder URI/upstream maps managed by site changes.
     pub subfolder_upstream_map_path: PathBuf,
     /// HTTP-to-HTTPS server block generated for enabled domains and subdomains.
@@ -400,6 +407,7 @@ impl Default for NginxConfig {
             templates_dir: "/opt/etc/nginx/templates".into(),
             subdomain_upstream_map_path: "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
                 .into(),
+            domain_upstream_map_path: "/opt/etc/nginx/conf.d/02_domain_upstream_map.conf".into(),
             subfolder_upstream_map_path: "/opt/etc/nginx/conf.d/04_subfolder_upstream_map.conf"
                 .into(),
             http_forwarder_path: "/opt/etc/nginx/conf.d/05-http-to-https.conf".into(),
