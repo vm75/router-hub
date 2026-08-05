@@ -484,6 +484,16 @@
       background: linear-gradient(#8b2535 0%, #500f20 100%)
     }
 
+    .btn.action {
+      background: linear-gradient(#0e7490 0%, #155e75 100%);
+      color: #67e8f9
+    }
+
+    .btn.action:hover {
+      background: linear-gradient(#06b6d4 0%, #0e7490 100%);
+      color: #ffffff
+    }
+
     .btn.small {
       height: 24px;
       padding: 0 7px;
@@ -1492,7 +1502,8 @@
     function nginxObjectUrl(o) { return `/nginx/objects/${o.kind}/${encodeURIComponent(o.domain)}/${encodeURIComponent(o.name)}` }
     async function loadNginx() { await Promise.all([loadNginxObjects(), loadNginxStatus(), loadNginxFiles(), loadNginxTemplates(), loadNginxLogs()]) }
     function nginxObjectStatus(o) { const [kind, label] = !o.enabled ? ['off', 'Disabled'] : o.running ? ['ok', 'Live'] : ['warn', 'Enabled']; return `<span class="status ${kind}">${label}</span>` }
-    function nginxObjectRow(o) { const child = o.kind !== 'domain'; return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${esc(o.kind)}</span></td><td>${o.port ?? '<span class="muted">—</span>'}</td><td>${o.template ? `<span class="tag">${esc(o.template)}</span>` : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${o.kind}','${o.domain}','${o.name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${o.kind}','${o.domain}','${o.name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${o.kind}','${o.domain}','${o.name}')">Delete</button></div></td></tr>` }
+    function launchNginxSite(kind, domain, name) { const o = state.nginxObjects.find(x => x.kind === kind && x.domain === domain && x.name === name); const target = o ? (o.display_name || o.name) : (kind === 'subdomain' ? `${name}.${domain}` : kind === 'subfolder' ? `${domain}/${name}` : domain); if (!target) return toast('Site launch URL unavailable', true); const url = /^https?:\/\//i.test(target) ? target : `${location.protocol === 'https:' ? 'https:' : 'http:'}//${target}`; window.open(url, '_blank', 'noopener,noreferrer') }
+    function nginxObjectRow(o) { const child = o.kind !== 'domain', kind = esc(o.kind), domain = esc(o.domain), name = esc(o.name); return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${kind}</span></td><td>${o.port ?? '<span class="muted">—</span>'}</td><td>${o.template ? `<span class="tag">${esc(o.template)}</span>` : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${kind}','${domain}','${name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${kind}','${domain}','${name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${kind}','${domain}','${name}')">Delete</button><button class="btn small action" title="Launch site" aria-label="Launch site" onclick="launchNginxSite('${kind}','${domain}','${name}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M18 13v6a2 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button></div></td></tr>` }
     function nginxObjectRows(objects) { const sort = tableSorts.nginx, compare = (a, b) => sort.dir * compareTableValues(a, b, sort.key) || (a.kind || '').localeCompare(b.kind || '') || (a.display_name || a.name).localeCompare(b.display_name || b.name), domains = objects.filter(o => o.kind === 'domain').sort(compare), children = objects.filter(o => o.kind !== 'domain'), rows = []; domains.forEach(domain => { rows.push(domain); if (domain.enabled) rows.push(...children.filter(child => child.domain === domain.domain).sort(compare)) }); const knownDomains = new Set(domains.map(domain => domain.domain)); rows.push(...children.filter(child => !knownDomains.has(child.domain)).sort(compare)); return rows.map(nginxObjectRow).join('') }
     async function loadNginxObjects() { try { state.nginxObjects = await api('/nginx/objects'); document.getElementById('nginx-objects-body').innerHTML = state.nginxObjects.length ? nginxObjectRows(state.nginxObjects) : emptyRow(5, 'No nginx sites'); updateSortHeaders('nginx') } catch (e) { toast(e.message, true) } }
     async function loadNginxStatus() { try { const s = await api('/nginx/status'); document.getElementById('nginx-status').innerHTML = `${status(s.running)} <span title="Config: ${esc(s.config_path)} · Root: ${esc(s.root_dir)}">Config <code>${esc(s.config_path)}</code></span>` } catch (e) { document.getElementById('nginx-status').textContent = e.message } }

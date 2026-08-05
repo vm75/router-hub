@@ -46,6 +46,7 @@ firmware. Legacy MIPS support is not promised.
 - Keep context lean: search first and read only task-relevant files; do not scan generated, vendored, or build-output trees by default.
 - Do not read, search, or modify the `data/` directory unless explicitly requested by the user. It contains configuration and logs mirrored from the deployment router.
 - Preserve existing behavior and user changes. Do not reset or overwrite unrelated work.
+- Build the release binary (`./scripts/build-release.sh` or `cargo build --release`) before committing whenever the version is bumped.
 - Run privileged programs through `CommandRunner` as a program plus separate arguments. Never use `sh -c`, interpolation, `eval`, or arbitrary API-supplied command strings.
 - Keep router paths configurable and provide a test-mode override for every new router-specific path.
 - Preserve atomic JSON and nginx writes, path/symlink protections, token authentication, and bounded log reads.
@@ -63,6 +64,7 @@ firmware. Legacy MIPS support is not promised.
 ## Definition of done
 
 - Relevant tests, formatting, Clippy, and builds pass when available.
+- Release binary build (`./scripts/build-release.sh` or `cargo build --release`) is completed prior to committing version bumps.
 - New behavior has focused tests when practical.
 - Documentation describes the repository after the change and contains no placeholders or machine-local links.
 - No unrelated files, dependencies, generated artifacts, or claims were added.

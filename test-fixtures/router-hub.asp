@@ -7,6 +7,8 @@
     <meta HTTP-EQUIV="Pragma" CONTENT="no-cache">
     <link rel="stylesheet" type="text/css" href="index_style.css">
     <link rel="stylesheet" type="text/css" href="form_style.css">
+    <link rel="shortcut icon" href="images/favicon.png">
+    <link rel="icon" href="images/favicon.png">
     <script type="text/javascript" src="/js/jquery.js"></script>
     <script type="text/javascript" src="/state.js"></script>
     <script type="text/javascript" src="/popup.js"></script>
@@ -14,9 +16,52 @@
     /* ── Standalone-mode base (ASUS owns the outer page when this body is embedded) ── */
     body.rh-page {
       margin: 0;
-      background: #1a1f23;
+      background: #14171a;
       color: #fff;
       font: 13px/1.5 Arial, Helvetica, sans-serif
+    }
+
+    body.rh-page .rh-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 16px 20px 40px;
+    }
+
+    .rh-hero-banner {
+      display: none;
+    }
+
+    body.rh-page .rh-hero-banner {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: linear-gradient(135deg, #1e2938 0%, #111823 100%);
+      border: 1px solid #2a3a4e;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .rh-hero-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: contain;
+    }
+
+    .rh-hero-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+
+    .rh-hero-sub {
+      font-size: 12px;
+      color: #8b9bb0;
+      margin-top: 2px;
     }
 
     .rh-shell,
@@ -89,6 +134,11 @@
       display: flex;
       align-items: center;
       gap: 6px
+    }
+
+    /* Keep the first tab aligned with the content table in ASUS embedded mode. */
+    .rh-tabs > .rh-tab:first-child {
+      margin-left: 0
     }
 
     .rh-tab.tab {
@@ -167,14 +217,12 @@
       width: 28px;
       height: 28px;
       border-radius: 6px;
-      background: linear-gradient(135deg, var(--cyan), #2d8cff);
+      background: #ffffff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      color: #04131e;
-      font-weight: 900;
-      font-size: 11px;
-      flex-shrink: 0
+      flex-shrink: 0;
+      overflow: hidden
     }
 
     .rh-badge-copy {
@@ -332,6 +380,28 @@
       font-weight: normal
     }
 
+    .table-sort {
+      color: inherit;
+      background: none;
+      border: 0;
+      padding: 0;
+      font: inherit;
+      text-transform: inherit;
+      letter-spacing: inherit;
+      cursor: pointer
+    }
+
+    .table-sort:hover {
+      color: var(--asus-accent)
+    }
+
+    .table-sort-indicator {
+      display: inline-block;
+      width: 1em;
+      margin-left: 3px;
+      color: var(--asus-accent)
+    }
+
     .table td {
       padding: 8px 10px;
       border-bottom: 1px solid #2a3a42;
@@ -419,10 +489,25 @@
       background: linear-gradient(#8b2535 0%, #500f20 100%)
     }
 
+    .btn.action {
+      background: linear-gradient(#0e7490 0%, #155e75 100%);
+      color: #67e8f9
+    }
+
+    .btn.action:hover {
+      background: linear-gradient(#06b6d4 0%, #0e7490 100%);
+      color: #ffffff
+    }
+
     .btn.small {
       height: 24px;
       padding: 0 7px;
       font-size: 11px
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: .5
     }
 
     .actions {
@@ -712,6 +797,10 @@
       width: min(900px, calc(100vw - 20px))
     }
 
+    .rewrites-modal {
+      width: min(980px, calc(100vw - 20px))
+    }
+
     .bans-modal .modal-body {
       padding: 0;
       overflow: hidden
@@ -916,6 +1005,14 @@
 
   <div class="rh-shell">
 
+    <div class="rh-hero-banner">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiNmZmZmZmYiIC8+CgogIDxnIGZpbGw9IiMyODI4MjgiIHN0cm9rZT0iIzI4MjgyOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDwhLS0gV2ktRmkgU2lnbmFsIFdhdmVzIC0tPgogICAgPHBhdGggZD0iTSAxOTUsMTI4IEEgMTIwLDEyMCAwIDAsMSAzMDUsMTI4IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPHBhdGggZD0iTSAyMTUsMTQ4IEEgODUsODUgMCAwLDEgMjg1LDE0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIENvbm5lY3RpbmcgTmV0d29yayBMaW5lcyAtLT4KICAgIDxsaW5lIHgxPSIyNTAiIHkxPSIyMDUiIHgyPSIyNTAiIHkyPSIzMjUiIHN0cm9rZS13aWR0aD0iMjAiIC8+CiAgICA8bGluZSB4MT0iMTQwIiB5MT0iMjIyIiB4Mj0iMjUwIiB5Mj0iMjY1IiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPGxpbmUgeDE9IjM2MCIgeTE9IjIyMiIgeDI9IjI1MCIgeTI9IjI2NSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIE5ldHdvcmsgTm9kZXMgKENpcmNsZXMpIC0tPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMTgwIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMTMwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMzcwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMjc1IiByPSIyOCIgc3Ryb2tlPSJub25lIiAvPgoKICAgIDwhLS0gQW50ZW5uYXMgLS0+CiAgICA8cmVjdCB4PSIxNTYiIHk9IjI3NSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjU1IiByeD0iNyIgc3Ryb2tlPSJub25lIiAvPgogICAgPHJlY3QgeD0iMzMwIiB5PSIyNzUiIHdpZHRoPSIxNCIgaGVpZ2h0PSI1NSIgcng9IjciIHN0cm9rZT0ibm9uZSIgLz4KCiAgICA8IS0tIE1vZGVtIEJvZHkgLS0+CiAgICA8cmVjdCB4PSIxMzciIHk9IjMyNyIgd2lkdGg9IjIyNiIgaGVpZ2h0PSI2OCIgcng9IjIyIiBzdHJva2U9Im5vbmUiIC8+CgogICAgPCEtLSBMRUQgSW5kaWNhdG9yIExpZ2h0cyAtLT4KICAgIDxjaXJjbGUgY3g9IjE4MiIgY3k9IjM2MiIgcj0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjE3IiBjeT0iMzYyIiByPSI3IiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9Im5vbmUiIC8+CiAgICA8Y2lyY2xlIGN4PSIyNTIiIGN5PSIzNjIiIHI9IjciIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0ibm9uZSIgLz4KICA8L2c+Cjwvc3ZnPgo=" alt="Router Hub Logo" class="rh-hero-logo">
+      <div>
+        <div class="rh-hero-title">Router Hub</div>
+        <div class="rh-hero-sub">Entware Services &middot; Nginx &middot; Certificates &middot; Firewall &middot; AdGuard Home</div>
+      </div>
+    </div>
+
     <!-- Fallback tab nav for standalone mode; tabs are moved to ASUS #tabMenu when embedded -->
     <div id="rh-nav" class="submenuBlock rh-tabs">
       <div class="tabClicked rh-tab" data-view="dashboard">Dashboard</div>
@@ -935,14 +1032,14 @@
         <td class="brand-cell">
           <div class="rh-brand-info">
             <span class="rh-badge">
-              <span class="rh-logo">RH</span>
+              <span class="rh-logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiNmZmZmZmYiIC8+CgogIDxnIGZpbGw9IiMyODI4MjgiIHN0cm9rZT0iIzI4MjgyOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDwhLS0gV2ktRmkgU2lnbmFsIFdhdmVzIC0tPgogICAgPHBhdGggZD0iTSAxOTUsMTI4IEEgMTIwLDEyMCAwIDAsMSAzMDUsMTI4IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPHBhdGggZD0iTSAyMTUsMTQ4IEEgODUsODUgMCAwLDEgMjg1LDE0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIENvbm5lY3RpbmcgTmV0d29yayBMaW5lcyAtLT4KICAgIDxsaW5lIHgxPSIyNTAiIHkxPSIyMDUiIHgyPSIyNTAiIHkyPSIzMjUiIHN0cm9rZS13aWR0aD0iMjAiIC8+CiAgICA8bGluZSB4MT0iMTQwIiB5MT0iMjIyIiB4Mj0iMjUwIiB5Mj0iMjY1IiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPGxpbmUgeDE9IjM2MCIgeTE9IjIyMiIgeDI9IjI1MCIgeTI9IjI2NSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIE5ldHdvcmsgTm9kZXMgKENpcmNsZXMpIC0tPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMTgwIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMTMwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMzcwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMjc1IiByPSIyOCIgc3Ryb2tlPSJub25lIiAvPgoKICAgIDwhLS0gQW50ZW5uYXMgLS0+CiAgICA8cmVjdCB4PSIxNTYiIHk9IjI3NSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjU1IiByeD0iNyIgc3Ryb2tlPSJub25lIiAvPgogICAgPHJlY3QgeD0iMzMwIiB5PSIyNzUiIHdpZHRoPSIxNCIgaGVpZ2h0PSI1NSIgcng9IjciIHN0cm9rZT0ibm9uZSIgLz4KCiAgICA8IS0tIE1vZGVtIEJvZHkgLS0+CiAgICA8cmVjdCB4PSIxMzciIHk9IjMyNyIgd2lkdGg9IjIyNiIgaGVpZ2h0PSI2OCIgcng9IjIyIiBzdHJva2U9Im5vbmUiIC8+CgogICAgPCEtLSBMRUQgSW5kaWNhdG9yIExpZ2h0cyAtLT4KICAgIDxjaXJjbGUgY3g9IjE4MiIgY3k9IjM2MiIgcj0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjE3IiBjeT0iMzYyIiByPSI3IiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9Im5vbmUiIC8+CiAgICA8Y2lyY2xlIGN4PSIyNTIiIGN5PSIzNjIiIHI9IjciIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0ibm9uZSIgLz4KICA8L2c+Cjwvc3ZnPgo=" alt="RH" style="width:22px;height:22px;object-fit:contain"></span>
               <span class="rh-badge-copy">
                 <strong class="rh-model" id="router-model">Router</strong>
                 <span class="rh-conn" id="connection-status"><span class="rh-dot"></span><span
                     id="connection">Checking</span></span>
               </span>
             </span>
-            <span class="rh-version">v0.1.0</span>
+            <span class="rh-version">v0.5.2</span>
             <button class="btn" onclick="refreshCurrent()">Refresh</button>
           </div>
         </td>
@@ -987,21 +1084,34 @@
           </div>
           <div class="grid" style="margin-top:12px">
             <div class="span-6">
-              <h3 style="margin-top:0;font-size:13px">Protection</h3>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <h3 style="margin:0;font-size:13px">Pause Filtering</h3>
+                <div id="filtering-status"></div>
+              </div>
               <div class="actions">
-                <button class="btn" onclick="toggleAdguardProtection(true)">Enable</button>
-                <button class="btn danger" onclick="toggleAdguardProtection(false)">Disable</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,1)">1 min</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,10)">10 min</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,30)">30 min</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,60)">60 min</button>
               </div>
             </div>
             <div class="span-6">
-              <h3 style="margin-top:0;font-size:13px">Pause Protection</h3>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <h3 style="margin:0;font-size:13px">Pause Protection</h3>
+                <div id="protection-status"></div>
+              </div>
               <div class="actions">
                 <button class="btn" onclick="toggleAdguardProtection(false,1)">1 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,10)">10 min</button>
+                <button class="btn" onclick="toggleAdguardProtection(false,30)">30 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,60)">60 min</button>
               </div>
             </div>
           </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="card pad">
+          <div class="toolbar"><div><strong>Router Hub DNS files</strong><div class="hint">Manage local DNS overrides and DHCP reservations.</div></div><div class="actions"><button class="btn" onclick="openAdguardRewrites()">Manage DNS rewrites</button><button class="btn" onclick="openAdguardHosts()">Manage hosts.add</button><button class="btn" onclick="openDnsmasqHosts()">Manage dnsmasq.conf.add</button></div></div>
         </div>
         <div style="height:12px"></div>
         <div class="card pad">
@@ -1011,9 +1121,13 @@
               <div class="field full">
                 <label><input type="checkbox" name="enabled"> Enable AdGuard Integration</label>
               </div>
-              <div class="field full">
-                <label>Launch / API Endpoint (leave empty for default http://&lt;lan_ip&gt;:3000)</label>
+              <div class="field">
+                <label>API Endpoint (used for Router Hub API requests)</label>
                 <input class="input" name="api_endpoint" placeholder="http://192.168.1.1:3000">
+              </div>
+              <div class="field">
+                <label>Web UI Launch Alias (optional, used for launcher button)</label>
+                <input class="input" name="launch_url" placeholder="http://adguard.lan:3000">
               </div>
               <div class="field">
                 <label>Username (optional)</label>
@@ -1052,9 +1166,10 @@
               <table class="table">
                 <thead>
                   <tr>
-                    <th>Site</th>
-                    <th>Template</th>
-                    <th>State</th>
+                    <th><button class="table-sort" data-sort-table="nginx" data-sort-key="site" onclick="sortTable('nginx','site')">Site <span class="table-sort-indicator">↕</span></button></th>
+                    <th><button class="table-sort" data-sort-table="nginx" data-sort-key="port" onclick="sortTable('nginx','port')">Port <span class="table-sort-indicator">↕</span></button></th>
+                    <th><button class="table-sort" data-sort-table="nginx" data-sort-key="template" onclick="sortTable('nginx','template')">Template <span class="table-sort-indicator">↕</span></button></th>
+                    <th><button class="table-sort" data-sort-table="nginx" data-sort-key="state" onclick="sortTable('nginx','state')">State <span class="table-sort-indicator">↕</span></button></th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1103,6 +1218,10 @@
           HTTP challenges use the configured dehydrated <code>acme-challenge</code> directory; DNS certificates require
           an installed hook (or the default data-directory hook) and its environment values. Existing matching
           <code>.cfg</code>/<code>.txt</code> pairs are imported when Router Hub starts.</div>
+        <div class="notice warn" id="certificate-lock-notice" hidden>
+          Dehydrated is locked at <code id="certificate-lock-path"></code>. Certificate issue and renewal are disabled.
+          <button class="btn small danger" onclick="clearDehydratedLock()">Clear lock</button>
+        </div>
         <div class="card">
           <div class="card-head">
             <h2>Let's Encrypt certificates</h2>
@@ -1137,8 +1256,8 @@
                 <tr>
                   <th>Name</th>
                   <th>MAC</th>
-                  <th>Broadcast</th>
-                  <th class="hide-mobile">Notes</th>
+                  <th>IP</th>
+                  <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -1153,6 +1272,7 @@
         <div class="grid">
           <div class="card pad span-4">
             <h2 style="margin-top:0;font-size:13px">Protection</h2>
+            <div class="notice" id="fw-ban-summary">Active bans: — subnet · — IP</div>
             <div class="protection-setting">
               <label class="field" for="fw-enabled"><span>Engine</span><select id="fw-enabled" class="input">
                   <option value="false">Disabled</option>
@@ -1183,7 +1303,7 @@
                   <tr>
                     <th>Name</th>
                     <th>Weight / threshold</th>
-                    <th>Logs</th>
+                    <th>Hits / bans</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1206,6 +1326,11 @@
       <div class="modal-foot"><button class="btn" onclick="closeEditor()">Cancel</button><button class="btn primary"
           id="editor-save">Save</button></div>
     </dialog>
+    <dialog class="modal rewrites-modal" id="dnsmasq-hosts-modal">
+      <div class="modal-head"><h3>DHCP reservations</h3><button class="btn small" onclick="closeDnsmasqHosts()">✕</button></div>
+      <div class="modal-body"><p class="hint">Only <code>dhcp-host</code> lines are managed. Interfaces, comments, and other directives are kept in <code>/jffs/configs/dnsmasq.conf.add</code> but are not shown here.</p><div class="table-wrap"><table class="table"><thead><tr><th><button class="table-sort" data-sort-table="dnsmasq" data-sort-key="mac" onclick="sortTable('dnsmasq','mac')">MAC address <span class="table-sort-indicator">↕</span></button></th><th><button class="table-sort" data-sort-table="dnsmasq" data-sort-key="hostname" onclick="sortTable('dnsmasq','hostname')">Hostname <span class="table-sort-indicator">↕</span></button></th><th><button class="table-sort" data-sort-table="dnsmasq" data-sort-key="ip" onclick="sortTable('dnsmasq','ip')">IP address <span class="table-sort-indicator">↕</span></button></th><th>Actions</th></tr></thead><tbody id="dnsmasq-hosts-body"></tbody></table></div><div style="margin-top:12px"><button class="btn" onclick="addDnsmasqHost()">Add DHCP reservation</button></div></div>
+      <div class="modal-foot"><button class="btn" onclick="closeDnsmasqHosts()">Cancel</button><button class="btn primary" onclick="saveDnsmasqHosts()">Save and restart dnsmasq</button></div>
+    </dialog>
     <dialog class="modal" id="log-modal">
       <div class="modal-head">
         <h3 id="log-title">Output</h3><button class="btn small"
@@ -1214,6 +1339,13 @@
       <div class="modal-body">
         <pre class="log" id="log-content"></pre>
       </div>
+    </dialog>
+    <dialog class="modal" id="notes-modal">
+      <div class="modal-head">
+        <h3 id="notes-title">Notes</h3><button class="btn small"
+          onclick="document.getElementById('notes-modal').close()">✕</button>
+      </div>
+      <div class="modal-body" id="notes-content"></div>
     </dialog>
     <dialog class="modal bans-modal" id="bans-modal">
       <div class="modal-head">
@@ -1224,9 +1356,9 @@
           <table class="table">
             <thead>
               <tr>
-                <th>IP / subnet</th>
-                <th>Reason</th>
-                <th>Expires</th>
+                <th><button class="table-sort" data-sort-table="bans" data-sort-key="network" onclick="sortTable('bans','network')">IP / subnet <span class="table-sort-indicator">↕</span></button></th>
+                <th><button class="table-sort" data-sort-table="bans" data-sort-key="reason" onclick="sortTable('bans','reason')">Reason <span class="table-sort-indicator">↕</span></button></th>
+                <th><button class="table-sort" data-sort-table="bans" data-sort-key="expires" onclick="sortTable('bans','expires')">Expires <span class="table-sort-indicator">↕</span></button></th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -1235,18 +1367,63 @@
         </div>
       </div>
     </dialog>
+    <dialog class="modal rewrites-modal" id="rewrites-modal">
+      <div class="modal-head">
+        <h3>AdGuard DNS rewrites</h3><button class="btn small" onclick="closeAdguardRewrites()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="hint">These are rewrites not managed by Router Hub’s nginx integration. Changes stay local until you save.</p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th><button class="table-sort" data-sort-table="rewrites" data-sort-key="domain" onclick="sortTable('rewrites','domain')">Domain / site alias <span class="table-sort-indicator">↕</span></button></th><th><button class="table-sort" data-sort-table="rewrites" data-sort-key="answer" onclick="sortTable('rewrites','answer')">Answer <span class="table-sort-indicator">↕</span></button></th><th>Actions</th></tr></thead>
+            <tbody id="adguard-rewrites-body"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px"><button class="btn" onclick="addAdguardRewrite()">Add rewrite</button></div>
+      </div>
+      <div class="modal-foot"><button class="btn" onclick="closeAdguardRewrites()">Cancel</button><button class="btn primary" onclick="saveAdguardRewrites()">Save rewrites</button></div>
+    </dialog>
+    <dialog class="modal rewrites-modal" id="hosts-modal">
+      <div class="modal-head">
+        <h3>AdGuard host management</h3><button class="btn small" onclick="closeAdguardHosts()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="hint">Entries are written to <code>/jffs/configs/hosts.add</code>. Put multiple hostnames in the same row separated by spaces.</p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th><button class="table-sort" data-sort-table="hosts" data-sort-key="ip" onclick="sortTable('hosts','ip')">IP address <span class="table-sort-indicator">↕</span></button></th><th><button class="table-sort" data-sort-table="hosts" data-sort-key="hostnames" onclick="sortTable('hosts','hostnames')">Hostnames <span class="table-sort-indicator">↕</span></button></th><th>Actions</th></tr></thead>
+            <tbody id="adguard-hosts-body"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px"><button class="btn" onclick="addAdguardHost()">Add host mapping</button></div>
+      </div>
+      <div class="modal-foot"><button class="btn" onclick="closeAdguardHosts()">Cancel</button><button class="btn primary" onclick="saveAdguardHosts()">Save and restart dnsmasq</button></div>
+    </dialog>
     <div class="toast" id="toast"></div>
   </div>
   <script>
-    const CONFIG = { version: "0.1.0", apiBase: "http://{HOST}:3030", token: "router-hub-test-token" };
+    const fragmentToken = new URLSearchParams(location.hash.replace(/^#/, '')).get('token');
+    if (fragmentToken) { sessionStorage.setItem('router-hub-token', fragmentToken); history.replaceState(null, '', location.pathname + location.search); }
+    const cookieToken = document.cookie.match(/(?:^|; )router-hub-token=([^;]*)/)?.[1];
+    const CONFIG = { version: "0.5.2", apiBase: "{PROTOCOL}//{HOST}:3030", token: "router-hub-test-token" || sessionStorage.getItem('router-hub-token') || cookieToken };
     const apiBase = CONFIG.apiBase.replace('{PROTOCOL}', location.protocol).replace('{HOST}', location.hostname).replace(/\/$/, '');
-    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], machines: [], firewall: null, adguard: null };
+    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [] };
+    const tableSorts = { nginx: { key: 'site', dir: 1 }, bans: { key: 'network', dir: 1 }, rewrites: { key: 'domain', dir: 1 }, hosts: { key: 'ip', dir: 1 }, dnsmasq: { key: 'mac', dir: 1 } };
+    let wolStatusTimer;
+    let wolStatusRequest;
+    let wolStatusGeneration = 0;
     const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'] };
+    const requestedTab = new URLSearchParams(location.search).get('tab');
+    if (requestedTab && Object.prototype.hasOwnProperty.call(titles, requestedTab)) state.view = requestedTab;
     function esc(v = '') { return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
     function toast(message, error = false) { const el = document.getElementById('toast'); el.textContent = message; el.className = 'toast show' + (error ? ' error' : ''); clearTimeout(el.timer); el.timer = setTimeout(() => el.className = 'toast', 3600) }
     function setConnection(ok, label) { const status = document.getElementById('connection-status'); document.getElementById('connection').textContent = label || (ok ? 'Connected' : 'Offline'); status.classList.toggle('ok', ok); status.classList.toggle('bad', !ok) }
-    async function api(path, options = {}) { const headers = { ...(options.headers || {}), Authorization: `Bearer ${CONFIG.token}` }; if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json'; let response; try { response = await fetch(apiBase + '/api' + path, { ...options, headers }) } catch (error) { setConnection(false); throw error } setConnection(response.ok, response.ok ? 'Connected' : 'API error'); if (!response.ok) { let body = {}; try { body = await response.json() } catch { } throw new Error(body.error || body.message || `${response.status} ${response.statusText}`) } const type = response.headers.get('content-type') || ''; return type.includes('json') ? response.json() : response.text() }
+    async function api(path, options = {}) { const headers = { ...(options.headers || {}), Authorization: `Bearer ${CONFIG.token}` }; if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json'; if (options.body && (path === '/nginx/objects/domain' || path.startsWith('/nginx/objects/domain/'))) { try { const body = JSON.parse(options.body); const upstream = document.querySelector('#nginx-object-form [name=upstream], #nginx-object-edit [name=upstream]')?.value?.trim() || ''; body.upstream = upstream; options = { ...options, body: JSON.stringify(body) } } catch { } } let response; try { response = await fetch(apiBase + '/api' + path, { ...options, headers }) } catch (error) { setConnection(false); throw error } setConnection(response.ok, response.ok ? 'Connected' : 'API error'); if (response.status === 401 && "router-hub-test-token" === null) { const t = prompt('Please enter your Router Hub token:'); if (t) { document.cookie = `router-hub-token=${t}; path=/; max-age=31536000`; CONFIG.token = t; return api(path, options); } } if (!response.ok) { let body = {}; try { body = await response.json() } catch { } throw new Error(body.error || body.message || `${response.status} ${response.statusText}`) } const type = response.headers.get('content-type') || ''; return type.includes('json') ? response.json() : response.text() }
     function showOutput(title, value) { document.getElementById('log-title').textContent = title; document.getElementById('log-content').textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); document.getElementById('log-modal').showModal() }
+    function updateSortHeaders(table) { const sort = tableSorts[table]; document.querySelectorAll(`[data-sort-table="${table}"]`).forEach(button => { const active = button.dataset.sortKey === sort.key; button.setAttribute('aria-sort', active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'); button.querySelector('.table-sort-indicator').textContent = active ? (sort.dir === 1 ? '↑' : '↓') : '↕' }) }
+    function sortValue(value) { return value == null ? '' : String(value) }
+    function compareTableValues(a, b, key) { if (key === 'expires') return (new Date(a.expires_at || 0) - new Date(b.expires_at || 0)); if (key === 'port') return (Number(a.port || 0) - Number(b.port || 0)); if (key === 'state') return sortValue(a.enabled ? (a.running ? 'live' : 'enabled') : 'disabled').localeCompare(sortValue(b.enabled ? (b.running ? 'live' : 'enabled') : 'disabled')); const av = key === 'site' ? (a.display_name || a.name) : key === 'hostnames' ? (a.hostnames || []).join(' ') : a[key]; return sortValue(av).localeCompare(sortValue(key === 'site' ? (b.display_name || b.name) : key === 'hostnames' ? (b.hostnames || []).join(' ') : b[key]), undefined, { numeric: true, sensitivity: 'base' }) }
+    function sortTable(table, key) { const sort = tableSorts[table]; if (sort.key === key) sort.dir *= -1; else { sort.key = key; sort.dir = 1 } if (table === 'nginx') loadNginxObjects(); else if (table === 'bans') showActiveBans(); else if (table === 'rewrites') { state.adguardRewrites.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderAdguardRewrites() } else if (table === 'hosts') { state.adguardHosts.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderAdguardHosts() } else if (table === 'dnsmasq') { state.dnsmasqHosts.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderDnsmasqHosts() } updateSortHeaders(table) }
     function emptyRow(cols, text = 'No items configured') { return `<tr><td colspan="${cols}" class="empty">${esc(text)}</td></tr>` }
     function status(ok, on = 'Running', off = 'Stopped') { return `<span class="status ${ok ? 'ok' : 'off'}">${ok ? on : off}</span>` }
     function openEditor(title, html, save) { document.getElementById('editor-title').textContent = title; document.getElementById('editor-body').innerHTML = html; document.getElementById('editor-save').onclick = save; document.getElementById('editor').showModal() }
@@ -1255,7 +1432,7 @@
     function jsonLines(value) { return (value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean) }
     function envObject(value) { const result = {}; for (const line of jsonLines(value)) { const split = line.indexOf('='); if (split <= 0) throw new Error('Hook environment entries must use KEY=value'); result[line.slice(0, split).trim()] = line.slice(split + 1) } return result }
     function prettyDate(value) { if (!value) return 'Unknown'; return new Date(value).toLocaleString() }
-    function refreshCurrent() { ({ dashboard: loadDashboard, services: loadServices, nginx: loadNginx, certificates: loadCertificates, wol: loadWol, firewall: loadFirewall, adguard: loadAdguard }[state.view] || (() => { }))() }
+    function refreshCurrent() { ({ dashboard: loadDashboard, services: loadServices, nginx: loadNginx, certificates: loadCertificatesWithLock, wol: loadWol, firewall: loadFirewall, adguard: loadAdguard }[state.view] || (() => { }))() }
 
     // Tab navigation: hook into ASUS initial() when embedded, else run immediately.
     // ASUS renders the menu twice while its asynchronous menuTree module loads, so
@@ -1269,6 +1446,16 @@
       asusTabs.querySelectorAll('[data-view]').forEach(tab => {
         tab.classList.toggle('tabClicked', tab.dataset.view === state.view);
         tab.classList.toggle('tab', tab.dataset.view !== state.view);
+      });
+    }
+    function rhApplyView() {
+      document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === 'view-' + state.view));
+      document.getElementById('page-title').textContent = titles[state.view][0];
+      document.getElementById('page-subtitle').textContent = titles[state.view][1];
+      document.querySelectorAll('[data-view]').forEach(tab => {
+        const selected = tab.dataset.view === state.view;
+        tab.classList.toggle('tabClicked', selected);
+        tab.classList.toggle('tab', !selected);
       });
     }
     function rhSetupTabs() {
@@ -1297,13 +1484,19 @@
             x.classList.toggle('tab', x !== tab);
           });
           document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+          const previousView = state.view;
           state.view = tab.dataset.view;
+          const url = new URL(location.href);
+          url.searchParams.set('tab', state.view);
+          history.replaceState(null, '', url);
+          if (previousView === 'wol' && state.view !== 'wol') stopWolStatusPolling();
           document.getElementById('view-' + state.view).classList.add('active');
           document.getElementById('page-title').textContent = titles[state.view][0];
           document.getElementById('page-subtitle').textContent = titles[state.view][1];
           refreshCurrent();
         });
       }
+      rhApplyView();
     }
     // Install before the ASUS window load handler so the observer sees both menu
     // renders. Keep the initial() hook as a fallback even if ASUS setup throws.
@@ -1317,9 +1510,20 @@
       rhSetupTabs();
     }
 
-    async function loadDashboard() { try { const d = await api('/dashboard'); const metrics = [['Services', `${d.services_running}/${d.services_total}`, 'running'], ['Nginx objects', d.nginx_objects, d.nginx_running ? 'nginx online' : 'nginx offline'], ['Certificates', d.certificates, d.certificates_due ? `${d.certificates_due} need attention` : 'renewals healthy'], ['Active bans', d.active_bans, d.firewall_enabled ? 'shield enabled' : 'shield disabled']]; document.getElementById('dashboard-grid').innerHTML = metrics.map(x => `<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('') + `<div class="card pad span-8"><h2 style="margin-top:0;font-size:13px">Router Hub</h2><p class="muted">Version ${esc(d.version)} · ${d.test_mode ? 'x64 test mode' : 'Asuswrt-Merlin mode'}</p><p>Configuration is file-backed. Router Hub writes atomically, validates nginx before reload, and avoids shell interpolation for managed commands.</p></div><div class="card pad span-4"><h2 style="margin-top:0;font-size:13px">Security</h2><p>${status(d.firewall_enabled, 'Ban shield enabled', 'Ban shield disabled')}</p></div>` } catch (e) { toast(e.message, true) } }
+    async function loadDashboard() {
+      try {
+        const d = await api('/dashboard');
+        const metrics = [['Services', `${d.services_running}/${d.services_total}`, 'running'], ['Nginx objects', d.nginx_objects, d.nginx_running ? 'nginx online' : 'nginx offline'], ['Certificates', d.certificates, d.certificates_due ? `${d.certificates_due} need attention` : 'renewals healthy'], ['Active bans', d.active_bans, `${d.active_subnet_bans} subnet · ${d.active_ip_bans} IP`]];
+        const h = d.firewall_health;
+        const utilization = h.set_capacity ? `${h.set_entries.toLocaleString()} / ${h.set_capacity.toLocaleString()} entries (${(h.set_entries / h.set_capacity * 100).toFixed(2)}%)` : 'Unavailable';
+        const healthSummary = h.dropped_line_count || h.command_timeout_count || h.error_count
+          ? `<span class="status warn">Needs attention</span><div class="muted">${h.dropped_line_count.toLocaleString()} dropped log lines · ${h.command_timeout_count.toLocaleString()} command timeouts · ${h.error_count.toLocaleString()} errors</div>`
+          : '<span class="status ok">Healthy</span><div class="muted">No dropped lines, timeouts, or errors reported</div>';
+        document.getElementById('dashboard-grid').innerHTML = metrics.map(x => `<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('') + `<div class="card pad span-8"><h2 style="margin-top:0;font-size:13px">Router Hub</h2><p class="muted">Version ${esc(d.version)} · ${d.test_mode ? 'x64 test mode' : 'Asuswrt-Merlin mode'}</p><p>Configuration is file-backed. Router Hub writes atomically, validates nginx before reload, and avoids shell interpolation for managed commands.</p></div><div class="card pad span-4"><h2 style="margin-top:0;font-size:13px">Security</h2><p>${status(d.firewall_enabled, 'Ban shield enabled', 'Ban shield disabled')}</p></div><div class="card pad span-12"><h2 style="margin-top:0;font-size:13px">Ban shield performance</h2><p><strong>Set usage:</strong> ${utilization}</p><p><strong>Engine:</strong> ${esc(h.state)} · ${healthSummary}</p><p class="muted">The summary is checked when this dashboard is loaded or refreshed. Active-ban capacity is 8,192; investigate if usage reaches the thousands or health counters increase.</p></div>`;
+      } catch (e) { toast(e.message, true) }
+    }
 
-    async function loadServices() { try { const rows = await api('/services'); document.getElementById('services-body').innerHTML = rows.length ? rows.map(s => { const name = s.name.replace(/^[SK]\d{2}/, ''); const serviceStatus = s.enabled ? status(s.running) : '<span class="status off">Disabled</span>'; const controls = s.enabled ? `<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','start')">Start</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','stop')">Stop</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','restart')">Restart</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','refresh')">Refresh</button><button class="btn small danger" onclick="serviceAction('${encodeURIComponent(s.name)}','disable')">Disable</button>` : `<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','enable')">Enable</button>`; return `<tr><td style="vertical-align:middle"><strong>${esc(name)}</strong></td><td style="vertical-align:middle">${serviceStatus}</td><td style="vertical-align:middle"><div class="row-actions">${controls}<button class="btn small" onclick="serviceLogs('${encodeURIComponent(s.name)}')">Logs</button></div></td></tr>` }).join('') : emptyRow(3) } catch (e) { toast(e.message, true) } }
+    async function loadServices() { try { const rows = await api('/services'); document.getElementById('services-body').innerHTML = rows.length ? rows.map(s => { const name = s.name.replace(/^[SK]\d{2}/, ''); const serviceStatus = s.enabled ? status(s.running) : '<span class="status off">Disabled</span>'; const controls = s.enabled ? `<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','start')">Start</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','stop')">Stop</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','restart')">Restart</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','refresh')">Refresh</button>${s.name.endsWith('router-hub') ? '' : `<button class="btn small danger" onclick="serviceAction('${encodeURIComponent(s.name)}','disable')">Disable</button>`}` : `<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','enable')">Enable</button>`; return `<tr><td style="vertical-align:middle"><strong>${esc(name)}</strong></td><td style="vertical-align:middle">${serviceStatus}</td><td style="vertical-align:middle"><div class="row-actions">${controls}<button class="btn small" onclick="serviceLogs('${encodeURIComponent(s.name)}')">Logs</button></div></td></tr>` }).join('') : emptyRow(3) } catch (e) { toast(e.message, true) } }
     async function serviceAction(name, action) { try { const r = await api(`/services/${name}/${action}`, { method: 'POST' }); toast(r.success ? `Service ${action} completed` : `Service ${action} failed`, !r.success); if (!r.success) showOutput('Service output', r); loadServices() } catch (e) { toast(e.message, true) } }
     async function serviceLogs(name) { try { const r = await api(`/services/${name}/logs`); showOutput('Service logs', r.message) } catch (e) { toast(e.message, true) } }
 
@@ -1327,20 +1531,30 @@
     function nginxObjectUrl(o) { return `/nginx/objects/${o.kind}/${encodeURIComponent(o.domain)}/${encodeURIComponent(o.name)}` }
     async function loadNginx() { await Promise.all([loadNginxObjects(), loadNginxStatus(), loadNginxFiles(), loadNginxTemplates(), loadNginxLogs()]) }
     function nginxObjectStatus(o) { const [kind, label] = !o.enabled ? ['off', 'Disabled'] : o.running ? ['ok', 'Live'] : ['warn', 'Enabled']; return `<span class="status ${kind}">${label}</span>` }
-    function nginxObjectRow(o) { const child = o.kind !== 'domain'; return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${esc(o.kind)}</span></td><td>${o.template ? `<span class="tag">${esc(o.template)}</span>` : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${o.kind}','${o.domain}','${o.name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${o.kind}','${o.domain}','${o.name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${o.kind}','${o.domain}','${o.name}')">Delete</button></div></td></tr>` }
-    function nginxObjectRows(objects) { const domains = objects.filter(o => o.kind === 'domain'), children = objects.filter(o => o.kind !== 'domain'), rows = []; domains.forEach(domain => { rows.push(domain); if (domain.enabled) rows.push(...children.filter(child => child.domain === domain.domain).sort((a, b) => a.kind.localeCompare(b.kind) || (a.display_name || a.name).localeCompare(b.display_name || b.name))) }); const knownDomains = new Set(domains.map(domain => domain.domain)); rows.push(...children.filter(child => !knownDomains.has(child.domain))); return rows.map(nginxObjectRow).join('') }
-    async function loadNginxObjects() { try { state.nginxObjects = await api('/nginx/objects'); document.getElementById('nginx-objects-body').innerHTML = state.nginxObjects.length ? nginxObjectRows(state.nginxObjects) : emptyRow(4, 'No nginx sites') } catch (e) { toast(e.message, true) } }
+    function launchNginxSite(kind, domain, name) { const o = state.nginxObjects.find(x => x.kind === kind && x.domain === domain && x.name === name); const target = o ? (o.display_name || o.name) : (kind === 'subdomain' ? `${name}.${domain}` : kind === 'subfolder' ? `${domain}/${name}` : domain); if (!target) return toast('Site launch URL unavailable', true); const url = /^https?:\/\//i.test(target) ? target : `${location.protocol === 'https:' ? 'https:' : 'http:'}//${target}`; window.open(url, '_blank', 'noopener,noreferrer') }
+    function nginxObjectRow(o) { const child = o.kind !== 'domain', kind = esc(o.kind), domain = esc(o.domain), name = esc(o.name); return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${kind}</span></td><td>${o.port ?? '<span class="muted">—</span>'}</td><td>${o.template ? `<span class="tag">${esc(o.template)}</span>` : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${kind}','${domain}','${name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${kind}','${domain}','${name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${kind}','${domain}','${name}')">Delete</button><button class="btn small action" title="Launch site" aria-label="Launch site" onclick="launchNginxSite('${kind}','${domain}','${name}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M18 13v6a2 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></button></div></td></tr>` }
+    function nginxObjectRows(objects) { const sort = tableSorts.nginx, compare = (a, b) => sort.dir * compareTableValues(a, b, sort.key) || (a.kind || '').localeCompare(b.kind || '') || (a.display_name || a.name).localeCompare(b.display_name || b.name), domains = objects.filter(o => o.kind === 'domain').sort(compare), children = objects.filter(o => o.kind !== 'domain'), rows = []; domains.forEach(domain => { rows.push(domain); if (domain.enabled) rows.push(...children.filter(child => child.domain === domain.domain).sort(compare)) }); const knownDomains = new Set(domains.map(domain => domain.domain)); rows.push(...children.filter(child => !knownDomains.has(child.domain)).sort(compare)); return rows.map(nginxObjectRow).join('') }
+    async function loadNginxObjects() { try { state.nginxObjects = await api('/nginx/objects'); document.getElementById('nginx-objects-body').innerHTML = state.nginxObjects.length ? nginxObjectRows(state.nginxObjects) : emptyRow(5, 'No nginx sites'); updateSortHeaders('nginx') } catch (e) { toast(e.message, true) } }
     async function loadNginxStatus() { try { const s = await api('/nginx/status'); document.getElementById('nginx-status').innerHTML = `${status(s.running)} <span title="Config: ${esc(s.config_path)} · Root: ${esc(s.root_dir)}">Config <code>${esc(s.config_path)}</code></span>` } catch (e) { document.getElementById('nginx-status').textContent = e.message } }
     function nginxTemplateOptions(templates, selected = '') { const known = templates.some(t => t.name === selected), missing = selected && !known ? `<option value="${esc(selected)}" selected>${esc(selected)} (missing)</option>` : ''; return `<option value="" ${selected ? '' : 'selected'}>Custom</option>${missing}${templates.map(t => `<option value="${esc(t.name)}" ${t.name === selected ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}` }
     function nginxDefaultServerNames(kind, domain, name) { return [kind === 'subdomain' ? `${name}.${domain}` : domain].filter(Boolean) }
     function nginxFormServerNames(form, kind) { const names = jsonLines(form.elements.server_names.value); return names.length ? names : nginxDefaultServerNames(kind, form.elements.domain.value.trim(), kind === 'domain' ? form.elements.domain.value.trim() : form.elements.name.value.trim()) }
+    function nginxDomainOptions() { const domains = [...new Set(state.nginxObjects.filter(o => o.kind === 'domain').map(o => o.domain))]; return `<option value="" selected disabled>Select a parent domain</option>${domains.map(domain => `<option value="${esc(domain)}">${esc(domain)}</option>`).join('')}` }
     function stripNginxTemplateComment(content) { return content.split(/\r?\n/).filter(line => !line.trim().startsWith('# router-hub-template:')).join('\n') }
     function renderNginxTemplate(source, kind, form) { const domain = form.elements.domain.value.trim(), name = kind === 'domain' ? domain : form.elements.name.value.trim(), values = { kind, domain, name, subdomain: name, subfolder: name, server_name: nginxFormServerNames(form, kind).join(' ') }; return Object.entries(values).reduce((content, [key, value]) => content.split(`{{${key}}}`).join(value), source) }
     function previewNginxTemplate(form, kind) { if (form.elements.template.value && form._nginxTemplateSource !== undefined) form.elements.content.value = renderNginxTemplate(form._nginxTemplateSource, kind, form) }
     async function nginxTemplateChanged(form, kind) { const custom = form.querySelector('[data-custom-config]'), template = form.elements.template.value; custom.hidden = !!template; if (!template) return; try { form._nginxTemplateSource = (await api(`/nginx/templates/${kind}/${encodeURIComponent(template)}`)).content; previewNginxTemplate(form, kind) } catch (e) { toast(e.message, true) } }
-    function wireNginxObjectForm(form, kind) { form.elements.template.addEventListener('change', () => nginxTemplateChanged(form, kind));['domain', 'name', 'server_names'].forEach(name => form.elements[name]?.addEventListener('input', () => previewNginxTemplate(form, kind))) }
-    async function newNginxObject(kind) { let templates = []; try { templates = await api(`/nginx/templates/${kind}`) } catch (e) { return toast(e.message, true) } const nameField = kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" name="name" required placeholder="${kind === 'subdomain' ? 'app' : 'media'}"></div>`; openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label><input class="input" name="domain" required placeholder="example.com"></div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div><div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates)}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-custom-config><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } }); wireNginxObjectForm(document.getElementById('nginx-object-form'), kind) }
-    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates] = await Promise.all([api(url), api(`/nginx/templates/${kind}`)]), selected = row.object.template || '', nameField = kind === 'domain' ? '' : `<input type="hidden" name="name" value="${esc(name)}">`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form"><input type="hidden" name="domain" value="${esc(domain)}">${nameField}<div class="field"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div><div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f), payload = { template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind) }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
+    function wireNginxObjectForm(form, kind) { form.elements.template.addEventListener('change', () => nginxTemplateChanged(form, kind));['domain', 'name', 'server_names'].forEach(name => form.elements[name]?.addEventListener('input', () => previewNginxTemplate(form, kind))); form.elements.domain.addEventListener('change', () => previewNginxTemplate(form, kind)) }
+    async function newNginxObject(kind) {
+      let templates = [];
+      try { templates = await api(`/nginx/templates/${kind}`) } catch (e) { return toast(e.message, true) }
+      const nameField = kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" name="name" required placeholder="${kind === 'subdomain' ? 'app' : 'media'}"></div>`;
+      const upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" placeholder="http://192.168.1.10:8080"><span class="hint">Optional. Router Hub adds this site to the hostname or subfolder upstream map.</span></div>`;
+      const domainField = kind === 'domain' ? '<input class="input" name="domain" required placeholder="example.com">' : `<select class="input" name="domain" required>${nginxDomainOptions()}</select>`;
+      openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label>${domainField}</div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates)}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-custom-config><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: kind === 'domain' ? null : v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
+      wireNginxObjectForm(document.getElementById('nginx-object-form'), kind)
+    }
+    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates] = await Promise.all([api(url), api(`/nginx/templates/${kind}`)]), selected = row.object.template || '', nameField = kind === 'domain' ? '' : `<input type="hidden" name="name" value="${esc(name)}">`, upstreamField = kind === 'domain' ? '' : `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" value="${esc(row.upstream || '')}" placeholder="http://192.168.1.10:8080"><span class="hint">Leave blank to remove this site from the generated upstream map.</span></div>`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form"><input type="hidden" name="domain" value="${esc(domain)}">${nameField}<div class="field"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f), payload = { template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: kind === 'domain' ? null : v.upstream.trim() }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
     async function nginxObjectAction(kind, domain, name, action) { try { await api(`${nginxObjectUrl({ kind, domain, name })}/${action}`, { method: 'POST' }); toast(`${name}: ${action} complete`); await Promise.all([loadNginxObjects(), loadNginxStatus()]) } catch (e) { toast(e.message, true) } }
     async function deleteNginxObject(kind, domain, name) { const detail = kind === 'domain' ? 'This also deletes all nested subdomain and subfolder definitions. ' : ''; if (!confirm(`${detail}Delete ${kind} ${name}?`)) return; try { await api(nginxObjectUrl({ kind, domain, name }), { method: 'DELETE' }); toast(`${kind} deleted`); loadNginxObjects() } catch (e) { toast(e.message, true) } }
     function nginxCommandResult(command, result) { const action = command === 'test' ? 'Nginx configuration test' : 'Nginx reload'; const detail = (result.stderr || result.stdout || '').trim(); const message = result.success ? `${action} successful` : `${action} failed${detail ? `: ${detail}` : result.code !== null && result.code !== undefined ? ` (exit code ${result.code})` : ': no failure reason returned'}`; showOutput(action, message) }
@@ -1349,20 +1563,36 @@
     async function loadNginxFiles() { try { const files = await api('/nginx/files'); document.getElementById('nginx-files-list').innerHTML = files.length ? nginxFileTree(files) : '<div class="empty">No editable nginx root files</div>' } catch (e) { toast(e.message, true) } }
     async function editNginxFile(path) { let content = ''; try { if (path) content = (await api(`/nginx/files/${nginxPath(path)}`)).content } catch (e) { return toast(e.message, true) } openEditor(path ? 'Edit nginx root file' : 'New nginx root file', `<form id="nginx-file-form" class="form"><div class="field"><label>Path relative to nginx root</label><input class="input" name="path" ${path ? 'readonly' : ''} value="${esc(path)}" placeholder="conf.d/global.conf"></div><div class="field"><label>Content</label><textarea class="input" name="content" style="min-height:320px">${esc(content)}</textarea></div></form>`, async () => { try { const v = formObject(document.getElementById('nginx-file-form')); await api(`/nginx/files/${nginxPath(v.path)}`, { method: 'PUT', body: JSON.stringify({ content: v.content }) }); closeEditor(); toast('Nginx file saved'); loadNginxFiles() } catch (e) { toast(e.message, true) } }) }
     async function deleteNginxFile(path) { if (!confirm(`Delete nginx file ${path}?`)) return; try { await api(`/nginx/files/${nginxPath(path)}`, { method: 'DELETE' }); toast('Nginx file deleted'); loadNginxFiles() } catch (e) { toast(e.message, true) } }
-    async function loadNginxTemplates() { try { const kind = document.getElementById('template-kind').value, templates = await api(`/nginx/templates/${kind}`); state.nginxTemplates = templates; document.getElementById('nginx-templates-list').innerHTML = templates.length ? `<table class="table"><tbody>${templates.map(t => `<tr><td><strong>${esc(t.name)}</strong><div class="muted">${t.size} bytes</div></td><td><div class="row-actions"><button class="btn small" data-template-name="${esc(t.name)}" onclick="editNginxTemplate(this.dataset.templateName)">Edit</button><button class="btn small danger" data-template-name="${esc(t.name)}" onclick="deleteNginxTemplate(this.dataset.templateName)">Delete</button></div></td></tr>`).join('')}</tbody></table>` : `<div class="empty">No ${esc(kind)} templates</div>` } catch (e) { toast(e.message, true) } }
-    async function editNginxTemplate(name = '') { const kind = document.getElementById('template-kind').value; let content = ''; try { if (name) content = (await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`)).content } catch (e) { return toast(e.message, true) } openEditor(name ? 'Edit nginx template' : 'New nginx template', `<form id="nginx-template-form" class="form"><div class="field"><label>Template name</label><input class="input" name="name" ${name ? 'readonly' : ''} value="${esc(name)}" placeholder="reverse-proxy"></div><div class="field"><label>Configuration template</label><textarea class="input" name="content" style="min-height:320px">${esc(content)}</textarea><span class="hint">Available placeholders: {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, {{subfolder}}, {{kind}}.</span></div></form>`, async () => { try { const v = formObject(document.getElementById('nginx-template-form')); await api(`/nginx/templates/${kind}/${encodeURIComponent(v.name)}`, { method: 'PUT', body: JSON.stringify({ content: v.content }) }); closeEditor(); toast('Template saved'); loadNginxTemplates() } catch (e) { toast(e.message, true) } }) }
+    async function loadNginxTemplates() { try { const kind = document.getElementById('template-kind').value, templates = await api(`/nginx/templates/${kind}`); state.nginxTemplates = templates; document.getElementById('nginx-templates-list').innerHTML = templates.length ? `<table class="table"><tbody>${templates.map(t => `<tr><td><strong>${esc(t.name)}</strong><div class="muted">${t.size} bytes</div></td><td><div class="row-actions"><button class="btn small" data-template-name="${esc(t.name)}" onclick="editNginxTemplate(this.dataset.templateName)">Edit</button><button class="btn small" data-template-name="${esc(t.name)}" onclick="duplicateNginxTemplate(this.dataset.templateName)">Duplicate</button><button class="btn small danger" data-template-name="${esc(t.name)}" onclick="deleteNginxTemplate(this.dataset.templateName)">Delete</button></div></td></tr>`).join('')}</tbody></table>` : `<div class="empty">No ${esc(kind)} templates</div>` } catch (e) { toast(e.message, true) } }
+    async function editNginxTemplate(name = '') { const kind = document.getElementById('template-kind').value; let content = ''; try { if (name) content = (await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`)).content } catch (e) { return toast(e.message, true) } openEditor(name ? 'Edit nginx template' : 'New nginx template', `<form id="nginx-template-form" class="form"><div class="field"><label>Template name</label><input class="input" name="name" value="${esc(name)}" placeholder="reverse-proxy" required></div><div class="field"><label>Configuration template</label><textarea class="input" name="content" style="min-height:320px">${esc(content)}</textarea><span class="hint">Available placeholders: {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, {{subfolder}}, {{kind}}.</span></div></form>`, async () => { try { const v = formObject(document.getElementById('nginx-template-form')); const pathName = name || v.name; await api(`/nginx/templates/${kind}/${encodeURIComponent(pathName)}`, { method: 'PUT', body: JSON.stringify({ name: v.name, content: v.content }) }); closeEditor(); toast('Template saved'); loadNginxTemplates() } catch (e) { toast(e.message, true) } }) }
+    async function duplicateNginxTemplate(name) { const kind = document.getElementById('template-kind').value; try { const content = (await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`)).content, names = new Set(state.nginxTemplates.map(template => template.name)); let suffix = 1, duplicate = `${name}-${suffix}`; while (names.has(duplicate)) duplicate = `${name}-${++suffix}`; await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ name: duplicate, content }) }); toast(`Template duplicated as ${duplicate}`); loadNginxTemplates() } catch (e) { toast(e.message, true) } }
     async function deleteNginxTemplate(name) { const kind = document.getElementById('template-kind').value; if (!confirm(`Delete ${kind} template ${name}?`)) return; try { await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`, { method: 'DELETE' }); loadNginxTemplates() } catch (e) { toast(e.message, true) } }
     async function loadNginxLogs() { try { const logs = await api('/nginx/logs'), select = document.getElementById('nginx-log-select'), selected = select.value; select.innerHTML = logs.length ? logs.map(log => `<option value="${esc(log.path)}">${esc(log.path)} (${log.size} bytes)</option>`).join('') : '<option value="">No logs found</option>'; if (logs.some(log => log.path === selected)) select.value = selected } catch (e) { toast(e.message, true) } }
     async function viewNginxLog() { const path = document.getElementById('nginx-log-select').value; if (!path) return toast('No nginx log selected', true); try { const result = await api(`/nginx/logs/${nginxPath(path)}`), output = document.getElementById('nginx-log-content'); output.textContent = result.content; requestAnimationFrame(() => { output.scrollTop = output.scrollHeight }) } catch (e) { toast(e.message, true) } }
 
-    async function loadCertificates() { try { state.certs = await api('/certificates'); document.getElementById('certs-body').innerHTML = state.certs.length ? state.certs.map(x => { const s = x.spec; return `<tr><td><strong>${esc(s.name)}</strong><div class="muted">${s.auto_renew ? 'Auto-renew' : 'Manual'}</div></td><td>${s.domains.map(d => `<span class="tag">${esc(d)}</span>`).join('')}</td><td>${esc(s.method)}</td><td>${x.exists ? (x.renewal_due ? `<span class="status warn">${x.days_remaining} days</span>` : `<span class="status ok">${x.days_remaining} days</span>`) : '<span class="status off">Not issued</span>'}</td><td><div class="row-actions"><button class="btn small" onclick="editCertificate('${s.id}')">Edit</button><button class="btn small" onclick="certificateAction('${s.id}','${x.exists ? 'renew' : 'issue'}')">${x.exists ? 'Renew' : 'Issue'}</button><button class="btn small danger" onclick="deleteCertificate('${s.id}')">Delete</button></div></td></tr>` }).join('') : emptyRow(5) } catch (e) { toast(e.message, true) } }
+    async function loadCertificates() {
+      try {
+        state.certs = await api('/certificates');
+        document.getElementById('certs-body').innerHTML = state.certs.length ? state.certs.map(x => {
+          const s = x.spec;
+          const expiry = x.exists
+            ? `${x.renewal_due ? `<span class="status warn">${x.days_remaining} days</span>` : `<span class="status ok">${x.days_remaining} days</span>`}<div class="muted">${prettyDate(x.expires_at)}</div>`
+            : '<span class="status off">Not issued</span>';
+          return `<tr><td><strong>${esc(s.name)}</strong><div class="muted">${s.auto_renew ? 'Auto-renew' : 'Manual'}</div></td><td>${s.domains.map(d => `<span class="tag">${esc(d)}</span>`).join('')}</td><td>${esc(s.method)}</td><td>${expiry}</td><td><div class="row-actions"><button class="btn small" onclick="editCertificate('${s.id}')">Edit</button><button class="btn small" onclick="certificateAction('${s.id}','${x.exists ? 'renew' : 'issue'}')">${x.exists ? 'Renew' : 'Issue'}</button><button class="btn small danger" onclick="deleteCertificate('${s.id}')">Delete</button></div></td></tr>`
+        }).join('') : emptyRow(5)
+      } catch (e) { toast(e.message, true) }
+    }
     function editCertificate(id) { const row = state.certs.find(x => x.spec.id === id), s = row ? row.spec : { name: '', domains: [], method: 'http', hook: '', hook_env: {}, staging: false, auto_renew: true }; openEditor(id ? 'Edit certificate' : 'Add certificate', `<form id="cert-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(s.name)}" required></div><div class="field full"><label>Domains, one per line</label><textarea class="input" name="domains">${esc(s.domains.join('\n'))}</textarea></div><div class="field"><label>Challenge</label><select class="input" name="method"><option value="http" ${s.method === 'http' ? 'selected' : ''}>HTTP-01</option><option value="dns" ${s.method === 'dns' ? 'selected' : ''}>DNS-01</option></select></div><div class="field"><label>Hook path</label><input class="input" name="hook" value="${esc(s.hook || '')}" placeholder="/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh"><span class="hint">Optional for HTTP-01. Leave blank for the default DNS hook in the dehydrated data directory.</span></div><div class="field full"><label>Hook environment, one KEY=value per line</label><textarea class="input" name="hook_env">${esc(Object.entries(s.hook_env || {}).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea><span class="hint">For example, DUCKDNS_TOKEN=... . Values are stored in the dehydrated config.</span></div><div class="field"><label><input type="checkbox" name="staging" ${s.staging ? 'checked' : ''}> Use Let's Encrypt staging</label></div><div class="field"><label><input type="checkbox" name="auto_renew" ${s.auto_renew ? 'checked' : ''}> Auto renew</label></div></div></form>`, async () => { try { const f = document.getElementById('cert-form'), v = formObject(f), payload = { ...s, name: v.name, domains: jsonLines(v.domains), method: v.method, hook: v.hook || null, hook_env: envObject(v.hook_env), staging: f.elements.staging.checked, auto_renew: f.elements.auto_renew.checked }; await api(id ? `/certificates/${id}` : '/certificates', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadCertificates() } catch (e) { toast(e.message, true) } }) }
     async function certificateAction(id, action) { try { const r = await api(`/certificates/${id}/${action}`, { method: 'POST' }); showOutput(`Certificate ${action}`, r); loadCertificates() } catch (e) { toast(e.message, true) } }
     async function updateDehydrated() { try { const r = await api('/certificates/dehydrated/update', { method: 'POST' }); showOutput('Dehydrated update', r) } catch (e) { toast(e.message, true) } }
     async function deleteCertificate(id) { if (!confirm('Delete only the Router Hub definition? Dehydrated config and certificate files remain.')) return; try { await api(`/certificates/${id}`, { method: 'DELETE' }); loadCertificates() } catch (e) { toast(e.message, true) } }
 
-    async function loadWol() { try { state.machines = await api('/wol'); document.getElementById('wol-body').innerHTML = state.machines.length ? state.machines.map(m => `<tr><td><strong>${esc(m.name)}</strong></td><td><code>${esc(m.mac)}</code></td><td>${esc(m.broadcast)}:${m.port}</td><td class="hide-mobile muted">${esc(m.notes)}</td><td><div class="row-actions"><button class="btn small primary" onclick="wakeMachine('${m.id}')">Wake</button><button class="btn small" onclick="editMachine('${m.id}')">Edit</button><button class="btn small danger" onclick="deleteMachine('${m.id}')">Delete</button></div></td></tr>`).join('') : emptyRow(5) } catch (e) { toast(e.message, true) } }
+    function renderWol() { document.getElementById('wol-body').innerHTML = state.machines.length ? state.machines.map(m => { const s = state.machineStatuses[m.id]; const label = s?.status === 'up' ? 'Up' : s?.status === 'down' ? 'Down' : 'Unknown'; return `<tr><td><strong>${esc(m.name)}</strong></td><td><code>${esc(m.mac)}</code></td><td>${s?.ip ? `<code>${esc(s.ip)}</code>` : '<span class="muted">—</span>'}</td><td>${status(s?.status === 'up', label, label)}</td><td><div class="row-actions"><button class="btn small" onclick="wakeMachine('${m.id}')">Wake</button><button class="btn small" onclick="editMachine('${m.id}')">Edit</button><button class="btn small" onclick="showMachineNotes('${m.id}')">Notes</button><button class="btn small danger" onclick="deleteMachine('${m.id}')">Delete</button></div></td></tr>` }).join('') : emptyRow(5) }
+    async function loadWol() { try { state.machines = await api('/wol'); renderWol(); if (state.view === 'wol') startWolStatusPolling() } catch (e) { toast(e.message, true) } }
+    function stopWolStatusPolling() { wolStatusGeneration++; clearInterval(wolStatusTimer); wolStatusTimer = undefined; wolStatusRequest = undefined }
+    function startWolStatusPolling() { stopWolStatusPolling(); const generation = wolStatusGeneration; const poll = async () => { if (state.view !== 'wol' || generation !== wolStatusGeneration || wolStatusRequest) return; wolStatusRequest = api('/wol/status').then(statuses => { if (generation !== wolStatusGeneration) return; state.machineStatuses = Object.fromEntries(statuses.map(s => [s.id, s])); renderWol() }).catch(e => { if (generation === wolStatusGeneration) toast(e.message, true) }).finally(() => { if (generation === wolStatusGeneration) wolStatusRequest = undefined }); await wolStatusRequest }; poll(); wolStatusTimer = setInterval(poll, 3000) }
     function editMachine(id) { const m = state.machines.find(x => x.id === id) || { name: '', mac: '', broadcast: '255.255.255.255', port: 9, notes: '' }; openEditor(id ? 'Edit machine' : 'Add machine', `<form id="wol-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(m.name)}"></div><div class="field"><label>MAC address</label><input class="input" name="mac" value="${esc(m.mac)}" placeholder="00:11:22:33:44:55"></div><div class="field"><label>Broadcast</label><input class="input" name="broadcast" value="${esc(m.broadcast)}"></div><div class="field"><label>UDP port</label><input class="input" type="number" name="port" value="${m.port}"></div><div class="field full"><label>Notes</label><textarea class="input" name="notes">${esc(m.notes)}</textarea></div></div></form>`, async () => { try { const v = formObject(document.getElementById('wol-form')), payload = { ...m, name: v.name, mac: v.mac, broadcast: v.broadcast, port: Number(v.port), notes: v.notes }; await api(id ? `/wol/${id}` : '/wol', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadWol() } catch (e) { toast(e.message, true) } }) }
+    function showMachineNotes(id) { const machine = state.machines.find(x => x.id === id); if (!machine) return; document.getElementById('notes-title').textContent = `${machine.name} — Notes`; document.getElementById('notes-content').textContent = machine.notes || 'No notes'; document.getElementById('notes-modal').showModal() }
     async function wakeMachine(id) { try { const r = await api(`/wol/${id}/wake`, { method: 'POST' }); toast(`${r.simulated ? 'Simulated' : 'Sent'} ${r.packets_sent} packets to ${r.machine}`) } catch (e) { toast(e.message, true) } }
     async function deleteMachine(id) { if (!confirm('Delete this machine?')) return; try { await api(`/wol/${id}`, { method: 'DELETE' }); loadWol() } catch (e) { toast(e.message, true) } }
 
@@ -1371,30 +1601,85 @@
         state.firewall = await api('/firewall?include_bans=false');
         const p = state.firewall.policy, s = state.firewall.settings, h = state.firewall.health;
         document.getElementById('fw-enabled').value = String(p.enabled);
+        document.getElementById('fw-ban-summary').textContent = `Active bans: ${state.firewall.snapshot.banned_subnets.length} subnet · ${state.firewall.snapshot.banned_ips.length} IP`;
         const health = document.getElementById('fw-health');
         health.className = `notice ${h.state === 'degraded' ? 'warn' : ''}`;
         health.textContent = `Engine ${h.state}. Threshold ${s.global_threshold}; scores retained ${s.score_retention_seconds}s.${h.last_error ? ' Last error: ' + h.last_error : ''}`;
         document.getElementById('allow-list').innerHTML = p.allowlist.length ? p.allowlist.map(n => `<span class="tag">${esc(n)} <button class="btn small" onclick="removeAllowlist('${encodeURIComponent(n)}')">×</button></span>`).join('') : '<span class="muted">No allowlist entries</span>';
-        document.getElementById('rules-body').innerHTML = p.rules.length ? p.rules.map(r => `<tr><td><strong>${esc(r.name)}</strong> ${status(r.enabled, 'Enabled', 'Disabled')}</td><td>weight ${r.weight}<br><span class="muted">${Math.ceil(s.global_threshold / r.weight)} hit(s) from zero</span></td><td>${r.log_paths.map(x => `<div><code>${esc(x)}</code></div>`).join('')}</td><td><div class="row-actions"><button class="btn small" onclick="editRule('${r.id}')">Edit</button><button class="btn small danger" onclick="deleteRule('${r.id}')">Delete</button></div></td></tr>`).join('') : emptyRow(4);
+        document.getElementById('rules-body').innerHTML = p.rules.length ? p.rules.map(r => { const rs = (state.firewall.snapshot.rule_stats || []).find(([name]) => name === r.name); const matchCount = rs ? rs[1].match_count : null; const banCount = rs ? rs[1].ban_count : null; const statsHtml = matchCount !== null ? `${matchCount.toLocaleString()} hit(s) · ${banCount.toLocaleString()} ban(s)` : '<span class="muted">—</span>'; return `<tr><td><strong>${esc(r.name)}</strong> ${status(r.enabled, 'Enabled', 'Disabled')}</td><td>weight ${r.weight}<br><span class="muted">${Math.ceil(s.global_threshold / r.weight)} hit(s) from zero</span></td><td>${statsHtml}</td><td><div class="row-actions"><button class="btn small" onclick="editRule('${r.id}')">Edit</button><button class="btn small danger" onclick="deleteRule('${r.id}')">Delete</button></div></td></tr>`; }).join('') : emptyRow(4);
       } catch (e) { toast(e.message, true) }
     }
-    function renderBans(bans) { document.getElementById('bans-body').innerHTML = bans.length ? bans.map(b => `<tr><td><code>${esc(b.network)}</code><br><span class="muted">${esc(b.source)} · offense ${b.offense_count}</span></td><td>${esc(b.reason)}</td><td>${prettyDate(b.expires_at)}</td><td><div class="row-actions"><button class="btn small" onclick="unban('${encodeURIComponent(b.network)}')">Unban + allow</button></div></td></tr>`).join('') : emptyRow(4, 'No active bans') }
+    function renderBans(bans) { const sort = tableSorts.bans, sorted = [...bans].sort((a, b) => sort.dir * compareTableValues(a, b, sort.key)); document.getElementById('bans-body').innerHTML = sorted.length ? sorted.map(b => `<tr><td><code>${esc(b.network)}</code><br><span class="muted">${esc(b.source)} · offense ${b.offense_count}</span></td><td>${esc(b.reason)}</td><td>${prettyDate(b.expires_at)}</td><td><div class="row-actions"><button class="btn small" onclick="unban('${encodeURIComponent(b.network)}')">Unban + allow</button></div></td></tr>`).join('') : emptyRow(4, 'No active bans'); updateSortHeaders('bans') }
     async function showActiveBans() { const modal = document.getElementById('bans-modal'); document.getElementById('bans-body').innerHTML = emptyRow(4, 'Loading active bans…'); if (!modal.open) modal.showModal(); try { renderBans(await api('/firewall/bans')) } catch (e) { modal.close(); toast(e.message, true) } }
     function closeActiveBans() { document.getElementById('bans-modal').close() }
     async function saveFirewallToggle() { try { const p = { ...state.firewall.policy, enabled: document.getElementById('fw-enabled').value === 'true' }; await api('/firewall', { method: 'PUT', body: JSON.stringify(p) }); toast('Firewall policy saved'); loadFirewall() } catch (e) { toast(e.message, true) } }
-    async function addAllowlist() { const network = document.getElementById('allow-network').value.trim(); if (!network) return; try { await api('/firewall/allowlist', { method: 'POST', body: JSON.stringify({ network }) }); document.getElementById('allow-network').value = ''; loadFirewall() } catch (e) { toast(e.message, true) } }
+    async function addAllowlist() { let network = document.getElementById('allow-network').value.trim(); if (!network) return; if (!network.includes('/')) network += network.includes(':') ? '/128' : '/32'; try { await api('/firewall/allowlist', { method: 'POST', body: JSON.stringify({ network }) }); document.getElementById('allow-network').value = ''; loadFirewall() } catch (e) { toast(e.message, true) } }
     async function removeAllowlist(network) { try { await api(`/firewall/allowlist/${network}`, { method: 'DELETE' }); loadFirewall() } catch (e) { toast(e.message, true) } }
     function editRule(id) { const r = state.firewall?.policy.rules.find(x => x.id === id) || { name: 'Nginx authentication failure', enabled: true, log_paths: ['/opt/var/log/nginx/error.log'], pattern: 'client: (?P<ip>[0-9a-fA-F:.]+).*(?:authentication|password)', ip_group: 'ip', group_values: {}, weight: 1 }; openEditor(id ? 'Edit detection rule' : 'Add detection rule', `<form id="rule-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(r.name)}"></div><div class="field"><label><input type="checkbox" name="enabled" ${r.enabled ? 'checked' : ''}> Enabled</label></div><div class="field full"><label>Log paths, one per line</label><textarea class="input" name="log_paths">${esc(r.log_paths.join('\n'))}</textarea></div><div class="field full"><label>Hybrid-DFA regex</label><textarea class="input" name="pattern">${esc(r.pattern)}</textarea><span class="hint">Regex must provide the configured named IP capture.</span></div><div class="field"><label>Weight</label><input class="input" type="number" min="1" name="weight" value="${r.weight}"></div></div></form>`, async () => { try { const f = document.getElementById('rule-form'), v = formObject(f), payload = { ...r, name: v.name, enabled: f.elements.enabled.checked, log_paths: jsonLines(v.log_paths), pattern: v.pattern, weight: Number(v.weight) }; await api(id ? `/firewall/rules/${id}` : '/firewall/rules', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadFirewall() } catch (e) { toast(e.message, true) } }) }
     async function deleteRule(id) { if (!confirm('Delete this detection rule?')) return; try { await api(`/firewall/rules/${id}`, { method: 'DELETE' }); loadFirewall() } catch (e) { toast(e.message, true) } }
     async function manualBan() { const network = document.getElementById('manual-ban').value.trim(); if (!network) return; try { await api('/firewall/bans', { method: 'POST', body: JSON.stringify({ network, seconds: 3600, reason: 'manual UI ban' }) }); document.getElementById('manual-ban').value = ''; loadFirewall() } catch (e) { toast(e.message, true) } }
     async function unban(network) { if (!confirm('Unban, erase detection history, and add this network to the allowlist?')) return; try { await api(`/firewall/bans/${network}`, { method: 'DELETE' }); await loadFirewall(); if (document.getElementById('bans-modal').open) showActiveBans() } catch (e) { toast(e.message, true) } }
 
-    async function loadAdguard() { try { const cfg = await api('/adguard/config'); state.adguard = cfg; document.getElementById('adguard-status').innerHTML = status(cfg.enabled, 'Enabled', 'Disabled'); const f = document.getElementById('adguard-form'); if (f) { f.elements.enabled.checked = !!cfg.enabled; f.elements.api_endpoint.value = cfg.api_endpoint || ''; f.elements.username.value = cfg.username || ''; f.elements.password.value = ''; f.elements.lan_ip.value = cfg.lan_ip || '' } } catch (e) { document.getElementById('adguard-status').textContent = 'API Error'; toast(e.message, true) } }
+    async function loadAdguard() { try { const cfg = await api('/adguard/config'); state.adguard = cfg; const f = document.getElementById('adguard-form'); if (f) { f.elements.enabled.checked = !!cfg.enabled; f.elements.api_endpoint.value = cfg.api_endpoint || ''; f.elements.launch_url.value = cfg.launch_url || ''; f.elements.username.value = cfg.username || ''; f.elements.password.value = ''; f.elements.lan_ip.value = cfg.lan_ip || '' } if (cfg.enabled) { try { const st = await api('/adguard/status'); state.adguardStatus = st; renderAdguardStatus(st) } catch (e) { document.getElementById('adguard-status').innerHTML = status(true, 'Enabled', 'Disabled') } } else { document.getElementById('adguard-status').innerHTML = status(false, 'Enabled', 'Disabled'); renderAdguardStatus(null) } } catch (e) { document.getElementById('adguard-status').textContent = 'API Error'; toast(e.message, true) } }
+    function renderAdguardStatus(st) { const statusEl = document.getElementById('adguard-status'), filtStatusEl = document.getElementById('filtering-status'), protStatusEl = document.getElementById('protection-status'); if (!st || !st.enabled) { if (statusEl) statusEl.innerHTML = status(false, 'Enabled', 'Disabled'); if (filtStatusEl) filtStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; if (protStatusEl) protStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; return } let filtText = ''; if (!st.filtering_enabled && st.filtering_remaining_seconds) { const m = Math.ceil(st.filtering_remaining_seconds / 60); filtText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.filtering_enabled) { filtText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { filtText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (filtStatusEl) filtStatusEl.innerHTML = filtText; let protText = ''; if (!st.protection_enabled && st.protection_remaining_seconds) { const m = Math.ceil(st.protection_remaining_seconds / 60); protText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.protection_enabled) { protText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { protText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (protStatusEl) protStatusEl.innerHTML = protText; if (statusEl) { let summary = status(true, 'Enabled', 'Disabled'); if (!st.filtering_enabled && st.filtering_remaining_seconds) { summary += ` &middot; Filtering Paused (${Math.ceil(st.filtering_remaining_seconds / 60)}m)` } else if (!st.filtering_enabled) { summary += ` &middot; Filtering Disabled` } if (!st.protection_enabled && st.protection_remaining_seconds) { summary += ` &middot; Protection Paused (${Math.ceil(st.protection_remaining_seconds / 60)}m)` } else if (!st.protection_enabled) { summary += ` &middot; Protection Disabled` } statusEl.innerHTML = summary } }
+    function renderAdguardRewrites() { const body = document.getElementById('adguard-rewrites-body'); body.innerHTML = state.adguardRewrites.length ? state.adguardRewrites.map((rewrite, index) => `<tr><td><input class="input" value="${esc(rewrite.domain)}" aria-label="Rewrite domain" oninput="adguardRewriteChanged(${index},'domain',this.value)"></td><td><input class="input" value="${esc(rewrite.answer)}" aria-label="Rewrite answer" oninput="adguardRewriteChanged(${index},'answer',this.value)"></td><td><button class="btn small danger" onclick="removeAdguardRewrite(${index})">Delete</button></td></tr>`).join('') : emptyRow(3, 'No custom DNS rewrites'); updateSortHeaders('rewrites') }
+    function adguardRewriteChanged(index, key, value) { if (state.adguardRewrites[index]) state.adguardRewrites[index][key] = value }
+    function addAdguardRewrite() { state.adguardRewrites.push({ domain: '', answer: '' }); renderAdguardRewrites(); const inputs = document.querySelectorAll('#adguard-rewrites-body input'); inputs[inputs.length - 2]?.focus() }
+    function removeAdguardRewrite(index) { state.adguardRewrites.splice(index, 1); renderAdguardRewrites() }
+    async function openAdguardRewrites() { if (!state.adguard?.enabled) return toast('Enable AdGuard integration first', true); const modal = document.getElementById('rewrites-modal'); try { state.adguardRewrites = await api('/adguard/rewrites'); renderAdguardRewrites(); modal.showModal() } catch (e) { toast(e.message, true) } }
+    function closeAdguardRewrites() { document.getElementById('rewrites-modal').close() }
+    async function saveAdguardRewrites() { try { state.adguardRewrites = await api('/adguard/rewrites', { method: 'PUT', body: JSON.stringify(state.adguardRewrites) }); closeAdguardRewrites(); toast('DNS rewrites saved') } catch (e) { toast(e.message, true) } }
+    function renderAdguardHosts() { const body = document.getElementById('adguard-hosts-body'); body.innerHTML = state.adguardHosts.length ? state.adguardHosts.map((entry, index) => `<tr><td><input class="input" value="${esc(entry.ip)}" aria-label="Host IP address" oninput="adguardHostChanged(${index},'ip',this.value)"></td><td><input class="input" value="${esc(entry.hostnames.join(' '))}" aria-label="Hostnames" oninput="adguardHostChanged(${index},'hostnames',this.value)"></td><td><button class="btn small danger" onclick="removeAdguardHost(${index})">Delete</button></td></tr>`).join('') : emptyRow(3, 'No host mappings'); updateSortHeaders('hosts') }
+    function adguardHostChanged(index, key, value) { if (state.adguardHosts[index]) state.adguardHosts[index][key] = key === 'hostnames' ? value.trim().split(/\s+/).filter(Boolean) : value }
+    function addAdguardHost() { state.adguardHosts.push({ ip: '', hostnames: [] }); renderAdguardHosts(); const inputs = document.querySelectorAll('#adguard-hosts-body input'); inputs[inputs.length - 2]?.focus() }
+    function removeAdguardHost(index) { state.adguardHosts.splice(index, 1); renderAdguardHosts() }
+    async function openAdguardHosts() { const modal = document.getElementById('hosts-modal'); try { state.adguardHosts = await api('/adguard/hosts'); renderAdguardHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
+    function closeAdguardHosts() { document.getElementById('hosts-modal').close() }
+    async function saveAdguardHosts() { try { state.adguardHosts = await api('/adguard/hosts', { method: 'PUT', body: JSON.stringify(state.adguardHosts) }); closeAdguardHosts(); toast('hosts.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
+    function renderDnsmasqHosts() { const body = document.getElementById('dnsmasq-hosts-body'); body.innerHTML = state.dnsmasqHosts.length ? state.dnsmasqHosts.map((entry, index) => `<tr><td><input class="input" value="${esc(entry.mac)}" oninput="dnsmasqHostChanged(${index},'mac',this.value)"></td><td><input class="input" value="${esc(entry.hostname)}" oninput="dnsmasqHostChanged(${index},'hostname',this.value)"></td><td><input class="input" value="${esc(entry.ip)}" oninput="dnsmasqHostChanged(${index},'ip',this.value)"></td><td><button class="btn small danger" onclick="removeDnsmasqHost(${index})">Delete</button></td></tr>`).join('') : emptyRow(4, 'No DHCP reservations'); updateSortHeaders('dnsmasq') }
+    function dnsmasqHostChanged(index, key, value) { if (state.dnsmasqHosts[index]) state.dnsmasqHosts[index][key] = value }
+    function addDnsmasqHost() { state.dnsmasqHosts.push({ mac: '', hostname: '', ip: '' }); renderDnsmasqHosts(); document.querySelector('#dnsmasq-hosts-body input')?.focus() }
+    function removeDnsmasqHost(index) { state.dnsmasqHosts.splice(index, 1); renderDnsmasqHosts() }
+    async function openDnsmasqHosts() { const modal = document.getElementById('dnsmasq-hosts-modal'); try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts'); renderDnsmasqHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
+    function closeDnsmasqHosts() { document.getElementById('dnsmasq-hosts-modal').close() }
+    async function saveDnsmasqHosts() { try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts', { method: 'PUT', body: JSON.stringify(state.dnsmasqHosts) }); closeDnsmasqHosts(); toast('dnsmasq.conf.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
     function launchAdGuard() { if (state.adguard?.launch_url) window.open(state.adguard.launch_url, '_blank'); else if (state.adguard?.api_endpoint) window.open(state.adguard.api_endpoint, '_blank'); else toast('API endpoint not configured', true) }
-    async function toggleAdguardProtection(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/protection', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard protection ${enabled ? 'enabled' : 'paused/disabled'}`); loadAdguard() } catch (e) { toast(e.message, true) } }
-    async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
+    async function toggleAdguardFiltering(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/filtering', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard filtering ${enabled ? 'enabled' : `paused for ${duration_minutes} min`}`); loadAdguard() } catch (e) { toast(e.message, true) } }
+    async function toggleAdguardProtection(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/protection', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard protection ${enabled ? 'enabled' : `paused for ${duration_minutes} min`}`); loadAdguard() } catch (e) { toast(e.message, true) } }
+    async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, launch_url: v.launch_url || '', username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
 
-    loadDashboard();
+    function applyCertificateLockUi() {
+      const locked = !!state.dehydratedLock?.locked;
+      const notice = document.getElementById('certificate-lock-notice');
+      const path = document.getElementById('certificate-lock-path');
+      if (notice) notice.hidden = !locked;
+      if (path) path.textContent = locked ? state.dehydratedLock.path : '';
+      document.querySelectorAll('#certs-body .row-actions button').forEach(button => {
+        const renewalAction = ['Renew', 'Issue'].includes(button.textContent.trim());
+        button.disabled = locked && renewalAction;
+        button.title = locked && renewalAction ? 'Clear the dehydrated lock before issuing or renewing' : '';
+      });
+    }
+    async function loadCertificateLock() {
+      state.dehydratedLock = await api('/certificates/dehydrated/lock');
+      applyCertificateLockUi();
+    }
+    async function loadCertificatesWithLock() {
+      await loadCertificates();
+      await loadCertificateLock();
+    }
+    async function clearDehydratedLock() {
+      if (!confirm('Clear the dehydrated lock file? Only do this after confirming no dehydrated process is running.')) return;
+      try {
+        state.dehydratedLock = await api('/certificates/dehydrated/lock', { method: 'DELETE' });
+        applyCertificateLockUi();
+        toast('Dehydrated lock cleared');
+        await loadCertificatesWithLock();
+      } catch (e) { toast(e.message, true) }
+    }
+    new MutationObserver(applyCertificateLockUi).observe(document.getElementById('certs-body'), { childList: true });
+
+    refreshCurrent();
   </script>
 
                                         </td>
