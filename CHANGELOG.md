@@ -2,6 +2,12 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.5.1
+
+### Added
+
+- Support for prompting and storing authentication tokens automatically when used outside of the Asus UI.
+
 ## 0.5.0
 
 ### Added

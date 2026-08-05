@@ -643,7 +643,7 @@ impl Worker {
 
                     match self
                         .aggregator
-                        .record(hit.ip, weight, self.backend.as_ref())
+                        .record(hit.ip, weight, &rule_name, self.backend.as_ref())
                     {
                         Ok(result) => {
                             self.dirty = true;
@@ -798,6 +798,7 @@ fn load_state(
                     expires_at,
                     hit_count: record.hit_count,
                     offense_count: 1,
+                    triggering_rule: None,
                 })
             })
             .collect()
@@ -817,6 +818,7 @@ fn load_state(
                 expires_at: now + ChronoDuration::hours(1),
                 hit_count: 1,
                 offense_count: 1,
+                triggering_rule: None,
             })
             .collect()
     };
@@ -828,6 +830,7 @@ fn load_state(
             scores: vec![],
             reputation: vec![],
             subnet_offenders: vec![],
+            rule_stats: vec![],
             banned_ips: vec![],
             banned_subnets: vec![],
         },

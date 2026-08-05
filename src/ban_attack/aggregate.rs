@@ -9,6 +9,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::ban_attack::{AggregationConfig, BackendError, BanBackend, BanTarget};
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RuleStats {
+    pub match_count: u64,
+    pub ban_count: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct RuleStatsEntry {
+    pub name: String,
+    pub match_count: u64,
+    pub ban_count: u64,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PersistentState {
     #[serde(default = "state_schema_version")]
@@ -23,6 +36,8 @@ pub struct PersistentState {
     pub reputation: Vec<ReputationEntry>,
     #[serde(default)]
     pub subnet_offenders: Vec<SubnetOffenderEntry>,
+    #[serde(default)]
+    pub rule_stats: Vec<RuleStatsEntry>,
     // Kept only to import the two historical engine documents. New writes use
     // the versioned fields above.
     #[serde(default, skip_serializing)]
@@ -44,6 +59,8 @@ pub struct ActiveBan {
     pub expires_at: DateTime<Utc>,
     pub hit_count: u64,
     pub offense_count: u32,
+    #[serde(default)]
+    pub triggering_rule: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -79,6 +96,7 @@ pub struct Snapshot {
     pub tracked_subnet_count: usize,
     pub active_ban_count: usize,
     pub eviction_count: u64,
+    pub rule_stats: Vec<(String, RuleStats)>,
 }
 
 #[derive(Debug)]
@@ -110,6 +128,7 @@ pub struct Aggregator {
     reputation: HashMap<IpNet, ReputationEntry>,
     subnet_offenders: HashMap<IpNet, HashMap<IpAddr, DateTime<Utc>>>,
     eviction_count: u64,
+    rule_stats: HashMap<String, RuleStats>,
 }
 
 impl Aggregator {
@@ -125,6 +144,7 @@ impl Aggregator {
             reputation: HashMap::new(),
             subnet_offenders: HashMap::new(),
             eviction_count: 0,
+            rule_stats: HashMap::new(),
         }
     }
 
@@ -199,8 +219,13 @@ impl Aggregator {
         &mut self,
         ip: IpAddr,
         weight: u64,
+        rule: &str,
         backend: &dyn BanBackend,
     ) -> Result<RecordResult, BackendError> {
+        {
+            let stats = self.rule_stats.entry(rule.to_owned()).or_default();
+            stats.match_count = stats.match_count.saturating_add(1);
+        }
         let now = Utc::now();
         if self.last_seen.get(&ip).is_some_and(|last_seen| {
             *last_seen + Duration::seconds(self.config.score_retention_seconds as i64) <= now
@@ -261,7 +286,7 @@ impl Aggregator {
                 && distributed_sources >= self.config.promote_after_banned_ips);
 
         if should_promote {
-            let (transition, errors) = self.promote(subnet, backend)?;
+            let (transition, errors) = self.promote(subnet, Some(rule.to_owned()), backend)?;
             transitions.push(transition);
             cleanup_errors.extend(errors);
         } else if ip_count >= self.config.ip_failures && !self.banned_ips.contains(&ip) {
@@ -272,10 +297,16 @@ impl Aggregator {
                 "threshold",
                 ip_count,
                 now,
+                Some(rule.to_owned()),
                 backend,
             )?;
             self.banned_ips.insert(ip);
             transitions.push(BanTransition::Banned(target));
+        }
+
+        if !transitions.is_empty() {
+            let stats = self.rule_stats.entry(rule.to_owned()).or_default();
+            stats.ban_count = stats.ban_count.saturating_add(transitions.len() as u64);
         }
 
         Ok(RecordResult {
@@ -302,7 +333,7 @@ impl Aggregator {
                 )));
             }
         }
-        self.add_timed(target.clone(), "manual", &reason, 1, now, backend)?;
+        self.add_timed(target.clone(), "manual", &reason, 1, now, None, backend)?;
         self.active_bans
             .get_mut(&target)
             .expect("manual ban inserted")
@@ -409,6 +440,13 @@ impl Aggregator {
         let mut banned_subnets: Vec<_> = self.banned_subnets.iter().copied().collect();
         banned_subnets.sort_by_key(|net| net.to_string());
 
+        let mut rule_stats: Vec<_> = self
+            .rule_stats
+            .iter()
+            .map(|(name, stats)| (name.clone(), stats.clone()))
+            .collect();
+        rule_stats.sort_by_key(|(name, _)| name.clone());
+
         Snapshot {
             ip_counts,
             subnet_counts,
@@ -424,6 +462,7 @@ impl Aggregator {
             tracked_subnet_count: self.subnet_counts.len(),
             active_ban_count: self.active_bans.len(),
             eviction_count: self.eviction_count,
+            rule_stats,
         }
     }
 
@@ -462,6 +501,16 @@ impl Aggregator {
             })
             .collect();
         subnet_offenders.sort_by_key(|entry| (entry.subnet.to_string(), entry.ip));
+        let mut rule_stats: Vec<_> = self
+            .rule_stats
+            .iter()
+            .map(|(name, stats)| RuleStatsEntry {
+                name: name.clone(),
+                match_count: stats.match_count,
+                ban_count: stats.ban_count,
+            })
+            .collect();
+        rule_stats.sort_by_key(|entry| entry.name.clone());
         PersistentState {
             schema_version: 1,
             saved_at: Some(Utc::now()),
@@ -469,6 +518,7 @@ impl Aggregator {
             scores,
             reputation,
             subnet_offenders,
+            rule_stats,
             banned_ips,
             banned_subnets,
         }
@@ -552,6 +602,11 @@ impl Aggregator {
                     .insert(entry.ip, entry.crossed_at);
             }
         }
+        for entry in &state.rule_stats {
+            let stats = self.rule_stats.entry(entry.name.clone()).or_default();
+            stats.match_count = stats.match_count.saturating_add(entry.match_count);
+            stats.ban_count = stats.ban_count.saturating_add(entry.ban_count);
+        }
         if state.schema_version == 0 {
             for &subnet in &state.banned_subnets {
                 let target = BanTarget::Subnet(subnet);
@@ -566,6 +621,7 @@ impl Aggregator {
                         expires_at: now + Duration::seconds(self.config.first_ban_seconds as i64),
                         hit_count: 1,
                         offense_count: 1,
+                        triggering_rule: None,
                     },
                 );
             }
@@ -585,6 +641,7 @@ impl Aggregator {
                         expires_at: now + Duration::seconds(self.config.first_ban_seconds as i64),
                         hit_count: 1,
                         offense_count: 1,
+                        triggering_rule: None,
                     },
                 );
             }
@@ -593,6 +650,7 @@ impl Aggregator {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn add_timed(
         &mut self,
         target: BanTarget,
@@ -600,6 +658,7 @@ impl Aggregator {
         reason: &str,
         hit_count: u64,
         now: DateTime<Utc>,
+        triggering_rule: Option<String>,
         backend: &dyn BanBackend,
     ) -> Result<(), BackendError> {
         self.ensure_active_capacity_for(&target)?;
@@ -628,6 +687,7 @@ impl Aggregator {
                 expires_at: now + Duration::seconds(seconds as i64),
                 hit_count,
                 offense_count,
+                triggering_rule,
             },
         );
         self.reputation.insert(
@@ -762,6 +822,7 @@ impl Aggregator {
     fn promote(
         &mut self,
         subnet: IpNet,
+        triggering_rule: Option<String>,
         backend: &dyn BanBackend,
     ) -> Result<(BanTransition, Vec<String>), BackendError> {
         let target = BanTarget::Subnet(subnet);
@@ -772,6 +833,7 @@ impl Aggregator {
             "subnet promotion",
             self.subnet_counts.get(&subnet).copied().unwrap_or_default(),
             now,
+            triggering_rule,
             backend,
         )?;
         if let Some(ban) = self.active_bans.get_mut(&target) {
@@ -895,8 +957,12 @@ mod tests {
         let first: IpAddr = "192.0.2.10".parse().unwrap();
         let second: IpAddr = "192.0.2.20".parse().unwrap();
 
-        aggregator.record(first, 2, backend.as_ref()).unwrap();
-        aggregator.record(second, 2, backend.as_ref()).unwrap();
+        aggregator
+            .record(first, 2, "test", backend.as_ref())
+            .unwrap();
+        aggregator
+            .record(second, 2, "test", backend.as_ref())
+            .unwrap();
 
         let entries = backend.entries();
         assert!(!entries.contains(&BanTarget::Ip(first)));
@@ -915,10 +981,10 @@ mod tests {
         });
 
         aggregator
-            .record("192.0.2.10".parse().unwrap(), 2, backend.as_ref())
+            .record("192.0.2.10".parse().unwrap(), 2, "test", backend.as_ref())
             .unwrap();
         aggregator
-            .record("192.0.2.20".parse().unwrap(), 2, backend.as_ref())
+            .record("192.0.2.20".parse().unwrap(), 2, "test", backend.as_ref())
             .unwrap();
 
         assert_eq!(
@@ -938,11 +1004,11 @@ mod tests {
         });
         let ip: IpAddr = "192.0.2.10".parse().unwrap();
 
-        aggregator.record(ip, 2, backend.as_ref()).unwrap();
+        aggregator.record(ip, 2, "test", backend.as_ref()).unwrap();
         aggregator
             .last_seen
             .insert(ip, Utc::now() - Duration::days(2));
-        aggregator.record(ip, 2, backend.as_ref()).unwrap();
+        aggregator.record(ip, 2, "test", backend.as_ref()).unwrap();
 
         assert_eq!(backend.entries(), HashSet::from([BanTarget::Ip(ip)]));
     }
@@ -960,7 +1026,9 @@ mod tests {
         let second: IpAddr = "192.0.2.20".parse().unwrap();
         let subnet: IpNet = "192.0.0.0/16".parse().unwrap();
 
-        aggregator.record(first, 1, backend.as_ref()).unwrap();
+        aggregator
+            .record(first, 1, "test", backend.as_ref())
+            .unwrap();
         aggregator
             .add_manual(
                 BanTarget::Subnet(subnet),
@@ -969,7 +1037,9 @@ mod tests {
                 backend.as_ref(),
             )
             .unwrap();
-        aggregator.record(second, 1, backend.as_ref()).unwrap();
+        aggregator
+            .record(second, 1, "test", backend.as_ref())
+            .unwrap();
 
         assert_eq!(
             backend.entries(),
@@ -1002,6 +1072,7 @@ mod tests {
             expires_at: now + Duration::days(1),
             hit_count: 4,
             offense_count: 1,
+            triggering_rule: None,
         };
         let state = PersistentState {
             schema_version: 1,
@@ -1012,6 +1083,7 @@ mod tests {
             scores: vec![],
             reputation: vec![],
             subnet_offenders: vec![],
+            rule_stats: vec![],
             banned_ips: vec![],
             banned_subnets: vec![],
         };
@@ -1037,8 +1109,8 @@ mod tests {
         });
         let ip: IpAddr = "192.0.2.10".parse().unwrap();
 
-        aggregator.record(ip, 1, backend.as_ref()).unwrap();
-        aggregator.record(ip, 1, backend.as_ref()).unwrap();
+        aggregator.record(ip, 1, "test", backend.as_ref()).unwrap();
+        aggregator.record(ip, 1, "test", backend.as_ref()).unwrap();
 
         assert_eq!(aggregator.snapshot().ip_counts, vec![(ip, 2)]);
         assert_eq!(backend.entries(), HashSet::from([BanTarget::Ip(ip)]));
@@ -1057,7 +1129,7 @@ mod tests {
         });
         let ip: IpAddr = "192.0.2.10".parse().unwrap();
 
-        aggregator.record(ip, 1, backend.as_ref()).unwrap();
+        aggregator.record(ip, 1, "test", backend.as_ref()).unwrap();
         let removed = aggregator
             .apply_exceptions(&["192.0.2.0/24".parse().unwrap()], backend.as_ref())
             .unwrap();
@@ -1084,10 +1156,12 @@ mod tests {
                 expires_at: now - Duration::hours(1),
                 hit_count: 5,
                 offense_count: 1,
+                triggering_rule: None,
             }],
             scores: vec![],
             reputation: vec![],
             subnet_offenders: vec![],
+            rule_stats: vec![],
             banned_ips: vec![ip],
             banned_subnets: vec![],
         };
@@ -1113,7 +1187,7 @@ mod tests {
         let mut aggregator = Aggregator::new(config);
         for ip in ["192.0.2.1", "198.51.100.1", "203.0.113.1"] {
             aggregator
-                .record(ip.parse().unwrap(), 1, backend.as_ref())
+                .record(ip.parse().unwrap(), 1, "test", backend.as_ref())
                 .unwrap();
         }
 
@@ -1140,7 +1214,7 @@ mod tests {
         config.promote_after_banned_ips = 2;
         let mut aggregator = Aggregator::new(config);
         let ip: IpAddr = "192.0.2.80".parse().unwrap();
-        aggregator.record(ip, 1, backend.as_ref()).unwrap();
+        aggregator.record(ip, 1, "test", backend.as_ref()).unwrap();
         aggregator
             .apply_exceptions(&[IpNet::from(ip)], backend.as_ref())
             .unwrap();

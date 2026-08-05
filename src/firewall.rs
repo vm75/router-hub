@@ -126,18 +126,27 @@ impl FirewallManager {
             ),
         };
 
+        let rule_id_by_name: std::collections::HashMap<&str, uuid::Uuid> = policy
+            .rules
+            .iter()
+            .map(|r| (r.name.as_str(), r.id))
+            .collect();
         let bans = snapshot
             .active_bans
             .iter()
             .map(|ban| BanRecord {
                 network: ban.network,
                 reason: ban.reason.clone(),
-                rule_id: None,
+                rule_id: ban
+                    .triggering_rule
+                    .as_deref()
+                    .and_then(|name| rule_id_by_name.get(name).copied()),
                 created_at: ban.created_at,
                 expires_at: ban.expires_at,
                 hit_count: ban.hit_count as usize,
                 source: ban.source.clone(),
                 offense_count: ban.offense_count,
+                triggering_rule: ban.triggering_rule.clone(),
             })
             .collect();
         FirewallStatus {
@@ -248,6 +257,7 @@ impl FirewallManager {
             hit_count: ban.hit_count as usize,
             source: ban.source,
             offense_count: ban.offense_count,
+            triggering_rule: ban.triggering_rule,
         })
     }
 

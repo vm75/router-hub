@@ -194,6 +194,8 @@ pub struct BanRecord {
     pub source: String,
     #[serde(default)]
     pub offense_count: u32,
+    #[serde(default)]
+    pub triggering_rule: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

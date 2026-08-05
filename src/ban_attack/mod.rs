@@ -14,7 +14,7 @@ mod rule;
 mod tailer;
 
 #[allow(unused_imports)]
-pub use aggregate::{ActiveBan, Aggregator, PersistentState, Snapshot};
+pub use aggregate::{ActiveBan, Aggregator, PersistentState, RuleStats, RuleStatsEntry, Snapshot};
 #[allow(unused_imports)]
 pub use backend::{BanBackend, BanTarget, CommandIpSet, MemoryBanBackend};
 #[allow(unused_imports)]
