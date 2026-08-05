@@ -2,6 +2,18 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.5.2
+
+### Added
+
+- Added support for 1, 10, 30, and 60 minute pause options for AdGuard filtering and protection.
+- Added separate API Endpoint and Web UI Launch Alias configuration for AdGuard Home integration.
+- Added standalone mode hero banner, centered layout container, and embedded SVG logo support (`router-hub.svg`).
+
+### Fixed
+
+- Fixed AdGuard Home filtering status query endpoint to use `GET /control/filtering/status` and corrected auto-resume timer execution.
+
 ## 0.5.1
 
 ### Added

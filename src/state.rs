@@ -34,6 +34,8 @@ pub struct AppState {
     pub stores: Stores,
     pub runner: CommandRunner,
     pub firewall: FirewallManager,
+    pub filtering_timer: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    pub filtering_paused_until: Arc<Mutex<Option<DateTime<Utc>>>>,
     dehydrated_update_lock: Arc<Mutex<()>>,
 }
 
@@ -45,6 +47,8 @@ impl AppState {
             stores,
             runner: CommandRunner::new(test_mode),
             firewall,
+            filtering_timer: Arc::new(Mutex::new(None)),
+            filtering_paused_until: Arc::new(Mutex::new(None)),
             dehydrated_update_lock: Arc::new(Mutex::new(())),
         }
     }

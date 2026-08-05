@@ -15,6 +15,7 @@ use axum::{
 use serde::Serialize;
 
 const FAVICON: &[u8] = include_bytes!("../../data/www/images/favicon.png");
+const LOGO_SVG: &[u8] = include_bytes!("../../router-hub.svg");
 
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -55,7 +56,11 @@ pub fn app(state: AppState) -> anyhow::Result<Router> {
 
     Ok(Router::new()
         .route("/", get(index))
+        .route("/favicon.ico", get(logo_svg))
+        .route("/favicon.svg", get(logo_svg))
         .route("/favicon.png", get(favicon))
+        .route("/router-hub.png", get(favicon))
+        .route("/router-hub.svg", get(logo_svg))
         .route("/healthz", get(health))
         .route("/api/version", get(version))
         .nest("/api", api)
@@ -173,6 +178,8 @@ pub fn router() -> Router<AppState> {
             get(adguard::get_dnsmasq_hosts).put(adguard::update_dnsmasq_hosts),
         )
         .route("/adguard/protection", post(adguard::set_protection))
+        .route("/adguard/filtering", post(adguard::set_filtering))
+        .route("/adguard/status", get(adguard::get_adguard_status))
 }
 
 pub async fn index(State(state): State<AppState>) -> Response {
@@ -181,6 +188,10 @@ pub async fn index(State(state): State<AppState>) -> Response {
 
 pub async fn favicon() -> Response {
     ([("content-type", "image/png")], FAVICON).into_response()
+}
+
+pub async fn logo_svg() -> Response {
+    ([("content-type", "image/svg+xml")], LOGO_SVG).into_response()
 }
 
 pub async fn health() -> &'static str {

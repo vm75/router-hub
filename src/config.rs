@@ -523,6 +523,7 @@ impl Default for FirewallRuntimeConfig {
 pub struct AdGuardConfig {
     pub enabled: bool,
     pub api_endpoint: String,
+    pub launch_url: String,
     pub username: String,
     pub password: String,
     pub lan_ip: String,
@@ -533,6 +534,7 @@ impl Default for AdGuardConfig {
         Self {
             enabled: true,
             api_endpoint: "".into(),
+            launch_url: "".into(),
             username: "".into(),
             password: "".into(),
             lan_ip: "192.168.1.1".into(),

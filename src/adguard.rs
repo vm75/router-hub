@@ -34,6 +34,13 @@ pub struct ProtectionState {
     pub protection_enabled: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdGuardHomeStatus {
+    pub protection_enabled: bool,
+    pub protection_disabled_duration_ms: u64,
+    pub filtering_enabled: bool,
+}
+
 #[derive(Clone)]
 pub struct AdGuardClient {
     client: Client,
@@ -205,6 +212,71 @@ impl AdGuardClient {
         Ok(())
     }
 
+    pub async fn set_filtering(&self, enabled: bool) -> Result<()> {
+        let status_url = format!("{}/control/filtering/status", self.endpoint);
+        let mut interval = 24;
+        if let Ok(res) = self.client.get(&status_url).send().await {
+            if res.status().is_success() {
+                if let Ok(config) = res.json::<serde_json::Value>().await {
+                    if let Some(i) = config.get("interval").and_then(|v| v.as_u64()) {
+                        interval = i;
+                    }
+                }
+            }
+        }
+        let config_url = format!("{}/control/filtering/config", self.endpoint);
+        let payload = serde_json::json!({
+            "enabled": enabled,
+            "interval": interval,
+        });
+        self.client
+            .post(&config_url)
+            .json(&payload)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    pub async fn get_status(&self) -> Result<AdGuardHomeStatus> {
+        let status_url = format!("{}/control/status", self.endpoint);
+        let res = self
+            .client
+            .get(&status_url)
+            .send()
+            .await?
+            .error_for_status()?;
+        let status_json: serde_json::Value = res.json().await?;
+
+        let protection_enabled = status_json
+            .get("protection_enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let protection_disabled_duration_ms = status_json
+            .get("protection_disabled_duration")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+
+        let filtering_url = format!("{}/control/filtering/status", self.endpoint);
+        let mut filtering_enabled = true;
+        if let Ok(f_res) = self.client.get(&filtering_url).send().await {
+            if f_res.status().is_success() {
+                if let Ok(f_json) = f_res.json::<serde_json::Value>().await {
+                    if let Some(e) = f_json.get("enabled").and_then(|v| v.as_bool()) {
+                        filtering_enabled = e;
+                    }
+                }
+            }
+        }
+
+        Ok(AdGuardHomeStatus {
+            protection_enabled,
+            protection_disabled_duration_ms,
+            filtering_enabled,
+        })
+    }
+
     pub async fn toggle_protection(&self, enabled: bool, duration_ms: Option<u64>) -> Result<()> {
         let url = format!("{}/control/protection", self.endpoint);
         let payload = serde_json::json!({
@@ -240,6 +312,7 @@ mod tests {
         let config = AdGuardConfig {
             enabled: true,
             api_endpoint: "http://127.0.0.1:80/".to_string(),
+            launch_url: "".to_string(),
             username: "admin".to_string(),
             password: "password".to_string(),
             lan_ip: "192.168.50.1".to_string(),

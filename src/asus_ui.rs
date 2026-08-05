@@ -1,11 +1,13 @@
 use std::fs;
 
 use anyhow::{Context, Result, bail};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::config::AppConfig;
 
 const UI: &str = include_str!("../web/index.html");
 const ASP_TEMPLATE: &str = include_str!("../config/asus-wrt.asp.template");
+const LOGO_SVG: &str = include_str!("../router-hub.svg");
 
 pub fn render_ui(config: &AppConfig) -> String {
     render_ui_with_token(config, None)
@@ -21,10 +23,15 @@ fn render_ui_with_token(config: &AppConfig, token: Option<&str>) -> String {
         serde_json::to_string(env!("CARGO_PKG_VERSION")).expect("version is JSON safe");
     let api_base_json = serde_json::to_string(&api_base).expect("API base is JSON safe");
     let token_json = serde_json::to_string(&token).expect("token is JSON safe");
+    let logo_data_uri = format!(
+        "data:image/svg+xml;base64,{}",
+        BASE64.encode(LOGO_SVG.as_bytes())
+    );
     UI.replace("__ROUTER_HUB_VERSION__", env!("CARGO_PKG_VERSION"))
         .replace("__ROUTER_HUB_VERSION_JSON__", &version_json)
         .replace("__ROUTER_HUB_API_BASE_JSON__", &api_base_json)
         .replace("__ROUTER_HUB_TOKEN_JSON__", &token_json)
+        .replace("__ROUTER_HUB_LOGO_DATA_URI__", &logo_data_uri)
 }
 
 pub fn render_asus_ui(config: &AppConfig) -> String {
@@ -145,10 +152,12 @@ mod tests {
         assert!(!standalone.contains("__ROUTER_HUB_VERSION_JSON__"));
         assert!(!standalone.contains("__ROUTER_HUB_API_BASE_JSON__"));
         assert!(!standalone.contains("__ROUTER_HUB_TOKEN_JSON__"));
+        assert!(!standalone.contains("__ROUTER_HUB_LOGO_DATA_URI__"));
+        assert!(standalone.contains("data:image/svg+xml;base64,"));
         assert!(!standalone.contains("my-secret-token"));
         assert_eq!(standalone.matches("<html").count(), 1);
         assert_eq!(standalone.matches("<body").count(), 1);
-        assert!(standalone.contains("rel=\"icon\" href=\"/favicon.png\""));
+        assert!(standalone.contains("rel=\"icon\" href=\"data:image/svg+xml;base64,"));
         assert!(standalone.contains("<details class=\"card nginx-root\">"));
         assert_eq!(
             standalone

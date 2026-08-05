@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="500" height="500" fill="#ffffff" />
+
+  <g fill="#282828" stroke="#282828" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Wi-Fi Signal Waves -->
+    <path d="M 195,128 A 120,120 0 0,1 305,128" fill="none" stroke-width="20" />
+    <path d="M 215,148 A 85,85 0 0,1 285,148" fill="none" stroke-width="20" />
+
+    <!-- Connecting Network Lines -->
+    <line x1="250" y1="205" x2="250" y2="325" stroke-width="20" />
+    <line x1="140" y1="222" x2="250" y2="265" stroke-width="20" />
+    <line x1="360" y1="222" x2="250" y2="265" stroke-width="20" />
+
+    <!-- Network Nodes (Circles) -->
+    <circle cx="250" cy="180" r="23" stroke="none" />
+    <circle cx="130" cy="222" r="23" stroke="none" />
+    <circle cx="370" cy="222" r="23" stroke="none" />
+    <circle cx="250" cy="275" r="28" stroke="none" />
+
+    <!-- Antennas -->
+    <rect x="156" y="275" width="14" height="55" rx="7" stroke="none" />
+    <rect x="330" y="275" width="14" height="55" rx="7" stroke="none" />
+
+    <!-- Modem Body -->
+    <rect x="137" y="327" width="226" height="68" rx="22" stroke="none" />
+
+    <!-- LED Indicator Lights -->
+    <circle cx="182" cy="362" r="7" fill="#ffffff" stroke="none" />
+    <circle cx="217" cy="362" r="7" fill="#ffffff" stroke="none" />
+    <circle cx="252" cy="362" r="7" fill="#ffffff" stroke="none" />
+  </g>
+</svg>

@@ -1,10 +1,11 @@
 use std::{net::IpAddr, time::Duration};
 
 use axum::{Json, extract::State};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    adguard::{AdGuardClient, get_lan_ip, has_underscore_domain},
+    adguard::{AdGuardClient, AdGuardHomeStatus, get_lan_ip, has_underscore_domain},
     api::ApiError,
     config::AdGuardConfig,
     models::ApiMessage,
@@ -28,9 +29,16 @@ pub struct ProtectionRequest {
 }
 
 #[derive(Deserialize)]
+pub struct FilteringRequest {
+    pub enabled: bool,
+    pub duration_minutes: Option<u64>,
+}
+
+#[derive(Deserialize)]
 pub struct UpdateAdGuardRequest {
     pub enabled: bool,
     pub api_endpoint: String,
+    pub launch_url: Option<String>,
     pub username: String,
     pub password: Option<String>,
     pub lan_ip: String,
@@ -295,7 +303,9 @@ pub async fn get_effective_config(state: &AppState) -> AdGuardConfig {
 
 pub async fn get_config(State(state): State<AppState>) -> Json<AdGuardInfo> {
     let cfg = get_effective_config(&state).await;
-    let launch_url = if !cfg.api_endpoint.trim().is_empty() {
+    let launch_url = if !cfg.launch_url.trim().is_empty() {
+        cfg.launch_url.clone()
+    } else if !cfg.api_endpoint.trim().is_empty() {
         cfg.api_endpoint.clone()
     } else {
         format!("http://{}:3000", cfg.lan_ip)
@@ -317,6 +327,9 @@ pub async fn update_config(
     let mut current = get_effective_config(&state).await;
     current.enabled = req.enabled;
     current.api_endpoint = req.api_endpoint;
+    if let Some(url) = req.launch_url {
+        current.launch_url = url;
+    }
     current.username = req.username;
     if let Some(pwd) = req.password {
         if !pwd.is_empty() || current.password.is_empty() {
@@ -355,8 +368,131 @@ pub async fn set_protection(
         .await
         .map_err(ApiError::internal)?;
 
-    let status = if req.enabled { "enabled" } else { "disabled" };
+    let status = if req.enabled {
+        "enabled".to_string()
+    } else if let Some(mins) = req.duration_minutes {
+        format!("paused for {} minutes", mins)
+    } else {
+        "disabled".to_string()
+    };
     Ok(Json(ApiMessage::new(format!("Protection {}", status))))
+}
+
+pub async fn set_filtering(
+    State(state): State<AppState>,
+    Json(req): Json<FilteringRequest>,
+) -> Result<Json<ApiMessage>, ApiError> {
+    let cfg = get_effective_config(&state).await;
+    if !cfg.enabled {
+        return Err(ApiError::bad_request(
+            "AdGuard Home integration is disabled",
+        ));
+    }
+
+    let client = AdGuardClient::new(&cfg).map_err(ApiError::internal)?;
+
+    if let Some(handle) = state.filtering_timer.lock().await.take() {
+        handle.abort();
+    }
+
+    if req.enabled {
+        client
+            .set_filtering(true)
+            .await
+            .map_err(ApiError::internal)?;
+        Ok(Json(ApiMessage::new("Filtering enabled")))
+    } else {
+        client
+            .set_filtering(false)
+            .await
+            .map_err(ApiError::internal)?;
+        if let Some(mins) = req.duration_minutes {
+            if mins > 0 {
+                let until = Utc::now() + chrono::Duration::seconds((mins * 60) as i64);
+                *state.filtering_paused_until.lock().await = Some(until);
+                let timer_state = state.clone();
+                let handle = tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(mins * 60)).await;
+                    *timer_state.filtering_paused_until.lock().await = None;
+                    let cfg = get_effective_config(&timer_state).await;
+                    if let Ok(client) = AdGuardClient::new(&cfg) {
+                        let _ = client.set_filtering(true).await;
+                    }
+                });
+                *state.filtering_timer.lock().await = Some(handle);
+                return Ok(Json(ApiMessage::new(format!(
+                    "Filtering paused for {} minutes",
+                    mins
+                ))));
+            }
+        }
+        *state.filtering_paused_until.lock().await = None;
+        Ok(Json(ApiMessage::new("Filtering disabled")))
+    }
+}
+
+#[derive(Serialize)]
+pub struct AdGuardStatusResponse {
+    pub enabled: bool,
+    pub protection_enabled: bool,
+    pub protection_paused_until: Option<DateTime<Utc>>,
+    pub protection_remaining_seconds: Option<u64>,
+    pub filtering_enabled: bool,
+    pub filtering_paused_until: Option<DateTime<Utc>>,
+    pub filtering_remaining_seconds: Option<u64>,
+}
+
+pub async fn get_adguard_status(
+    State(state): State<AppState>,
+) -> Result<Json<AdGuardStatusResponse>, ApiError> {
+    let cfg = get_effective_config(&state).await;
+    if !cfg.enabled {
+        return Ok(Json(AdGuardStatusResponse {
+            enabled: false,
+            protection_enabled: false,
+            protection_paused_until: None,
+            protection_remaining_seconds: None,
+            filtering_enabled: false,
+            filtering_paused_until: None,
+            filtering_remaining_seconds: None,
+        }));
+    }
+
+    let client = AdGuardClient::new(&cfg).map_err(ApiError::internal)?;
+    let status = client.get_status().await.unwrap_or(AdGuardHomeStatus {
+        protection_enabled: false,
+        protection_disabled_duration_ms: 0,
+        filtering_enabled: false,
+    });
+
+    let now = Utc::now();
+
+    let (prot_paused_until, prot_rem_secs) =
+        if !status.protection_enabled && status.protection_disabled_duration_ms > 0 {
+            let secs = status.protection_disabled_duration_ms / 1000;
+            (
+                Some(now + chrono::Duration::seconds(secs as i64)),
+                Some(secs),
+            )
+        } else {
+            (None, None)
+        };
+
+    let filt_paused_until = *state.filtering_paused_until.lock().await;
+    let filt_rem_secs = filt_paused_until.and_then(|until| {
+        let diff = until.signed_duration_since(now).num_seconds();
+        if diff > 0 { Some(diff as u64) } else { None }
+    });
+
+    Ok(Json(AdGuardStatusResponse {
+        enabled: true,
+        protection_enabled: status.protection_enabled,
+        protection_paused_until: prot_paused_until,
+        protection_remaining_seconds: prot_rem_secs,
+        filtering_enabled: status.filtering_enabled,
+        filtering_paused_until: filt_paused_until,
+        filtering_remaining_seconds: filt_rem_secs,
+    }))
 }
 
 async fn managed_domains(state: &AppState) -> Result<std::collections::HashSet<String>, ApiError> {

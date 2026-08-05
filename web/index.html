@@ -4,16 +4,59 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <link rel="shortcut icon" href="/favicon.png">
-  <link rel="icon" href="/favicon.png">
+  <link rel="shortcut icon" href="__ROUTER_HUB_LOGO_DATA_URI__" type="image/svg+xml">
+  <link rel="icon" href="__ROUTER_HUB_LOGO_DATA_URI__" type="image/svg+xml">
   <title>Router Hub</title>
   <style>
     /* ── Standalone-mode base (ASUS owns the outer page when this body is embedded) ── */
     body.rh-page {
       margin: 0;
-      background: #1a1f23;
+      background: #14171a;
       color: #fff;
       font: 13px/1.5 Arial, Helvetica, sans-serif
+    }
+
+    body.rh-page .rh-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 16px 20px 40px;
+    }
+
+    .rh-hero-banner {
+      display: none;
+    }
+
+    body.rh-page .rh-hero-banner {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: linear-gradient(135deg, #1e2938 0%, #111823 100%);
+      border: 1px solid #2a3a4e;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .rh-hero-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: contain;
+    }
+
+    .rh-hero-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+
+    .rh-hero-sub {
+      font-size: 12px;
+      color: #8b9bb0;
+      margin-top: 2px;
     }
 
     .rh-shell,
@@ -169,14 +212,12 @@
       width: 28px;
       height: 28px;
       border-radius: 6px;
-      background: linear-gradient(135deg, var(--cyan), #2d8cff);
+      background: #ffffff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      color: #04131e;
-      font-weight: 900;
-      font-size: 11px;
-      flex-shrink: 0
+      flex-shrink: 0;
+      overflow: hidden
     }
 
     .rh-badge-copy {
@@ -925,6 +966,14 @@
 <body class="rh-page">
   <div class="rh-shell">
 
+    <div class="rh-hero-banner">
+      <img src="__ROUTER_HUB_LOGO_DATA_URI__" alt="Router Hub Logo" class="rh-hero-logo">
+      <div>
+        <div class="rh-hero-title">Router Hub</div>
+        <div class="rh-hero-sub">Entware Services &middot; Nginx &middot; Certificates &middot; Firewall &middot; AdGuard Home</div>
+      </div>
+    </div>
+
     <!-- Fallback tab nav for standalone mode; tabs are moved to ASUS #tabMenu when embedded -->
     <div id="rh-nav" class="submenuBlock rh-tabs">
       <div class="tabClicked rh-tab" data-view="dashboard">Dashboard</div>
@@ -944,7 +993,7 @@
         <td class="brand-cell">
           <div class="rh-brand-info">
             <span class="rh-badge">
-              <span class="rh-logo">RH</span>
+              <span class="rh-logo"><img src="__ROUTER_HUB_LOGO_DATA_URI__" alt="RH" style="width:22px;height:22px;object-fit:contain"></span>
               <span class="rh-badge-copy">
                 <strong class="rh-model" id="router-model">Router</strong>
                 <span class="rh-conn" id="connection-status"><span class="rh-dot"></span><span
@@ -996,17 +1045,26 @@
           </div>
           <div class="grid" style="margin-top:12px">
             <div class="span-6">
-              <h3 style="margin-top:0;font-size:13px">Protection</h3>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <h3 style="margin:0;font-size:13px">Pause Filtering</h3>
+                <div id="filtering-status"></div>
+              </div>
               <div class="actions">
-                <button class="btn" onclick="toggleAdguardProtection(true)">Enable</button>
-                <button class="btn danger" onclick="toggleAdguardProtection(false)">Disable</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,1)">1 min</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,10)">10 min</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,30)">30 min</button>
+                <button class="btn" onclick="toggleAdguardFiltering(false,60)">60 min</button>
               </div>
             </div>
             <div class="span-6">
-              <h3 style="margin-top:0;font-size:13px">Pause Protection</h3>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <h3 style="margin:0;font-size:13px">Pause Protection</h3>
+                <div id="protection-status"></div>
+              </div>
               <div class="actions">
                 <button class="btn" onclick="toggleAdguardProtection(false,1)">1 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,10)">10 min</button>
+                <button class="btn" onclick="toggleAdguardProtection(false,30)">30 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,60)">60 min</button>
               </div>
             </div>
@@ -1024,9 +1082,13 @@
               <div class="field full">
                 <label><input type="checkbox" name="enabled"> Enable AdGuard Integration</label>
               </div>
-              <div class="field full">
-                <label>Launch / API Endpoint (leave empty for default http://&lt;lan_ip&gt;:3000)</label>
+              <div class="field">
+                <label>API Endpoint (used for Router Hub API requests)</label>
                 <input class="input" name="api_endpoint" placeholder="http://192.168.1.1:3000">
+              </div>
+              <div class="field">
+                <label>Web UI Launch Alias (optional, used for launcher button)</label>
+                <input class="input" name="launch_url" placeholder="http://adguard.lan:3000">
               </div>
               <div class="field">
                 <label>Username (optional)</label>
@@ -1518,7 +1580,8 @@
     async function manualBan() { const network = document.getElementById('manual-ban').value.trim(); if (!network) return; try { await api('/firewall/bans', { method: 'POST', body: JSON.stringify({ network, seconds: 3600, reason: 'manual UI ban' }) }); document.getElementById('manual-ban').value = ''; loadFirewall() } catch (e) { toast(e.message, true) } }
     async function unban(network) { if (!confirm('Unban, erase detection history, and add this network to the allowlist?')) return; try { await api(`/firewall/bans/${network}`, { method: 'DELETE' }); await loadFirewall(); if (document.getElementById('bans-modal').open) showActiveBans() } catch (e) { toast(e.message, true) } }
 
-    async function loadAdguard() { try { const cfg = await api('/adguard/config'); state.adguard = cfg; document.getElementById('adguard-status').innerHTML = status(cfg.enabled, 'Enabled', 'Disabled'); const f = document.getElementById('adguard-form'); if (f) { f.elements.enabled.checked = !!cfg.enabled; f.elements.api_endpoint.value = cfg.api_endpoint || ''; f.elements.username.value = cfg.username || ''; f.elements.password.value = ''; f.elements.lan_ip.value = cfg.lan_ip || '' } } catch (e) { document.getElementById('adguard-status').textContent = 'API Error'; toast(e.message, true) } }
+    async function loadAdguard() { try { const cfg = await api('/adguard/config'); state.adguard = cfg; const f = document.getElementById('adguard-form'); if (f) { f.elements.enabled.checked = !!cfg.enabled; f.elements.api_endpoint.value = cfg.api_endpoint || ''; f.elements.launch_url.value = cfg.launch_url || ''; f.elements.username.value = cfg.username || ''; f.elements.password.value = ''; f.elements.lan_ip.value = cfg.lan_ip || '' } if (cfg.enabled) { try { const st = await api('/adguard/status'); state.adguardStatus = st; renderAdguardStatus(st) } catch (e) { document.getElementById('adguard-status').innerHTML = status(true, 'Enabled', 'Disabled') } } else { document.getElementById('adguard-status').innerHTML = status(false, 'Enabled', 'Disabled'); renderAdguardStatus(null) } } catch (e) { document.getElementById('adguard-status').textContent = 'API Error'; toast(e.message, true) } }
+    function renderAdguardStatus(st) { const statusEl = document.getElementById('adguard-status'), filtStatusEl = document.getElementById('filtering-status'), protStatusEl = document.getElementById('protection-status'); if (!st || !st.enabled) { if (statusEl) statusEl.innerHTML = status(false, 'Enabled', 'Disabled'); if (filtStatusEl) filtStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; if (protStatusEl) protStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; return } let filtText = ''; if (!st.filtering_enabled && st.filtering_remaining_seconds) { const m = Math.ceil(st.filtering_remaining_seconds / 60); filtText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.filtering_enabled) { filtText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { filtText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (filtStatusEl) filtStatusEl.innerHTML = filtText; let protText = ''; if (!st.protection_enabled && st.protection_remaining_seconds) { const m = Math.ceil(st.protection_remaining_seconds / 60); protText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.protection_enabled) { protText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { protText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (protStatusEl) protStatusEl.innerHTML = protText; if (statusEl) { let summary = status(true, 'Enabled', 'Disabled'); if (!st.filtering_enabled && st.filtering_remaining_seconds) { summary += ` &middot; Filtering Paused (${Math.ceil(st.filtering_remaining_seconds / 60)}m)` } else if (!st.filtering_enabled) { summary += ` &middot; Filtering Disabled` } if (!st.protection_enabled && st.protection_remaining_seconds) { summary += ` &middot; Protection Paused (${Math.ceil(st.protection_remaining_seconds / 60)}m)` } else if (!st.protection_enabled) { summary += ` &middot; Protection Disabled` } statusEl.innerHTML = summary } }
     function renderAdguardRewrites() { const body = document.getElementById('adguard-rewrites-body'); body.innerHTML = state.adguardRewrites.length ? state.adguardRewrites.map((rewrite, index) => `<tr><td><input class="input" value="${esc(rewrite.domain)}" aria-label="Rewrite domain" oninput="adguardRewriteChanged(${index},'domain',this.value)"></td><td><input class="input" value="${esc(rewrite.answer)}" aria-label="Rewrite answer" oninput="adguardRewriteChanged(${index},'answer',this.value)"></td><td><button class="btn small danger" onclick="removeAdguardRewrite(${index})">Delete</button></td></tr>`).join('') : emptyRow(3, 'No custom DNS rewrites'); updateSortHeaders('rewrites') }
     function adguardRewriteChanged(index, key, value) { if (state.adguardRewrites[index]) state.adguardRewrites[index][key] = value }
     function addAdguardRewrite() { state.adguardRewrites.push({ domain: '', answer: '' }); renderAdguardRewrites(); const inputs = document.querySelectorAll('#adguard-rewrites-body input'); inputs[inputs.length - 2]?.focus() }
@@ -1541,8 +1604,9 @@
     function closeDnsmasqHosts() { document.getElementById('dnsmasq-hosts-modal').close() }
     async function saveDnsmasqHosts() { try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts', { method: 'PUT', body: JSON.stringify(state.dnsmasqHosts) }); closeDnsmasqHosts(); toast('dnsmasq.conf.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
     function launchAdGuard() { if (state.adguard?.launch_url) window.open(state.adguard.launch_url, '_blank'); else if (state.adguard?.api_endpoint) window.open(state.adguard.api_endpoint, '_blank'); else toast('API endpoint not configured', true) }
-    async function toggleAdguardProtection(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/protection', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard protection ${enabled ? 'enabled' : 'paused/disabled'}`); loadAdguard() } catch (e) { toast(e.message, true) } }
-    async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
+    async function toggleAdguardFiltering(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/filtering', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard filtering ${enabled ? 'enabled' : `paused for ${duration_minutes} min`}`); loadAdguard() } catch (e) { toast(e.message, true) } }
+    async function toggleAdguardProtection(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/protection', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard protection ${enabled ? 'enabled' : `paused for ${duration_minutes} min`}`); loadAdguard() } catch (e) { toast(e.message, true) } }
+    async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, launch_url: v.launch_url || '', username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
 
     function applyCertificateLockUi() {
       const locked = !!state.dehydratedLock?.locked;

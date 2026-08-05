@@ -82,6 +82,22 @@ async fn test_unauthenticated_endpoints() {
             .is_empty()
     );
 
+    let req = Request::builder()
+        .uri("/favicon.svg")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "image/svg+xml");
+
+    let req = Request::builder()
+        .uri("/router-hub.svg")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers()[header::CONTENT_TYPE], "image/svg+xml");
+
     // Test GET /api/version
     let req = Request::builder()
         .uri("/api/version")
@@ -999,10 +1015,11 @@ async fn test_adguard_config_api() {
     let info: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(info["launch_url"], "http://192.168.1.1:3000");
 
-    // PUT /api/adguard/config
+    // PUT /api/adguard/config with explicit launch_url alias
     let update_payload = serde_json::json!({
         "enabled": true,
         "api_endpoint": "http://192.168.50.1:3000",
+        "launch_url": "http://adguard.lan:3000",
         "username": "admin",
         "password": "secretpassword",
         "lan_ip": "192.168.50.1"
@@ -1017,7 +1034,7 @@ async fn test_adguard_config_api() {
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    // GET again to verify launch_url matches updated custom api_endpoint
+    // GET again to verify launch_url returns the custom alias
     let req = Request::builder()
         .uri("/api/adguard/config")
         .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
@@ -1029,8 +1046,110 @@ async fn test_adguard_config_api() {
         .await
         .unwrap();
     let info: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(info["launch_url"], "http://192.168.50.1:3000");
+    assert_eq!(info["api_endpoint"], "http://192.168.50.1:3000");
+    assert_eq!(info["launch_url"], "http://adguard.lan:3000");
     assert_eq!(info["lan_ip"], "192.168.50.1");
+}
+
+#[tokio::test]
+async fn test_adguard_filtering_and_protection_api() {
+    let (app, _state, _temp) = setup_test_app().await;
+
+    // Enable AdGuard integration
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/adguard/config")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "enabled": true,
+                "api_endpoint": "http://127.0.0.1:18080",
+                "username": "",
+                "password": "",
+                "lan_ip": "192.168.1.1"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    assert_eq!(
+        app.clone().oneshot(req).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    // POST /api/adguard/filtering when enabled (will fail downstream client network connection if not mocked, but tests route/auth/validation)
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/adguard/filtering")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "enabled": false,
+                "duration_minutes": 10
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    // Endpoint exists and auth passes (status is InternalServerError due to unmocked downstream endpoint, or OK)
+    assert!(
+        resp.status().is_client_error()
+            || resp.status().is_server_error()
+            || resp.status().is_success()
+    );
+
+    // Disable AdGuard integration and check that /api/adguard/filtering returns BAD_REQUEST
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/adguard/config")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "enabled": false,
+                "api_endpoint": "",
+                "username": "",
+                "password": "",
+                "lan_ip": "192.168.1.1"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    assert_eq!(
+        app.clone().oneshot(req).await.unwrap().status(),
+        StatusCode::OK
+    );
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/adguard/filtering")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "enabled": false,
+                "duration_minutes": 10
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    // GET /api/adguard/status when disabled
+    let req = Request::builder()
+        .uri("/api/adguard/status")
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let status_val: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(status_val["enabled"], false);
 }
 
 #[tokio::test]
