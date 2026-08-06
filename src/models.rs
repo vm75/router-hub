@@ -42,6 +42,8 @@ pub struct NginxObject {
     pub port: Option<u16>,
     pub enabled: bool,
     pub running: bool,
+    #[serde(default)]
+    pub state: String,
     pub modified: Option<DateTime<Utc>>,
 }
 

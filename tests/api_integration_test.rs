@@ -11,7 +11,7 @@ use tower::ServiceExt;
 async fn setup_test_app() -> (axum::Router, AppState, tempfile::TempDir) {
     let temp = tempdir().unwrap();
     let root = std::env::current_dir().unwrap();
-    let config_path = root.join("config/router-hub.toml");
+    let config_path = root.join("test-fixtures/etc/router-hub/router-hub.toml");
     let mut config = AppConfig::default();
     config.apply_test_mode(&config_path).unwrap();
     config.paths.data_dir = temp.path().join("data");

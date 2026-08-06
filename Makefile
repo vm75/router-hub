@@ -6,7 +6,7 @@ test:
 	cargo test
 
 run:
-	cargo run -- --config ./config/router-hub.test.toml --test-mode serve
+	cargo run -- --config ./test-fixtures/etc/router-hub/router-hub.toml --test-mode serve
 
 fmt:
 	cargo fmt --all

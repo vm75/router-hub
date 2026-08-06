@@ -1,4 +1,4 @@
-use std::{path::Path as FsPath, path::PathBuf, time::Duration};
+use std::{net::SocketAddr, path::Path as FsPath, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use axum::{
@@ -6,6 +6,7 @@ use axum::{
     extract::{Path, State},
 };
 use serde::{Deserialize, Serialize};
+use tokio::{net::TcpStream, time::timeout};
 
 use crate::{
     api::ApiError,
@@ -108,7 +109,51 @@ pub async fn list_objects(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<NginxObject>>, ApiError> {
     let running = nginx_running(&state).await;
-    Ok(Json(nginx_core::list_objects(&state.config, running)?))
+    let objects = nginx_core::list_objects(&state.config, running)?;
+    let objects = futures_util::future::join_all(objects.into_iter().map(|mut object| {
+        let config = state.config.clone();
+        async move {
+            let upstream = nginx_core::object_upstream(&config, &object)?;
+            let reachable = match upstream.as_deref() {
+                Some(upstream) => upstream_reachable(upstream).await,
+                None => true,
+            };
+            object.state =
+                nginx_core::site_state(object.enabled, object.running && running, reachable)
+                    .to_string();
+            Ok::<_, anyhow::Error>(object)
+        }
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json(objects))
+}
+
+async fn upstream_reachable(upstream: &str) -> bool {
+    let Ok(url) = url::Url::parse(upstream) else {
+        return false;
+    };
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let port = url.port_or_known_default().unwrap_or(0);
+    if port == 0 {
+        return false;
+    }
+    let addresses = match tokio::net::lookup_host((host, port)).await {
+        Ok(addresses) => addresses.collect::<Vec<SocketAddr>>(),
+        Err(_) => return false,
+    };
+    for address in addresses {
+        if timeout(Duration::from_secs(2), TcpStream::connect(address))
+            .await
+            .is_ok_and(|result| result.is_ok())
+        {
+            return true;
+        }
+    }
+    false
 }
 
 pub async fn get_object(

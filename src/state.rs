@@ -190,13 +190,19 @@ impl AppState {
             args.push("--force".to_string());
         }
 
-        self.runner
+        let result = self
+            .runner
             .run(
                 &self.config.commands.dehydrated,
                 args,
                 Duration::from_secs(self.config.certificates.command_timeout_seconds),
             )
-            .await
+            .await;
+
+        // Ensure the lock file is cleared even if dehydrated fails or times out
+        let _ = tokio::fs::remove_file(self.dehydrated_lock_path()).await;
+
+        result
     }
 
     pub async fn update_dehydrated(&self) -> Result<DehydratedUpdate> {
@@ -393,16 +399,19 @@ fn render_dehydrated_domains(spec: &CertificateSpec) -> Result<String> {
     if spec.domains.is_empty() {
         bail!("at least one domain is required");
     }
-    let mut output = String::from("\n");
+    let mut domains = Vec::with_capacity(spec.domains.len());
     for domain in &spec.domains {
         validate_domain(domain)?;
-        let marker = domain.strip_prefix("*.").unwrap_or(domain);
-        output.push_str(&format!(
-            "# {marker}-start\n{domain} > {}\n# {marker}-end\n",
-            spec.name
-        ));
+        domains.push(domain.as_str());
     }
-    Ok(output)
+    let marker = spec.domains[0]
+        .strip_prefix("*.")
+        .unwrap_or(&spec.domains[0]);
+    Ok(format!(
+        "\n# {marker}-start\n{} > {}\n# {marker}-end\n",
+        domains.join(" "),
+        spec.name
+    ))
 }
 
 fn validate_certificate_name(name: &str) -> Result<()> {
@@ -512,6 +521,26 @@ mod tests {
         assert_eq!(
             render_dehydrated_domains(&spec).unwrap(),
             "\n# example.duckdns.org-start\n*.example.duckdns.org > example_duckdns_org\n# example.duckdns.org-end\n"
+        );
+    }
+
+    #[test]
+    fn renders_multiple_domains_as_one_certificate_entry() {
+        let spec = CertificateSpec {
+            id: Uuid::new_v4(),
+            name: "aalay_top".into(),
+            domains: vec!["*.aalay.top".into(), "aalay.top".into()],
+            method: CertificateMethod::Dns,
+            hook: None,
+            hook_env: BTreeMap::new(),
+            staging: false,
+            auto_renew: true,
+            updated_at: Utc::now(),
+        };
+
+        assert_eq!(
+            render_dehydrated_domains(&spec).unwrap(),
+            "\n# aalay.top-start\n*.aalay.top aalay.top > aalay_top\n# aalay.top-end\n"
         );
     }
 

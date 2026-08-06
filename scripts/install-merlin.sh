@@ -4,9 +4,37 @@ set -eu
 SCRIPT_DIR=$(dirname "$0")
 REPO_DIR=$(dirname "$SCRIPT_DIR")
 
-BINARY="${1:-./router-hub}"
+BINARY="./router-hub"
 CONFIG_DIR="/opt/etc/router-hub"
 DATA_DIR="/opt/var/lib/router-hub"
+MOSQUITTO_USER="${MOSQUITTO_USER:-}"
+MOSQUITTO_PASS="${MOSQUITTO_PASS:-${MOSQUITTO_PASSWD:-}}"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --mosquitto-user)
+            MOSQUITTO_USER="$2"
+            shift 2
+            ;;
+        --mosquitto-pass|--mosquitto-passwd)
+            MOSQUITTO_PASS="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [BINARY] [--mosquitto-user USER --mosquitto-pass PASS]"
+            exit 0
+            ;;
+        *)
+            if [ -f "$1" ]; then
+                BINARY="$1"
+                shift
+            else
+                echo "Unknown option or binary not found: $1" >&2
+                exit 1
+            fi
+            ;;
+    esac
+done
 
 [ "$(id -u)" = "0" ] || { echo "Run as root on the router." >&2; exit 1; }
 [ -f "$BINARY" ] || { echo "Binary not found: $BINARY" >&2; exit 1; }
@@ -22,6 +50,16 @@ if [ ! -f "$CONFIG_DIR/router-hub.toml" ]; then
     TOKEN="$(openssl rand -hex 24)"
     sed -i "s/REPLACE-WITH-AT-LEAST-24-RANDOM-CHARACTERS/$TOKEN/" "$CONFIG_DIR/router-hub.toml"
     echo "Created $CONFIG_DIR/router-hub.toml. Review rendered_page and menu_tree before starting."
+fi
+
+if [ -n "$MOSQUITTO_USER" ] && [ -n "$MOSQUITTO_PASS" ]; then
+    mkdir -p /opt/etc/mosquitto
+    HASH=$(openssl passwd -6 "$MOSQUITTO_PASS")
+    printf '%s:%s\n' "$MOSQUITTO_USER" "$HASH" > /opt/etc/mosquitto/passwd
+    chmod 0644 /opt/etc/mosquitto/passwd
+    echo "Configured Mosquitto password for user '$MOSQUITTO_USER' in /opt/etc/mosquitto/passwd."
+elif [ -n "$MOSQUITTO_USER" ] || [ -n "$MOSQUITTO_PASS" ]; then
+    echo "Warning: Both --mosquitto-user and --mosquitto-pass (or MOSQUITTO_USER and MOSQUITTO_PASS env vars) are required." >&2
 fi
 # Repair permissions on existing installations as well as new ones.
 chmod 0600 "$CONFIG_DIR/router-hub.toml"

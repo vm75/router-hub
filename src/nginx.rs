@@ -30,6 +30,16 @@ pub fn parse_kind(value: &str) -> Result<NginxObjectKind> {
     }
 }
 
+pub fn site_state(enabled: bool, nginx_running: bool, upstream_reachable: bool) -> &'static str {
+    if !enabled {
+        "disabled"
+    } else if nginx_running && upstream_reachable {
+        "live"
+    } else {
+        "down"
+    }
+}
+
 pub fn validate_name(value: &str, label: &str) -> Result<()> {
     if value.is_empty()
         || value == "."
@@ -245,8 +255,25 @@ fn object_entry(
         .and_then(|upstream| url::Url::parse(&upstream).ok()?.port()),
         enabled,
         running: enabled && parent_enabled && nginx_running,
+        state: site_state(enabled && parent_enabled, nginx_running, true).to_string(),
         modified: metadata.modified().ok().map(DateTime::<Utc>::from),
     })
+}
+
+pub fn object_upstream(config: &AppConfig, object: &NginxObject) -> Result<Option<String>> {
+    let content = read_object(config, object.kind, &object.domain, &object.name)?;
+    let server_names = extract_server_names(&content);
+    let map_key = (object.kind == NginxObjectKind::Subfolder)
+        .then(|| subfolder_map_key(&content, &object.name))
+        .transpose()?;
+    site_upstream_with_key(
+        config,
+        object.kind,
+        &object.domain,
+        &object.name,
+        &server_names,
+        map_key.as_deref(),
+    )
 }
 
 pub fn read_object(
@@ -1276,6 +1303,14 @@ mod tests {
         config.nginx.http_forwarder_path = root.join("conf.d/05-http-to-https.conf");
         config.nginx.log_dir = root.join("logs");
         config
+    }
+
+    #[test]
+    fn site_state_distinguishes_disabled_down_and_live() {
+        assert_eq!(site_state(false, true, true), "disabled");
+        assert_eq!(site_state(true, true, false), "down");
+        assert_eq!(site_state(true, true, true), "live");
+        assert_eq!(site_state(true, false, true), "down");
     }
 
     #[test]

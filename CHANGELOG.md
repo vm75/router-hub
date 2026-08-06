@@ -2,7 +2,16 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
-## 0.5.2
+## 0.6.0
+
+### Added
+
+- Added site launch action button for Nginx domain, subdomain, and subfolder objects.
+- Added dehydrated certificate renewal lock status query, UI notice, action blocking, and lock clearing endpoint (`DELETE /api/certificates/dehydrated/lock`).
+- Added data sync script (`scripts/sync-data.sh`) supporting get/put for Mosquitto config/passwords, nginx objects/templates, dehydrated certs, scripts, and logs.
+- Added DNS-01 hook script for dehydrated (`scripts/dehydrated-dns01-hook.sh`) and test helper (`scripts/test-dehydrated.sh`).
+
+## 0.5.4
 
 ### Added
 

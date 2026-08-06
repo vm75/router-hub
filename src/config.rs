@@ -46,7 +46,10 @@ impl AppConfig {
         if path.exists() {
             let raw = fs::read_to_string(path)
                 .with_context(|| format!("failed to read {}", path.display()))?;
-            toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
+            let mut config: Self = toml::from_str(&raw)
+                .with_context(|| format!("failed to parse {}", path.display()))?;
+            config.resolve_relative_paths(path);
+            Ok(config)
         } else {
             let mut config = Self::default();
             if path.to_string_lossy().contains("test") || !Path::new("/opt").exists() {
@@ -68,33 +71,103 @@ impl AppConfig {
         self.server.port = 3030;
         self.server.auth_token = "router-hub-test-token".into();
         self.server.allowed_origins = vec!["*".into()];
-        self.paths.data_dir = root.join("data");
-        self.paths.runtime_dir = root.join("test-fixtures/runtime");
-        self.paths.hosts_add = root.join("test-fixtures/hosts.add");
-        self.paths.dnsmasq_conf_add = root.join("test-fixtures/dnsmasq.conf.add");
-        self.services.init_dir = root.join("test-fixtures/init.d");
-        self.services.log_dirs = vec![root.join("test-fixtures/logs")];
-        self.nginx.root_dir = root.join("test-fixtures/nginx");
-        self.nginx.config_path = root.join("test-fixtures/nginx/nginx.conf");
-        self.nginx.pid_path = root.join("test-fixtures/nginx/nginx.pid");
-        self.nginx.domains_available_dir = root.join("test-fixtures/nginx/domains-available");
-        self.nginx.domains_enabled_dir = root.join("test-fixtures/nginx/domains-enabled");
-        self.nginx.templates_dir = root.join("test-fixtures/nginx/templates");
+        let fixture_root = config_path
+            .ancestors()
+            .find(|path| path.file_name() == Some("test-fixtures".as_ref()))
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| root.join("test-fixtures"));
+        self.paths.data_dir = fixture_root.join("etc/router-hub");
+        self.paths.runtime_dir = fixture_root.join("var/run");
+        self.paths.log_file = fixture_root.join("var/log/router-hub.log");
+        self.paths.hosts_add = fixture_root.join("router/hosts.add");
+        self.paths.dnsmasq_conf_add = fixture_root.join("router/dnsmasq.add");
+        self.services.init_dir = fixture_root.join("etc/init.d");
+        self.services.log_dirs = vec![fixture_root.join("var/log")];
+        self.nginx.root_dir = fixture_root.join("etc/nginx");
+        self.nginx.config_path = fixture_root.join("etc/nginx/nginx.conf");
+        self.nginx.pid_path = fixture_root.join("var/run/nginx.pid");
+        self.nginx.domains_available_dir = fixture_root.join("etc/nginx/domains-available");
+        self.nginx.domains_enabled_dir = fixture_root.join("etc/nginx/domains-enabled");
+        self.nginx.templates_dir = fixture_root.join("etc/nginx/templates");
         self.nginx.subdomain_upstream_map_path =
-            root.join("test-fixtures/nginx/conf.d/03_subdomain_upstream_map.conf");
+            fixture_root.join("etc/nginx/conf.d/03_subdomain_upstream_map.conf");
         self.nginx.domain_upstream_map_path =
-            root.join("test-fixtures/nginx/conf.d/02_domain_upstream_map.conf");
+            fixture_root.join("etc/nginx/conf.d/02_domain_upstream_map.conf");
         self.nginx.subfolder_upstream_map_path =
-            root.join("test-fixtures/nginx/conf.d/04_subfolder_upstream_map.conf");
+            fixture_root.join("etc/nginx/conf.d/04_subfolder_upstream_map.conf");
         self.nginx.http_forwarder_path =
-            root.join("test-fixtures/nginx/conf.d/05-http-to-https.conf");
-        self.nginx.log_dir = root.join("test-fixtures/logs/nginx");
-        self.firewall.log_dirs = vec![root.join("test-fixtures/logs/nginx")];
-        self.commands.dehydrated = root.join("test-fixtures/dehydrated/dehydrated");
-        self.certificates.certs_dir = root.join("test-fixtures/dehydrated/certs");
+            fixture_root.join("etc/nginx/conf.d/05-http-to-https.conf");
+        self.nginx.log_dir = fixture_root.join("var/log/nginx");
+        self.firewall.log_dirs = vec![fixture_root.join("var/log/nginx")];
+        self.commands.dehydrated = fixture_root.join("certs/dehydrated");
+        self.certificates.certs_dir = fixture_root.join("certs");
         self.asus_ui.enabled = false;
-        self.asus_ui.rendered_page = root.join("test-fixtures/router-hub.asp");
+        self.asus_ui.rendered_page = fixture_root.join("router/router-hub.asp");
         Ok(())
+    }
+
+    fn resolve_relative_paths(&mut self, config_path: &Path) {
+        let base = config_path.parent().unwrap_or_else(|| Path::new("."));
+        let resolve = |path: &mut PathBuf| {
+            if path.is_relative() {
+                let joined = base.join(&*path);
+                let mut resolved = PathBuf::new();
+                for component in joined.components() {
+                    match component {
+                        std::path::Component::CurDir => {}
+                        std::path::Component::ParentDir => {
+                            resolved.pop();
+                        }
+                        component => resolved.push(component.as_os_str()),
+                    }
+                }
+                *path = resolved;
+            }
+        };
+
+        for path in [
+            &mut self.paths.data_dir,
+            &mut self.paths.runtime_dir,
+            &mut self.paths.log_file,
+            &mut self.paths.hosts_add,
+            &mut self.paths.dnsmasq_conf_add,
+            &mut self.commands.mount,
+            &mut self.commands.umount,
+            &mut self.commands.nginx,
+            &mut self.commands.service,
+            &mut self.commands.ipset,
+            &mut self.commands.iptables,
+            &mut self.commands.ip6tables,
+            &mut self.commands.dehydrated,
+            &mut self.commands.openssl,
+            &mut self.commands.logread,
+            &mut self.commands.nvram,
+            &mut self.commands.ip,
+            &mut self.commands.ping,
+            &mut self.asus_ui.rendered_page,
+            &mut self.asus_ui.menu_tree,
+            &mut self.services.init_dir,
+            &mut self.nginx.root_dir,
+            &mut self.nginx.config_path,
+            &mut self.nginx.pid_path,
+            &mut self.nginx.domains_available_dir,
+            &mut self.nginx.domains_enabled_dir,
+            &mut self.nginx.templates_dir,
+            &mut self.nginx.subdomain_upstream_map_path,
+            &mut self.nginx.domain_upstream_map_path,
+            &mut self.nginx.subfolder_upstream_map_path,
+            &mut self.nginx.http_forwarder_path,
+            &mut self.nginx.log_dir,
+            &mut self.certificates.certs_dir,
+        ] {
+            resolve(path);
+        }
+        for path in self.services.log_dirs.iter_mut() {
+            resolve(path);
+        }
+        for path in self.firewall.log_dirs.iter_mut() {
+            resolve(path);
+        }
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -435,7 +508,7 @@ impl Default for CertificatesConfig {
             certs_dir: "/opt/var/lib/router-hub/dehydrated/certs".into(),
             renew_interval_hours: 12,
             renew_before_days: 30,
-            command_timeout_seconds: 300,
+            command_timeout_seconds: 3600,
         }
     }
 }
@@ -568,6 +641,46 @@ mod tests {
         assert_eq!(config.server.auth_token, "router-hub-test-token");
         assert!(!config.asus_ui.enabled);
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_load_resolves_relative_paths_against_config_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let config_path = temp.path().join("etc/router-hub/router-hub.toml");
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        fs::write(
+            &config_path,
+            r#"
+                [paths]
+                data_dir = "."
+                log_file = "../../var/log/router-hub.log"
+                [services]
+                log_dirs = ["../../var/log"]
+                [firewall]
+                log_dirs = ["../../var/log/nginx"]
+                [nginx]
+                root_dir = "../nginx"
+                config_path = "/absolute/nginx.conf"
+            "#,
+        )
+        .unwrap();
+
+        let config = AppConfig::load(&config_path).unwrap();
+        assert_eq!(config.paths.data_dir, config_path.parent().unwrap());
+        assert_eq!(
+            config.paths.log_file,
+            temp.path().join("var/log/router-hub.log")
+        );
+        assert_eq!(config.services.log_dirs, vec![temp.path().join("var/log")]);
+        assert_eq!(
+            config.firewall.log_dirs,
+            vec![temp.path().join("var/log/nginx")]
+        );
+        assert_eq!(config.nginx.root_dir, temp.path().join("etc/nginx"));
+        assert_eq!(
+            config.nginx.config_path,
+            PathBuf::from("/absolute/nginx.conf")
+        );
     }
 
     #[test]

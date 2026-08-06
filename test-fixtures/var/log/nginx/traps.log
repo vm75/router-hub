@@ -1,0 +1,4 @@
+75.119.132.40 - - [30/Jul/2026:19:00:00 +0000] "GET /xmlrpc.php HTTP/1.1" 444 0 "-" "Mozilla/5.0 \"quoted\"" trap="1" badbot="0"
+198.51.100.20 - - [30/Jul/2026:19:00:01 +0000] "GET / HTTP/1.1" 403 0 "-" "masscan/1.3" trap="0" badbot="1"
+2001:db8::20 - - [30/Jul/2026:19:00:02 +0000] "GET /.env HTTP/1.1" 444 0 "-" "scanner" trap="1" badbot="0"
+not-an-ip - - [30/Jul/2026:19:00:03 +0000] "GET /wp-login.php HTTP/1.1" 444 0 "-" "scanner" trap="1" badbot="0"

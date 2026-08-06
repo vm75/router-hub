@@ -32,7 +32,7 @@ cargo build --release
 
 Useful repository shortcuts are `make check`, `make test`, `make run`,
 `make fmt`, `make clippy`, and `make release`. `make run` starts x64 test mode
-with `config/router-hub.test.toml`; it does not execute router commands or send
+with `test-fixtures/etc/router-hub/router-hub.toml`; it does not execute router commands or send
 Wake-on-LAN packets.
 
 For a release artifact, use `./scripts/build-release.sh <rust-target>`.

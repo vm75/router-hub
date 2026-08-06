@@ -65,7 +65,7 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
     let mut config = AppConfig::load(&cli.config)?;
-    if cli.test_mode || config.test_mode {
+    if cli.test_mode {
         config.apply_test_mode(&cli.config)?;
     }
     config.validate()?;

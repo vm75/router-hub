@@ -505,7 +505,7 @@ mod tests {
             .unwrap();
         let data = tempdir().unwrap();
         config.paths.data_dir = data.path().to_path_buf();
-        let fixture_root = root.join("test-fixtures/logs/nginx");
+        let fixture_root = root.join("test-fixtures/var/log/nginx");
         config.firewall.log_dirs = vec![fixture_root.clone()];
         let stores = Stores::load(&config).await.unwrap();
         let manager = FirewallManager::new(config, stores).await.unwrap();

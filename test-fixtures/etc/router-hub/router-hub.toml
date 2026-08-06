@@ -1,0 +1,44 @@
+test_mode = true
+
+[server]
+bind = "127.0.0.1"
+port = 3030
+auth_token = "router-hub-test-token"
+allowed_origins = ["*"]
+
+[paths]
+data_dir = "."
+runtime_dir = "../../var/run"
+log_file = "../../var/log/router-hub.log"
+hosts_add = "../../router/hosts.add"
+dnsmasq_conf_add = "../../router/dnsmasq.add"
+
+[commands]
+dehydrated = "../../certs/dehydrated"
+
+[asus_ui]
+enabled = false
+rendered_page = "../../router/router-hub.asp"
+
+[services]
+init_dir = "../init.d"
+log_dirs = ["../../var/log"]
+
+[nginx]
+root_dir = "../nginx"
+config_path = "../nginx/nginx.conf"
+pid_path = "../../var/run/nginx.pid"
+domains_available_dir = "../nginx/domains-available"
+domains_enabled_dir = "../nginx/domains-enabled"
+templates_dir = "../nginx/templates"
+subdomain_upstream_map_path = "../nginx/conf.d/03_subdomain_upstream_map.conf"
+domain_upstream_map_path = "../nginx/conf.d/02_domain_upstream_map.conf"
+subfolder_upstream_map_path = "../nginx/conf.d/04_subfolder_upstream_map.conf"
+http_forwarder_path = "../nginx/conf.d/05-http-to-https.conf"
+log_dir = "../../var/log/nginx"
+
+[certificates]
+certs_dir = "../../certs"
+
+[firewall]
+log_dirs = ["../../var/log/nginx"]

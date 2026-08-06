@@ -105,7 +105,7 @@ to `test-fixtures/`, simulates external commands, skips Asuswrt menu changes,
 and does not transmit Wake-on-LAN packets.
 
 ```sh
-cargo run -- --config ./config/router-hub.test.toml --test-mode serve
+cargo run -- --config ./test-fixtures/etc/router-hub/router-hub.toml --test-mode serve
 ```
 
 Open <http://127.0.0.1:3030>. The test token is `router-hub-test-token` when
@@ -133,11 +133,26 @@ Alternatively, build and deploy to a remote target in one step using:
 ./scripts/build-and-deploy.sh user@router-host
 ```
 
+To exercise the dehydrated command and DNS hook against Let's Encrypt staging,
+use the temporary test harness. It uses the same `--cron --accept-terms
+--config` invocation as Router Hub and leaves router certificate data untouched:
+
+```sh
+DEHYDRATED=/path/to/dehydrated \
+  DNS_PROVIDER=duckdns DUCKDNS_TOKEN=... \
+  ./scripts/test-dehydrated.sh '*.example.duckdns.org'
+```
+
+Use repeated `--env KEY=VALUE` options when you want the hook settings written
+into the temporary dehydrated config, as they are by Router Hub. The harness
+uses the staging CA by default and supports `--method http`, `--hook`,
+`--force`, and `--keep`.
+
 Or copy the resulting binary, `config/`, and `scripts/` to the router, then run
 the installer as root from that copied repository:
 
 ```sh
-./scripts/install-merlin.sh ./router-hub-aarch64-unknown-linux-musl
+./scripts/install-merlin.sh ./router-hub-aarch64-unknown-linux-musl --mosquitto-user admin --mosquitto-pass mysecretpassword
 ```
 
 The installer:
@@ -148,9 +163,10 @@ The installer:
    token on first install;
 3. creates the runtime/data directories and installs the example firewall
    policy when needed;
-4. adds token-free reconciliation calls to `/jffs/scripts/post-mount` and
+4. configures Mosquitto credentials in `/opt/etc/mosquitto/passwd` if `--mosquitto-user` and `--mosquitto-pass` (or `MOSQUITTO_USER` / `MOSQUITTO_PASS` env vars) are supplied;
+5. adds token-free reconciliation calls to `/jffs/scripts/post-mount` and
    `/jffs/scripts/firewall-start` (with a background retry loop);
-5. validates the configuration and restarts Router Hub.
+6. validates the configuration and restarts Router Hub.
 
 Review the generated TOML before starting. In particular, set the correct
 Asuswrt extension page (`user1.asp` through `user20.asp`), `menu_tree`,
