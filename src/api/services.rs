@@ -369,10 +369,14 @@ fn is_adguard_home_service(name: &str) -> bool {
     name.ends_with("AdGuardHome")
 }
 
+fn is_nginx_service(name: &str) -> bool {
+    name.ends_with("nginx")
+}
+
 fn log_candidates(state: &AppState, name: &str) -> Vec<PathBuf> {
     let stripped =
         name.trim_start_matches(|character: char| character == 'S' || character.is_ascii_digit());
-    state
+    let mut candidates: Vec<PathBuf> = state
         .config
         .services
         .log_dirs
@@ -385,12 +389,20 @@ fn log_candidates(state: &AppState, name: &str) -> Vec<PathBuf> {
                 directory.join(stripped),
             ]
         })
-        .collect()
+        .collect();
+    if is_nginx_service(name) {
+        candidates.extend(
+            ["error.log", "access.log", "traps.log"]
+                .into_iter()
+                .map(|file| state.config.nginx.log_dir.join(file)),
+        );
+    }
+    candidates
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_adguard_home_service, is_router_hub_service};
+    use super::{is_adguard_home_service, is_nginx_service, is_router_hub_service};
 
     #[test]
     fn recognizes_router_hub_service_by_suffix() {
@@ -406,5 +418,12 @@ mod tests {
         assert!(is_adguard_home_service("K42AdGuardHome"));
         assert!(is_adguard_home_service("AdGuardHome"));
         assert!(!is_adguard_home_service("S99other-service"));
+    }
+
+    #[test]
+    fn recognizes_nginx_service_by_suffix() {
+        assert!(is_nginx_service("S80nginx"));
+        assert!(is_nginx_service("K80nginx"));
+        assert!(!is_nginx_service("S80other-service"));
     }
 }

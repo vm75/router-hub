@@ -506,8 +506,32 @@ async fn test_firewall_policy_api() {
 
 #[tokio::test]
 async fn test_services_api() {
-    let (app, _state, _temp) = setup_test_app().await;
+    let (app, state, _temp) = setup_test_app().await;
     let auth_header = ("authorization", "Bearer router-hub-test-token");
+
+    std::fs::write(
+        state.config.services.init_dir.join("S80nginx"),
+        "#!/bin/sh\n",
+    )
+    .unwrap();
+    std::fs::write(
+        state.config.nginx.log_dir.join("error.log"),
+        "nginx service log entry\n",
+    )
+    .unwrap();
+
+    let req = Request::builder()
+        .uri("/api/services/S80nginx/logs")
+        .header(auth_header.0, auth_header.1)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let result: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(result["message"], "nginx service log entry");
 
     // GET /api/services
     let req = Request::builder()
