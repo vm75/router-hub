@@ -635,6 +635,7 @@ async fn test_nginx_files_templates_objects_actions_and_logs_api() {
         "domain": "example.test",
         "name": "example.test",
         "template": "basic",
+        "server_names": ["example.test", "www.example.test"],
         "upstream": "http://127.0.0.1:8080",
         "enabled": true
     });
@@ -657,6 +658,31 @@ async fn test_nginx_files_templates_objects_actions_and_logs_api() {
             .unwrap()
             .contains("example.test http://127.0.0.1:8080;")
     );
+    assert!(
+        std::fs::read_to_string(&state.config.nginx.domain_upstream_map_path)
+            .unwrap()
+            .contains("www.example.test http://127.0.0.1:8080;")
+    );
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri("/api/nginx/objects/domain/example.test/example.test")
+        .header(auth_header.0, auth_header.1)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            r#"{"template":"basic","upstream":"https://127.0.0.1:8443"}"#,
+        ))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let domain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(domain["upstream"], "https://127.0.0.1:8443");
+    let domain_map = std::fs::read_to_string(&state.config.nginx.domain_upstream_map_path).unwrap();
+    assert!(domain_map.contains("example.test https://127.0.0.1:8443;"));
+    assert!(domain_map.contains("www.example.test https://127.0.0.1:8443;"));
 
     let req = Request::builder()
         .method("PUT")

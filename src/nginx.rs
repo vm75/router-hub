@@ -1474,6 +1474,10 @@ mod tests {
             subfolder_map_key("location ^~ /librarydev/admin {", "library_dev").unwrap(),
             "librarydev"
         );
+        assert_eq!(
+            subfolder_map_key("location ^~ /sangraha-dev/admin {", "sangraha-dev").unwrap(),
+            "sangraha-dev"
+        );
         write_object(
             &config,
             NginxObjectKind::Domain,

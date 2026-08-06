@@ -2,6 +2,12 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.6.1
+
+### Fixed
+
+- Fixed nginx object editing for aliased domains and subdomains, including subfolder parent/name detection and upstream map editing.
+
 ## 0.6.0
 
 ### Added
