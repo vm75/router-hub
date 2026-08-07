@@ -171,6 +171,22 @@ fn default_weight() -> u64 {
     1
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FirewallTuning {
+    pub ip_failures: u64,
+    pub subnet_failures: u64,
+    pub promote_after_banned_ips: usize,
+    pub reputation_repromote_after_offenses: u32,
+    pub score_retention_days: u64,
+    pub reputation_retention_days: u64,
+    pub subnet_promotion_window_days: u64,
+    pub subnet_ban_days: u64,
+    pub first_ban_days: u64,
+    pub second_ban_days: u64,
+    pub third_ban_days: u64,
+    pub max_ban_days: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FirewallPolicy {
     #[serde(default)]
@@ -181,6 +197,8 @@ pub struct FirewallPolicy {
     pub rules: Vec<BanRule>,
     #[serde(default)]
     pub allowlist: Vec<IpNet>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tuning: Option<FirewallTuning>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,6 +278,7 @@ pub struct FirewallStatus {
     pub bans: Vec<BanRecord>,
     pub health: EngineHealth,
     pub settings: FirewallSettings,
+    pub tuning: FirewallTuning,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

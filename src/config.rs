@@ -213,6 +213,15 @@ impl AppConfig {
                 bail!("{field} contains invalid characters");
             }
         }
+        if self.firewall.ip_failures == 0
+            || self.firewall.subnet_failures == 0
+            || self.firewall.promote_after_banned_ips < 2
+            || self.firewall.reputation_repromote_after_offenses == 0
+        {
+            bail!(
+                "firewall thresholds must be non-zero, promote_after_banned_ips must be at least 2, and reputation_repromote_after_offenses must be non-zero"
+            );
+        }
         if self.firewall.subnet_prefix_v4 > 32 {
             bail!("firewall.subnet_prefix_v4 must be <= 32");
         }
@@ -525,6 +534,7 @@ pub struct FirewallRuntimeConfig {
     pub ip_failures: u64,
     pub subnet_failures: u64,
     pub promote_after_banned_ips: usize,
+    pub reputation_repromote_after_offenses: u32,
     pub regex_dfa_cache_bytes: usize,
     pub regex_size_limit_bytes: usize,
     pub reverify_interval_seconds: u64,
@@ -563,14 +573,15 @@ impl Default for FirewallRuntimeConfig {
             ip_failures: 4,
             subnet_failures: 8,
             promote_after_banned_ips: 2,
+            reputation_repromote_after_offenses: 1,
             regex_dfa_cache_bytes: 2 * 1024 * 1024,
             regex_size_limit_bytes: 1024 * 1024,
             reverify_interval_seconds: 60,
             protect_input: true,
             protect_forward: true,
-            score_retention_days: 3,
-            reputation_retention_days: 90,
-            subnet_promotion_window_days: 3,
+            score_retention_days: 14,
+            reputation_retention_days: 180,
+            subnet_promotion_window_days: 14,
             subnet_ban_days: 7,
             first_ban_days: 1,
             second_ban_days: 7,
@@ -627,6 +638,9 @@ mod tests {
         assert_eq!(config.server.port, 3030);
         assert_eq!(config.firewall.subnet_prefix_v4, 24);
         assert_eq!(config.firewall.subnet_prefix_v6, 64);
+        assert_eq!(config.firewall.reputation_repromote_after_offenses, 1);
+        assert_eq!(config.firewall.score_retention_days, 14);
+        assert_eq!(config.firewall.subnet_promotion_window_days, 14);
     }
 
     #[test]

@@ -1296,6 +1296,30 @@
             </div>
           </div>
         </div>
+        <div class="card pad">
+          <div class="toolbar">
+            <div><strong>Security tuning</strong><div class="hint">Saved in firewall-policy.json and applied live. Prefixes, backend commands, and resource caps remain in router-hub.toml.</div></div>
+            <div class="actions"><span class="muted" id="fw-tuning-source"></span><button type="button" class="btn" onclick="applyStrictFirewallPreset()">Load strict preset</button></div>
+          </div>
+          <div class="notice warn">Score retention and subnet promotion memory must outlast the minimum subnet ban; reputation retention must outlast the maximum ban. The strict preset is intentionally less forgiving and may block shared hosting or carrier networks when multiple clients share a subnet.</div>
+          <form id="firewall-settings-form" class="form" onsubmit="saveFirewallSettings(event)">
+            <div class="form-grid">
+              <div class="field"><label>IP failure threshold</label><input class="input" type="number" min="1" name="ip_failures" required></div>
+              <div class="field"><label>Subnet score threshold</label><input class="input" type="number" min="1" name="subnet_failures" required></div>
+              <div class="field"><label>Distinct IPs for subnet promotion</label><input class="input" type="number" min="2" name="promote_after_banned_ips" required></div>
+              <div class="field"><label>Prior subnet offenses before fast re-promotion</label><input class="input" type="number" min="1" name="reputation_repromote_after_offenses" required><span class="hint">1 means a previously promoted subnet is re-banned when one address reaches the IP threshold.</span></div>
+              <div class="field"><label>Score retention (days)</label><input class="input" type="number" min="1" name="score_retention_days" required></div>
+              <div class="field"><label>Subnet promotion memory (days)</label><input class="input" type="number" min="1" name="subnet_promotion_window_days" required></div>
+              <div class="field"><label>Reputation retention (days)</label><input class="input" type="number" min="1" name="reputation_retention_days" required></div>
+              <div class="field"><label>Minimum subnet ban (days)</label><input class="input" type="number" min="1" name="subnet_ban_days" required></div>
+              <div class="field"><label>First ban (days)</label><input class="input" type="number" min="1" name="first_ban_days" required></div>
+              <div class="field"><label>Second ban (days)</label><input class="input" type="number" min="1" name="second_ban_days" required></div>
+              <div class="field"><label>Third ban (days)</label><input class="input" type="number" min="1" name="third_ban_days" required></div>
+              <div class="field"><label>Maximum ban (days)</label><input class="input" type="number" min="1" name="max_ban_days" required></div>
+            </div>
+            <div class="actions" style="margin-top:12px"><button type="submit" class="btn primary">Save security tuning</button></div>
+          </form>
+        </div>
       </section>
 
     </div><!-- .rh-tab-pane -->
@@ -1593,12 +1617,15 @@
     async function loadFirewall() {
       try {
         state.firewall = await api('/firewall?include_bans=false');
-        const p = state.firewall.policy, s = state.firewall.settings, h = state.firewall.health;
+        const p = state.firewall.policy, s = state.firewall.settings, t = state.firewall.tuning, h = state.firewall.health;
         document.getElementById('fw-enabled').value = String(p.enabled);
+        setFirewallTuningForm(t);
+        document.getElementById('fw-tuning-source').textContent = p.tuning ? 'Policy override active' : 'Using router-hub.toml defaults';
         document.getElementById('fw-ban-summary').textContent = `Active bans: ${state.firewall.snapshot.banned_subnets.length} subnet · ${state.firewall.snapshot.banned_ips.length} IP`;
         const health = document.getElementById('fw-health');
-        health.className = `notice ${h.state === 'degraded' ? 'warn' : ''}`;
-        health.textContent = `Engine ${h.state}. Threshold ${s.global_threshold}; scores retained ${s.score_retention_seconds}s.${h.last_error ? ' Last error: ' + h.last_error : ''}`;
+        const tuningNeedsHardening = t.score_retention_days <= t.subnet_ban_days || t.subnet_promotion_window_days <= t.subnet_ban_days || t.reputation_retention_days <= t.max_ban_days;
+        health.className = `notice ${(h.state === 'degraded' || tuningNeedsHardening) ? 'warn' : ''}`;
+        health.textContent = `Engine ${h.state}. IP threshold ${t.ip_failures}; score memory ${t.score_retention_days}d; subnet ban minimum ${t.subnet_ban_days}d.${tuningNeedsHardening ? ' Retention is not long enough to preserve hardening across configured bans; save updated tuning.' : ''}${h.last_error ? ' Last error: ' + h.last_error : ''}`;
         document.getElementById('allow-list').innerHTML = p.allowlist.length ? p.allowlist.map(n => `<span class="tag">${esc(n)} <button class="btn small" onclick="removeAllowlist('${encodeURIComponent(n)}')">×</button></span>`).join('') : '<span class="muted">No allowlist entries</span>';
         document.getElementById('rules-body').innerHTML = p.rules.length ? p.rules.map(r => { const rs = (state.firewall.snapshot.rule_stats || []).find(([name]) => name === r.name); const matchCount = rs ? rs[1].match_count : null; const banCount = rs ? rs[1].ban_count : null; const statsHtml = matchCount !== null ? `${matchCount.toLocaleString()} hit(s) · ${banCount.toLocaleString()} ban(s)` : '<span class="muted">—</span>'; return `<tr><td><strong>${esc(r.name)}</strong> ${status(r.enabled, 'Enabled', 'Disabled')}</td><td>weight ${r.weight}<br><span class="muted">${Math.ceil(s.global_threshold / r.weight)} hit(s) from zero</span></td><td>${statsHtml}</td><td><div class="row-actions"><button class="btn small" onclick="editRule('${r.id}')">Edit</button><button class="btn small danger" onclick="deleteRule('${r.id}')">Delete</button></div></td></tr>`; }).join('') : emptyRow(4);
       } catch (e) { toast(e.message, true) }
@@ -1607,6 +1634,12 @@
     async function showActiveBans() { const modal = document.getElementById('bans-modal'); document.getElementById('bans-body').innerHTML = emptyRow(4, 'Loading active bans…'); if (!modal.open) modal.showModal(); try { renderBans(await api('/firewall/bans')) } catch (e) { modal.close(); toast(e.message, true) } }
     function closeActiveBans() { document.getElementById('bans-modal').close() }
     async function saveFirewallToggle() { try { const p = { ...state.firewall.policy, enabled: document.getElementById('fw-enabled').value === 'true' }; await api('/firewall', { method: 'PUT', body: JSON.stringify(p) }); toast('Firewall policy saved'); loadFirewall() } catch (e) { toast(e.message, true) } }
+    const strictFirewallTuning = { ip_failures: 3, subnet_failures: 6, promote_after_banned_ips: 2, reputation_repromote_after_offenses: 1, score_retention_days: 60, reputation_retention_days: 365, subnet_promotion_window_days: 60, subnet_ban_days: 30, first_ban_days: 1, second_ban_days: 7, third_ban_days: 30, max_ban_days: 180 };
+    const firewallTuningFields = Object.keys(strictFirewallTuning);
+    function setFirewallTuningForm(tuning) { const form = document.getElementById('firewall-settings-form'); if (!form || !tuning) return; firewallTuningFields.forEach(name => { if (form.elements[name]) form.elements[name].value = tuning[name] }) }
+    function applyStrictFirewallPreset() { setFirewallTuningForm(strictFirewallTuning); toast('Strict preset loaded. Save security tuning to apply it.') }
+    function firewallTuningFromForm() { const form = document.getElementById('firewall-settings-form'), values = formObject(form), tuning = {}; firewallTuningFields.forEach(name => { const value = Number(values[name]); if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`); tuning[name] = value }); if (tuning.promote_after_banned_ips < 2) throw new Error('Distinct IPs for subnet promotion must be at least 2'); if (tuning.score_retention_days <= tuning.subnet_ban_days) throw new Error('Score retention must be longer than the subnet ban'); if (tuning.subnet_promotion_window_days <= tuning.subnet_ban_days) throw new Error('Subnet promotion memory must be longer than the subnet ban'); if (tuning.reputation_retention_days <= tuning.max_ban_days) throw new Error('Reputation retention must be longer than the maximum ban'); if (tuning.first_ban_days > tuning.second_ban_days || tuning.second_ban_days > tuning.third_ban_days || tuning.third_ban_days > tuning.max_ban_days) throw new Error('Ban durations must increase from first through maximum'); if (tuning.subnet_ban_days > tuning.max_ban_days) throw new Error('Minimum subnet ban cannot exceed maximum ban'); return tuning }
+    async function saveFirewallSettings(event) { if (event) event.preventDefault(); try { const tuning = firewallTuningFromForm(), policy = { ...state.firewall.policy, tuning }; await api('/firewall', { method: 'PUT', body: JSON.stringify(policy) }); toast('Firewall security tuning saved and applied live'); await loadFirewall() } catch (e) { toast(e.message, true) } }
     async function addAllowlist() { let network = document.getElementById('allow-network').value.trim(); if (!network) return; if (!network.includes('/')) network += network.includes(':') ? '/128' : '/32'; try { await api('/firewall/allowlist', { method: 'POST', body: JSON.stringify({ network }) }); document.getElementById('allow-network').value = ''; loadFirewall() } catch (e) { toast(e.message, true) } }
     async function removeAllowlist(network) { try { await api(`/firewall/allowlist/${network}`, { method: 'DELETE' }); loadFirewall() } catch (e) { toast(e.message, true) } }
     function editRule(id) { const r = state.firewall?.policy.rules.find(x => x.id === id) || { name: 'Nginx authentication failure', enabled: true, log_paths: ['/opt/var/log/nginx/error.log'], pattern: 'client: (?P<ip>[0-9a-fA-F:.]+).*(?:authentication|password)', ip_group: 'ip', group_values: {}, weight: 1 }; openEditor(id ? 'Edit detection rule' : 'Add detection rule', `<form id="rule-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(r.name)}"></div><div class="field"><label><input type="checkbox" name="enabled" ${r.enabled ? 'checked' : ''}> Enabled</label></div><div class="field full"><label>Log paths, one per line</label><textarea class="input" name="log_paths">${esc(r.log_paths.join('\n'))}</textarea></div><div class="field full"><label>Hybrid-DFA regex</label><textarea class="input" name="pattern">${esc(r.pattern)}</textarea><span class="hint">Regex must provide the configured named IP capture.</span></div><div class="field"><label>Weight</label><input class="input" type="number" min="1" name="weight" value="${r.weight}"></div></div></form>`, async () => { try { const f = document.getElementById('rule-form'), v = formObject(f), payload = { ...r, name: v.name, enabled: f.elements.enabled.checked, log_paths: jsonLines(v.log_paths), pattern: v.pattern, weight: Number(v.weight) }; await api(id ? `/firewall/rules/${id}` : '/firewall/rules', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadFirewall() } catch (e) { toast(e.message, true) } }) }

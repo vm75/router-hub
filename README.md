@@ -204,6 +204,42 @@ reference. The main sections are:
 - `[firewall]` — matching, scoring, retention, subnet promotion, resource
   bounds, and command limits.
 
+The Ban Shield tab can edit the attack thresholds, score/promotion/reputation
+retention, reputation-aware re-promotion threshold, and ban durations. Those
+edits are stored as an optional `tuning` override in `firewall-policy.json` and
+are applied to the running ban engine immediately. When no override exists,
+`router-hub.toml` remains the source of those values. Prefix sizes, command
+paths, and resource caps stay TOML-only because changing them live has broader
+runtime consequences.
+
+The shipped defaults retain scores and subnet promotion history for 14 days,
+longer than the 7-day minimum subnet ban. A subnet with retained reputation can
+be promoted again as soon as one address reaches the IP threshold; by default
+that fast re-promotion starts after the subnet's first prior promotion.
+
+For an Internet-facing installation where false positives are less costly than
+letting repeated hostile networks retry, the UI's **Load strict preset** uses:
+
+```text
+ip_failures = 3
+subnet_failures = 6
+promote_after_banned_ips = 2
+reputation_repromote_after_offenses = 1
+score_retention_days = 60
+subnet_promotion_window_days = 60
+reputation_retention_days = 365
+subnet_ban_days = 30
+first_ban_days = 1
+second_ban_days = 7
+third_ban_days = 30
+max_ban_days = 180
+```
+
+This profile deliberately remembers activity for two months, makes the minimum
+subnet ban 30 days, and keeps repeat-offender reputation for a year. Use a
+less aggressive profile when legitimate users commonly share public source
+subnets (carrier NAT, corporate egress, large hosting networks, or similar).
+
 Persistent JSON is stored below `paths.data_dir` and written atomically. It
 contains certificate definitions, Wake-on-LAN machines, firewall policy and
 state, and AdGuard overrides. Nginx objects remain represented by nginx files

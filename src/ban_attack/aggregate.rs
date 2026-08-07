@@ -281,7 +281,12 @@ impl Aggregator {
         } else {
             0
         };
-        let should_promote = distinct_offenders >= self.config.promote_after_banned_ips
+        let reputation_repromote = ip_count >= self.config.ip_failures
+            && self.reputation.get(&subnet).is_some_and(|entry| {
+                entry.offense_count >= self.config.reputation_repromote_after_offenses
+            });
+        let should_promote = reputation_repromote
+            || distinct_offenders >= self.config.promote_after_banned_ips
             || (subnet_count >= self.config.subnet_failures
                 && distributed_sources >= self.config.promote_after_banned_ips);
 
@@ -1011,6 +1016,60 @@ mod tests {
         aggregator.record(ip, 2, "test", backend.as_ref()).unwrap();
 
         assert_eq!(backend.entries(), HashSet::from([BanTarget::Ip(ip)]));
+    }
+
+    #[test]
+    fn retained_subnet_reputation_repromotes_after_expiry() {
+        let backend = Arc::new(MemoryBanBackend::default());
+        let mut aggregator = Aggregator::new(AggregationConfig {
+            ip_failures: 2,
+            subnet_failures: 100,
+            promote_after_banned_ips: 2,
+            reputation_repromote_after_offenses: 1,
+            ipv4_prefix: 24,
+            ipv6_prefix: 64,
+            ..AggregationConfig::default()
+        });
+        let subnet: IpNet = "192.0.2.0/24".parse().unwrap();
+        let first: IpAddr = "192.0.2.10".parse().unwrap();
+        let second: IpAddr = "192.0.2.20".parse().unwrap();
+        let next: IpAddr = "192.0.2.30".parse().unwrap();
+
+        aggregator
+            .record(first, 2, "test", backend.as_ref())
+            .unwrap();
+        aggregator
+            .record(second, 2, "test", backend.as_ref())
+            .unwrap();
+        let target = BanTarget::Subnet(subnet);
+        assert!(backend.entries().contains(&target));
+        assert_eq!(
+            aggregator.active_bans.get(&target).unwrap().offense_count,
+            1
+        );
+
+        aggregator.active_bans.get_mut(&target).unwrap().expires_at =
+            Utc::now() - Duration::seconds(1);
+        aggregator.cleanup_expired(backend.as_ref()).unwrap();
+        assert!(backend.entries().is_empty());
+
+        // Prove the fast path comes from retained subnet reputation rather
+        // than score or distinct-offender promotion history.
+        aggregator.ip_counts.clear();
+        aggregator.subnet_counts.clear();
+        aggregator.last_seen.clear();
+        aggregator.subnet_offenders.clear();
+
+        aggregator
+            .record(next, 2, "test", backend.as_ref())
+            .unwrap();
+
+        assert_eq!(backend.entries(), HashSet::from([target.clone()]));
+        assert!(!backend.entries().contains(&BanTarget::Ip(next)));
+        assert_eq!(
+            aggregator.active_bans.get(&target).unwrap().offense_count,
+            2
+        );
     }
 
     #[test]

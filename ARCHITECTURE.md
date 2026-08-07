@@ -97,7 +97,12 @@ at least one configured file. The manager always gives those files
 Policy updates compile and validate the candidate's enabled log/rule
 configuration, apply it to the running engine, and then save the policy. A save
 failure restores the previous in-memory policy and attempts to restore the
-previous engine configuration.
+previous engine configuration. `FirewallPolicy` may also contain a persisted
+`tuning` override for thresholds, retention, reputation-aware re-promotion, and
+ban durations. The Firewall tab writes that override through the same atomic
+policy-update path; when it is absent, the application `[firewall]` TOML values
+remain authoritative. Prefixes, backend commands, and bounded capacities stay
+TOML-only.
 The `BanRule.attempts` field remains accepted for API compatibility but is not
 used by the engine; `weight` is the effective rule contribution.
 
@@ -124,15 +129,22 @@ next newline and counted; invalid UTF-8 lines are also counted and reported.
 Aggregation adds each rule's weight to both an IP score and its configured
 IPv4 `/24` or IPv6 `/64` bucket. With the application defaults, an IP reaches
 the automatic-ban threshold at 4 points, a subnet score threshold is 8, and
-two contributing addresses are required for promotion. Promotion can happen
-when two distinct addresses cross the IP threshold within the 72-hour
-promotion window, or when distributed activity reaches the subnet threshold
-with the same minimum number of contributing addresses. A single noisy address
-cannot satisfy either promotion condition. Scores retain activity for 72 hours
-after last sighting; reputation is retained for 90 days. Automatic ban
-durations escalate by retained offense count from 1 day to 7 days, 30 days,
-and a 90-day maximum. Subnet promotions have at least the configured 7-day
-subnet duration.
+two contributing addresses are required for a first-time promotion. Promotion
+can happen when two distinct addresses cross the IP threshold within the
+14-day promotion window, or when distributed activity reaches the subnet
+threshold with the same minimum number of contributing addresses. Scores also
+retain activity for 14 days after last sighting, so both score and promotion
+memory outlive the default 7-day subnet ban.
+
+Subnet reputation adds a separate repeat-offender path. When a subnet has at
+least `reputation_repromote_after_offenses` retained prior subnet offenses
+(default 1), any address in that subnet at or above the IP threshold can
+re-promote the subnet without waiting for a second distinct offender. This
+allows a newly observed IP to restore subnet-wide blocking quickly after a
+previous subnet ban expires. Reputation is retained for 180 days by default, longer than the 90-day maximum ban.
+Automatic ban durations escalate by retained offense count from 1 day to 7
+days, 30 days, and a 90-day maximum. Subnet promotions have at least the
+configured 7-day subnet duration.
 
 Active bans are timed records with source, reason, creation and expiry times,
 hit count, and offense count. Expiry cleanup runs every 60 seconds, removes
@@ -157,11 +169,12 @@ ban, score, promotion history, and reputation.
 different: it clears retained counters and reputation but does not remove an
 active ban or create an allowlist entry.
 
-The status response separates the policy, a snapshot, ban records, settings,
-and `EngineHealth`. Snapshot lists are capped by `max_status_entries` (100 by
-default), while health reports disabled, observe, running, degraded, or
-stopped state; lifecycle timestamps; last error; error and timeout counts;
-dropped-line count; set capacity; and current set entries.
+The status response separates the policy, a snapshot, ban records, legacy
+summary settings, the effective security `tuning`, and `EngineHealth`. Snapshot
+lists are capped by `max_status_entries` (100 by default), while health reports
+disabled, observe, running, degraded, or stopped state; lifecycle timestamps;
+last error; error and timeout counts; dropped-line count; set capacity; and
+current set entries.
 
 ## Ban-attack firewall backend and recovery
 

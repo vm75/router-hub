@@ -15,7 +15,7 @@ use crate::{
         IpSetConfig as BanIpSetConfig, RuleConfig as BanRuleConfig, StartAt,
     },
     config::{AppConfig, days_to_seconds},
-    models::{BanRecord, FirewallPolicy, FirewallSettings, FirewallStatus},
+    models::{BanRecord, FirewallPolicy, FirewallSettings, FirewallStatus, FirewallTuning},
     storage::Stores,
 };
 
@@ -149,26 +149,28 @@ impl FirewallManager {
                 triggering_rule: ban.triggering_rule.clone(),
             })
             .collect();
+        let tuning = self.effective_tuning(&policy);
         FirewallStatus {
             policy,
             snapshot,
             bans,
             health,
             settings: FirewallSettings {
-                global_threshold: self.config.firewall.ip_failures,
-                score_retention_seconds: days_to_seconds(self.config.firewall.score_retention_days)
+                global_threshold: tuning.ip_failures,
+                score_retention_seconds: days_to_seconds(tuning.score_retention_days)
                     .unwrap_or_default(),
                 escalation_seconds: [
-                    days_to_seconds(self.config.firewall.first_ban_days).unwrap_or_default(),
-                    days_to_seconds(self.config.firewall.second_ban_days).unwrap_or_default(),
-                    days_to_seconds(self.config.firewall.third_ban_days).unwrap_or_default(),
-                    days_to_seconds(self.config.firewall.max_ban_days).unwrap_or_default(),
+                    days_to_seconds(tuning.first_ban_days).unwrap_or_default(),
+                    days_to_seconds(tuning.second_ban_days).unwrap_or_default(),
+                    days_to_seconds(tuning.third_ban_days).unwrap_or_default(),
+                    days_to_seconds(tuning.max_ban_days).unwrap_or_default(),
                 ],
                 subnet_promotion_window_seconds: days_to_seconds(
-                    self.config.firewall.subnet_promotion_window_days,
+                    tuning.subnet_promotion_window_days,
                 )
                 .unwrap_or_default(),
             },
+            tuning,
         }
     }
 
@@ -300,7 +302,28 @@ impl FirewallManager {
         Ok(())
     }
 
+    fn effective_tuning(&self, policy: &FirewallPolicy) -> FirewallTuning {
+        policy.tuning.clone().unwrap_or(FirewallTuning {
+            ip_failures: self.config.firewall.ip_failures,
+            subnet_failures: self.config.firewall.subnet_failures,
+            promote_after_banned_ips: self.config.firewall.promote_after_banned_ips,
+            reputation_repromote_after_offenses: self
+                .config
+                .firewall
+                .reputation_repromote_after_offenses,
+            score_retention_days: self.config.firewall.score_retention_days,
+            reputation_retention_days: self.config.firewall.reputation_retention_days,
+            subnet_promotion_window_days: self.config.firewall.subnet_promotion_window_days,
+            subnet_ban_days: self.config.firewall.subnet_ban_days,
+            first_ban_days: self.config.firewall.first_ban_days,
+            second_ban_days: self.config.firewall.second_ban_days,
+            third_ban_days: self.config.firewall.third_ban_days,
+            max_ban_days: self.config.firewall.max_ban_days,
+        })
+    }
+
     fn build_ban_attack_config(&self, policy: &FirewallPolicy) -> Result<BanAttackConfig> {
+        let tuning = self.effective_tuning(policy);
         let mut file_map: BTreeMap<PathBuf, Vec<BanRuleConfig>> = BTreeMap::new();
 
         {
@@ -363,25 +386,22 @@ impl FirewallManager {
                 command_timeout_seconds: self.config.firewall.command_timeout_seconds,
             },
             aggregation: AggregationConfig {
-                ip_failures: self.config.firewall.ip_failures,
-                subnet_failures: self.config.firewall.subnet_failures,
-                promote_after_banned_ips: self.config.firewall.promote_after_banned_ips,
+                ip_failures: tuning.ip_failures,
+                subnet_failures: tuning.subnet_failures,
+                promote_after_banned_ips: tuning.promote_after_banned_ips,
+                reputation_repromote_after_offenses: tuning.reputation_repromote_after_offenses,
                 ipv4_prefix: self.config.firewall.subnet_prefix_v4,
                 ipv6_prefix: self.config.firewall.subnet_prefix_v6,
-                score_retention_seconds: days_to_seconds(
-                    self.config.firewall.score_retention_days,
-                )?,
-                reputation_retention_seconds: days_to_seconds(
-                    self.config.firewall.reputation_retention_days,
-                )?,
+                score_retention_seconds: days_to_seconds(tuning.score_retention_days)?,
+                reputation_retention_seconds: days_to_seconds(tuning.reputation_retention_days)?,
                 subnet_promotion_window_seconds: days_to_seconds(
-                    self.config.firewall.subnet_promotion_window_days,
+                    tuning.subnet_promotion_window_days,
                 )?,
-                subnet_ban_seconds: days_to_seconds(self.config.firewall.subnet_ban_days)?,
-                first_ban_seconds: days_to_seconds(self.config.firewall.first_ban_days)?,
-                second_ban_seconds: days_to_seconds(self.config.firewall.second_ban_days)?,
-                third_ban_seconds: days_to_seconds(self.config.firewall.third_ban_days)?,
-                max_ban_seconds: days_to_seconds(self.config.firewall.max_ban_days)?,
+                subnet_ban_seconds: days_to_seconds(tuning.subnet_ban_days)?,
+                first_ban_seconds: days_to_seconds(tuning.first_ban_days)?,
+                second_ban_seconds: days_to_seconds(tuning.second_ban_days)?,
+                third_ban_seconds: days_to_seconds(tuning.third_ban_days)?,
+                max_ban_seconds: days_to_seconds(tuning.max_ban_days)?,
                 max_tracked_ips: self.config.firewall.max_tracked_ips,
                 max_tracked_subnets: self.config.firewall.max_tracked_subnets,
                 max_reputation_entries: self.config.firewall.max_reputation_entries,
@@ -409,7 +429,56 @@ fn network_covers(outer: &IpNet, inner: &IpNet) -> bool {
         && outer.contains(&inner.addr())
 }
 
+fn validate_tuning(tuning: &FirewallTuning) -> Result<()> {
+    if tuning.ip_failures == 0 || tuning.subnet_failures == 0 {
+        bail!("IP and subnet failure thresholds must be non-zero");
+    }
+    if tuning.promote_after_banned_ips < 2 {
+        bail!("promote_after_banned_ips must be at least 2");
+    }
+    if tuning.reputation_repromote_after_offenses == 0 {
+        bail!("reputation_repromote_after_offenses must be non-zero");
+    }
+    for days in [
+        tuning.score_retention_days,
+        tuning.reputation_retention_days,
+        tuning.subnet_promotion_window_days,
+        tuning.subnet_ban_days,
+        tuning.first_ban_days,
+        tuning.second_ban_days,
+        tuning.third_ban_days,
+        tuning.max_ban_days,
+    ] {
+        if days == 0 {
+            bail!("firewall retention and ban durations must be non-zero");
+        }
+        days_to_seconds(days)?;
+    }
+    if tuning.first_ban_days > tuning.second_ban_days
+        || tuning.second_ban_days > tuning.third_ban_days
+        || tuning.third_ban_days > tuning.max_ban_days
+    {
+        bail!("firewall ban durations must be monotonically increasing");
+    }
+    if tuning.subnet_ban_days > tuning.max_ban_days {
+        bail!("subnet_ban_days must not exceed max_ban_days");
+    }
+    if tuning.score_retention_days <= tuning.subnet_ban_days {
+        bail!("score_retention_days must be greater than subnet_ban_days");
+    }
+    if tuning.subnet_promotion_window_days <= tuning.subnet_ban_days {
+        bail!("subnet_promotion_window_days must be greater than subnet_ban_days");
+    }
+    if tuning.reputation_retention_days <= tuning.max_ban_days {
+        bail!("reputation_retention_days must be greater than max_ban_days");
+    }
+    Ok(())
+}
+
 fn validate_policy(policy: &FirewallPolicy) -> Result<()> {
+    if let Some(tuning) = &policy.tuning {
+        validate_tuning(tuning)?;
+    }
     let mut ids = HashSet::new();
     let mut names = HashSet::new();
     for rule in &policy.rules {
@@ -478,6 +547,7 @@ mod tests {
             observe_only: false,
             rules: vec![],
             allowlist: vec![],
+            tuning: None,
         };
         *manager.stores.firewall_policy.write().await = disabled_policy.clone();
         manager.update_policy(&disabled_policy).await.unwrap();
@@ -490,10 +560,42 @@ mod tests {
             observe_only: false,
             rules: vec![],
             allowlist: vec![],
+            tuning: None,
         };
         *manager.stores.firewall_policy.write().await = empty_rules_policy.clone();
         manager.update_policy(&empty_rules_policy).await.unwrap();
         assert!(manager.inner.read().await.is_none());
+    }
+
+    #[test]
+    fn validates_hardened_tuning_relationships() {
+        let tuning = FirewallTuning {
+            ip_failures: 3,
+            subnet_failures: 6,
+            promote_after_banned_ips: 2,
+            reputation_repromote_after_offenses: 1,
+            score_retention_days: 60,
+            reputation_retention_days: 365,
+            subnet_promotion_window_days: 60,
+            subnet_ban_days: 30,
+            first_ban_days: 1,
+            second_ban_days: 7,
+            third_ban_days: 30,
+            max_ban_days: 180,
+        };
+        validate_tuning(&tuning).unwrap();
+
+        let mut invalid = tuning.clone();
+        invalid.score_retention_days = invalid.subnet_ban_days;
+        assert!(validate_tuning(&invalid).is_err());
+
+        let mut invalid = tuning.clone();
+        invalid.subnet_promotion_window_days = invalid.subnet_ban_days;
+        assert!(validate_tuning(&invalid).is_err());
+
+        let mut invalid = tuning;
+        invalid.reputation_repromote_after_offenses = 0;
+        assert!(validate_tuning(&invalid).is_err());
     }
 
     #[tokio::test]

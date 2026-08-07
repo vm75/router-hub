@@ -700,6 +700,7 @@ mod tests {
             observe_only: false,
             rules: vec![],
             allowlist: vec![],
+            tuning: None,
         };
         save_json(&fallback_path, &policy).await.unwrap();
 

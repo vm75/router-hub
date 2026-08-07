@@ -118,6 +118,11 @@ fn validate(config: &Config) -> Result<(), Error> {
             "promote_after_banned_ips must be at least 2".to_owned(),
         ));
     }
+    if config.aggregation.reputation_repromote_after_offenses == 0 {
+        return Err(Error::Config(
+            "reputation_repromote_after_offenses must be non-zero".to_owned(),
+        ));
+    }
     if config.aggregation.score_retention_seconds == 0
         || config.aggregation.reputation_retention_seconds == 0
         || config.aggregation.subnet_promotion_window_seconds == 0

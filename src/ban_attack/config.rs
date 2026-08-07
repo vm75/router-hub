@@ -127,6 +127,9 @@ pub struct AggregationConfig {
     #[serde(default = "default_promote_after_banned_ips")]
     pub promote_after_banned_ips: usize,
 
+    #[serde(default = "default_reputation_repromote_after_offenses")]
+    pub reputation_repromote_after_offenses: u32,
+
     #[serde(default = "default_ipv4_prefix")]
     pub ipv4_prefix: u8,
 
@@ -176,6 +179,7 @@ impl Default for AggregationConfig {
             ip_failures: default_ip_failures(),
             subnet_failures: default_subnet_failures(),
             promote_after_banned_ips: default_promote_after_banned_ips(),
+            reputation_repromote_after_offenses: default_reputation_repromote_after_offenses(),
             ipv4_prefix: default_ipv4_prefix(),
             ipv6_prefix: default_ipv6_prefix(),
             score_retention_seconds: default_score_retention_seconds(),
@@ -320,6 +324,10 @@ fn default_promote_after_banned_ips() -> usize {
     2
 }
 
+fn default_reputation_repromote_after_offenses() -> u32 {
+    1
+}
+
 fn default_ipv4_prefix() -> u8 {
     24
 }
@@ -329,13 +337,13 @@ fn default_ipv6_prefix() -> u8 {
 }
 
 fn default_score_retention_seconds() -> u64 {
-    259_200
+    1_209_600
 }
 fn default_reputation_retention_seconds() -> u64 {
-    7_776_000
+    15_552_000
 }
 fn default_subnet_promotion_window_seconds() -> u64 {
-    259_200
+    1_209_600
 }
 fn default_subnet_ban_seconds() -> u64 {
     604_800

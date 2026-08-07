@@ -2,6 +2,14 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.6.2
+
+### Added
+
+- Added live-editable firewall security tuning overrides stored in `firewall-policy.json`.
+- Added reputation-aware fast subnet re-promotion for repeat-offender networks.
+- Added strict security tuning preset and health validation warnings in the Ban Shield UI.
+
 ## 0.6.1
 
 ### Fixed

@@ -167,6 +167,7 @@ mod tests {
         );
         assert!(!standalone.contains("nginx-card nginx-accordion\" open"));
         assert!(standalone.contains("data-custom-config"));
+        assert!(standalone.contains("firewall-settings-form"));
         assert!(!standalone.contains(">Start nginx<"));
         assert!(!standalone.contains(">Stop nginx<"));
 
