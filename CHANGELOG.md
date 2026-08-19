@@ -2,8 +2,14 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
-## 0.7.0
+## 0.7.1
 
+### Fixed
+
+- Fixed an issue where resuming AdGuard Home protection would fail because it sent an incorrect payload (`protection_enabled` instead of `enabled`).
+- Improved mobile responsiveness for AdGuard Home pause controls.
+
+## 0.7.0
 ### Added
 
 - Reimplemented WireGuard management to natively integrate with live kernel interfaces using the `wg showconf` and `wg syncconf` commands.

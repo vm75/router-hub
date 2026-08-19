@@ -279,10 +279,12 @@ impl AdGuardClient {
 
     pub async fn toggle_protection(&self, enabled: bool, duration_ms: Option<u64>) -> Result<()> {
         let url = format!("{}/control/protection", self.endpoint);
-        let payload = serde_json::json!({
-            "protection_enabled": enabled,
-            "duration": duration_ms.unwrap_or(0),
-        });
+        let mut map = serde_json::Map::new();
+        map.insert("enabled".to_string(), serde_json::Value::Bool(enabled));
+        if !enabled {
+            map.insert("duration".to_string(), serde_json::Value::Number(duration_ms.unwrap_or(0).into()));
+        }
+        let payload = serde_json::Value::Object(map);
         self.client
             .post(&url)
             .json(&payload)

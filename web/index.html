@@ -950,6 +950,7 @@
     @media(max-width:760px) {
 
       .span-4,
+      .span-6,
       .span-8 {
         grid-column: span 12
       }
@@ -1139,6 +1140,7 @@
                 <button class="btn" onclick="toggleAdguardFiltering(false,10)">10 min</button>
                 <button class="btn" onclick="toggleAdguardFiltering(false,30)">30 min</button>
                 <button class="btn" onclick="toggleAdguardFiltering(false,60)">60 min</button>
+                <button id="resume-filtering-btn" class="btn primary" style="display:none" onclick="toggleAdguardFiltering(true)">Resume</button>
               </div>
             </div>
             <div class="span-6">
@@ -1151,6 +1153,7 @@
                 <button class="btn" onclick="toggleAdguardProtection(false,10)">10 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,30)">30 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,60)">60 min</button>
+                <button id="resume-protection-btn" class="btn primary" style="display:none" onclick="toggleAdguardProtection(true)">Resume</button>
               </div>
             </div>
           </div>
@@ -1785,7 +1788,64 @@
 
     async function loadAdguardStatusOnly() { if (!state.adguard?.enabled) return; try { const st = await api('/adguard/status'); state.adguardStatus = st; renderAdguardStatus(st) } catch (e) { document.getElementById('adguard-status').innerHTML = status(true, 'Enabled', 'Disabled') } }
     async function loadAdguard() { try { const cfg = await api('/adguard/config'); state.adguard = cfg; const f = document.getElementById('adguard-form'); if (f) { f.elements.enabled.checked = !!cfg.enabled; f.elements.api_endpoint.value = cfg.api_endpoint || ''; f.elements.launch_url.value = cfg.launch_url || ''; f.elements.username.value = cfg.username || ''; f.elements.password.value = ''; f.elements.lan_ip.value = cfg.lan_ip || '' } if (cfg.enabled) { await loadAdguardStatusOnly() } else { document.getElementById('adguard-status').innerHTML = status(false, 'Enabled', 'Disabled'); renderAdguardStatus(null) } if (state.view === 'adguard') startAdguardPolling(); } catch (e) { document.getElementById('adguard-status').textContent = 'API Error'; toast(e.message, true) } }
-    function renderAdguardStatus(st) { const statusEl = document.getElementById('adguard-status'), filtStatusEl = document.getElementById('filtering-status'), protStatusEl = document.getElementById('protection-status'); if (!st || !st.enabled) { if (statusEl) statusEl.innerHTML = status(false, 'Enabled', 'Disabled'); if (filtStatusEl) filtStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; if (protStatusEl) protStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; return } let filtText = ''; if (!st.filtering_enabled && st.filtering_remaining_seconds) { const m = Math.ceil(st.filtering_remaining_seconds / 60); filtText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.filtering_enabled) { filtText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { filtText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (filtStatusEl) filtStatusEl.innerHTML = filtText; let protText = ''; if (!st.protection_enabled && st.protection_remaining_seconds) { const m = Math.ceil(st.protection_remaining_seconds / 60); protText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.protection_enabled) { protText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { protText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (protStatusEl) protStatusEl.innerHTML = protText; if (statusEl) { let summary = status(true, 'Enabled', 'Disabled'); if (!st.filtering_enabled && st.filtering_remaining_seconds) { summary += ` &middot; Filtering Paused (${Math.ceil(st.filtering_remaining_seconds / 60)}m)` } else if (!st.filtering_enabled) { summary += ` &middot; Filtering Disabled` } if (!st.protection_enabled && st.protection_remaining_seconds) { summary += ` &middot; Protection Paused (${Math.ceil(st.protection_remaining_seconds / 60)}m)` } else if (!st.protection_enabled) { summary += ` &middot; Protection Disabled` } statusEl.innerHTML = summary } }
+    function renderAdguardStatus(st) {
+      const statusEl = document.getElementById('adguard-status'),
+        filtStatusEl = document.getElementById('filtering-status'),
+        protStatusEl = document.getElementById('protection-status'),
+        resumeFiltBtn = document.getElementById('resume-filtering-btn'),
+        resumeProtBtn = document.getElementById('resume-protection-btn');
+
+      if (!st || !st.enabled) {
+        if (statusEl) statusEl.innerHTML = status(false, 'Enabled', 'Disabled');
+        if (filtStatusEl) filtStatusEl.innerHTML = '<span class="badge gray">Disabled</span>';
+        if (protStatusEl) protStatusEl.innerHTML = '<span class="badge gray">Disabled</span>';
+        if (resumeFiltBtn) resumeFiltBtn.style.display = 'none';
+        if (resumeProtBtn) resumeProtBtn.style.display = 'none';
+        return;
+      }
+      let filtText = '';
+      if (!st.filtering_enabled && st.filtering_remaining_seconds) {
+        const m = Math.ceil(st.filtering_remaining_seconds / 60);
+        filtText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>`;
+        if (resumeFiltBtn) resumeFiltBtn.style.display = '';
+      } else if (!st.filtering_enabled) {
+        filtText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>`;
+        if (resumeFiltBtn) resumeFiltBtn.style.display = '';
+      } else {
+        filtText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>`;
+        if (resumeFiltBtn) resumeFiltBtn.style.display = 'none';
+      }
+      if (filtStatusEl) filtStatusEl.innerHTML = filtText;
+      
+      let protText = '';
+      if (!st.protection_enabled && st.protection_remaining_seconds) {
+        const m = Math.ceil(st.protection_remaining_seconds / 60);
+        protText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>`;
+        if (resumeProtBtn) resumeProtBtn.style.display = '';
+      } else if (!st.protection_enabled) {
+        protText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>`;
+        if (resumeProtBtn) resumeProtBtn.style.display = '';
+      } else {
+        protText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>`;
+        if (resumeProtBtn) resumeProtBtn.style.display = 'none';
+      }
+      if (protStatusEl) protStatusEl.innerHTML = protText;
+      
+      if (statusEl) {
+        let summary = status(true, 'Enabled', 'Disabled');
+        if (!st.filtering_enabled && st.filtering_remaining_seconds) {
+          summary += ` &middot; Filtering Paused (${Math.ceil(st.filtering_remaining_seconds / 60)}m)`;
+        } else if (!st.filtering_enabled) {
+          summary += ` &middot; Filtering Disabled`;
+        }
+        if (!st.protection_enabled && st.protection_remaining_seconds) {
+          summary += ` &middot; Protection Paused (${Math.ceil(st.protection_remaining_seconds / 60)}m)`;
+        } else if (!st.protection_enabled) {
+          summary += ` &middot; Protection Disabled`;
+        }
+        statusEl.innerHTML = summary;
+      }
+    }
     function renderAdguardRewrites() { const body = document.getElementById('adguard-rewrites-body'); body.innerHTML = state.adguardRewrites.length ? state.adguardRewrites.map((rewrite, index) => `<tr><td><input class="input" value="${esc(rewrite.domain)}" aria-label="Rewrite domain" oninput="adguardRewriteChanged(${index},'domain',this.value)"></td><td><input class="input" value="${esc(rewrite.answer)}" aria-label="Rewrite answer" oninput="adguardRewriteChanged(${index},'answer',this.value)"></td><td><button class="btn small danger" onclick="removeAdguardRewrite(${index})">Delete</button></td></tr>`).join('') : emptyRow(3, 'No custom DNS rewrites'); updateSortHeaders('rewrites') }
     function adguardRewriteChanged(index, key, value) { if (state.adguardRewrites[index]) state.adguardRewrites[index][key] = value }
     function addAdguardRewrite() { state.adguardRewrites.push({ domain: '', answer: '' }); renderAdguardRewrites(); const inputs = document.querySelectorAll('#adguard-rewrites-body input'); inputs[inputs.length - 2]?.focus() }
