@@ -991,10 +991,11 @@
 
     <div class="rh-hero-banner">
       <img src="__ROUTER_HUB_LOGO_DATA_URI__" alt="Router Hub Logo" class="rh-hero-logo">
-      <div>
+      <div style="flex:1">
         <div class="rh-hero-title">Router Hub</div>
         <div class="rh-hero-sub">Entware Services &middot; Nginx &middot; Certificates &middot; Firewall &middot; AdGuard Home</div>
       </div>
+      <div class="rh-badge" id="rh-mode" style="font-size:11px;color:#8b9bb0;min-height:24px;display:none;background:rgba(0,0,0,0.2);border:1px solid #2a3a4e;"></div>
     </div>
 
     <!-- Fallback tab nav for standalone mode; tabs are moved to ASUS #tabMenu when embedded -->
@@ -1006,6 +1007,7 @@
       <div class="tab rh-tab" data-view="wol">Wake-on-LAN</div>
       <div class="tab rh-tab" data-view="firewall">Ban Shield</div>
       <div class="tab rh-tab" data-view="adguard">AdGuard</div>
+      <div class="tab rh-tab" data-view="wireguard">WireGuard</div>
     </div>
 
     <!-- Header row: formfonttitle left, brand/status right (AdaptiveQoS_Bandwidth_Monitor pattern) -->
@@ -1015,6 +1017,9 @@
         <td class="title-cell formfonttitle">Router Hub &mdash; <span id="page-title">Dashboard</span></td>
         <td class="brand-cell">
           <div class="rh-brand-info">
+            <span class="rh-badge" style="padding:0 8px;">
+              <span class="rh-version" id="rh-version">v__ROUTER_HUB_VERSION__</span>
+            </span>
             <span class="rh-badge">
               <span class="rh-logo"><img src="__ROUTER_HUB_LOGO_DATA_URI__" alt="RH" style="width:22px;height:22px;object-fit:contain"></span>
               <span class="rh-badge-copy">
@@ -1023,8 +1028,7 @@
                     id="connection">Checking</span></span>
               </span>
             </span>
-            <span class="rh-version">v__ROUTER_HUB_VERSION__</span>
-            <button class="btn" onclick="refreshCurrent()">Refresh</button>
+            <button class="btn" style="height:32px;" onclick="refreshCurrent()">Refresh</button>
           </div>
         </td>
       </tr>
@@ -1037,6 +1041,64 @@
 
       <section class="view active" id="view-dashboard">
         <div class="grid" id="dashboard-grid"></div>
+        <div class="grid" id="system-usage-grid" style="margin-top: 12px; display: none;">
+          <div class="card pad span-12" id="card-network">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="width:4px;height:14px;background:#31d7dc;"></div>
+              <strong style="font-size:14px;">Internet Traffic</strong>
+            </div>
+            <div style="display:flex;align-items:center;margin-bottom:8px;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-dl" style="width:0%;height:100%;background:#4cdb98;border-radius:6px;"></div>
+              </div>
+              <div style="width:120px;text-align:right;font-size:12px;display:flex;justify-content:space-between;padding-left:12px;"><span style="color:#b0bec5">DL</span><span id="txt-dl">0.00 KB/s</span></div>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-ul" style="width:0%;height:100%;background:#31d7dc;border-radius:6px;"></div>
+              </div>
+              <div style="width:120px;text-align:right;font-size:12px;display:flex;justify-content:space-between;padding-left:12px;"><span style="color:#b0bec5">UL</span><span id="txt-ul">0.00 KB/s</span></div>
+            </div>
+          </div>
+          <div class="card pad span-12" id="card-cpu">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="width:4px;height:14px;background:#31d7dc;"></div>
+              <strong style="font-size:14px;">CPU</strong>
+              <span id="txt-loadavg" style="margin-left:12px;color:#8b9bb0;font-size:12px;"></span>
+              <span id="txt-uptime" style="margin-left:auto;color:#b0bec5;font-size:11px;"></span>
+            </div>
+            <div id="cpu-cores" style="display:grid;gap:8px;margin-bottom:12px;"></div>
+            <canvas id="cpu-canvas" style="width:100%;height:100px;background:#050505;border:1px solid #334956;border-radius:2px;"></canvas>
+          </div>
+          <div class="card pad span-12" id="card-ram">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="width:4px;height:14px;background:#31d7dc;"></div>
+              <strong style="font-size:14px;">RAM</strong>
+            </div>
+            <div style="display:flex;justify-content:space-around;text-align:center;margin-bottom:12px;font-size:13px;">
+              <div><div style="color:#fff;">Used</div><div id="txt-ram-used" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Free</div><div id="txt-ram-free" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Total</div><div id="txt-ram-total" style="color:#b0bec5;">0 MB</div></div>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-ram" style="width:0%;height:100%;background:#31d7dc;border-radius:6px;"></div>
+              </div>
+              <div style="width:60px;text-align:right;font-size:12px;" id="txt-ram-pct">0%</div>
+            </div>
+            <div style="display:flex;justify-content:space-around;text-align:center;margin-bottom:12px;font-size:13px;margin-top:16px;">
+              <div><div style="color:#fff;">Swap Used</div><div id="txt-swap-used" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Swap Free</div><div id="txt-swap-free" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Swap Total</div><div id="txt-swap-total" style="color:#b0bec5;">0 MB</div></div>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-swap" style="width:0%;height:100%;background:#ffcb66;border-radius:6px;"></div>
+              </div>
+              <div style="width:60px;text-align:right;font-size:12px;" id="txt-swap-pct">0%</div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="view-services">
@@ -1130,6 +1192,71 @@
               <button type="submit" class="btn primary">Save Settings</button>
             </div>
           </form>
+        </div>
+      </section>
+
+      <section class="view" id="view-wireguard">
+        <div class="card-head">
+          <h2>WireGuard Interface</h2>
+          <div class="actions">
+            <span id="wireguard-status-badge"></span>
+            <button class="btn primary" onclick="toggleWireguard(true)">UP</button>
+            <button class="btn danger" onclick="toggleWireguard(false)">DOWN</button>
+          </div>
+        </div>
+        <div class="card">
+          <form id="wireguard-form" class="form" onsubmit="saveWireguardSettings(event)">
+            <div class="field-row">
+              <div class="field full">
+                <label>Private Key</label>
+                <input class="input" type="password" name="private_key">
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Address</label>
+                <input class="input" name="address" placeholder="10.0.0.1/24">
+              </div>
+              <div class="field">
+                <label>Listen Port</label>
+                <input class="input" name="listen_port" type="number" placeholder="51820">
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>PostUp</label>
+                <input class="input" name="post_up">
+              </div>
+              <div class="field">
+                <label>PostDown</label>
+                <input class="input" name="post_down">
+              </div>
+            </div>
+            <div style="margin-top:14px">
+              <button type="submit" class="btn primary">Save Interface</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card-head" style="margin-top:24px">
+          <h2>WireGuard Peers</h2>
+          <div class="actions">
+            <button class="btn" onclick="addWireguardPeer()">Add Peer</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Public Key</th>
+                <th>Allowed IPs</th>
+                <th>Endpoint</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="wireguard-peers-body">
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -1252,7 +1379,10 @@
       </section>
 
       <section class="view" id="view-firewall">
-        <div class="notice" id="fw-health">Loading firewall health…</div>
+        <div class="card pad" id="fw-health" style="margin-bottom:12px">
+          <h2 style="margin-top:0;font-size:13px">Ban shield performance</h2>
+          <p>Loading firewall health…</p>
+        </div>
         <div class="grid">
           <div class="card pad span-4">
             <h2 style="margin-top:0;font-size:13px">Protection</h2>
@@ -1415,7 +1545,7 @@
     const cookieToken = document.cookie.match(/(?:^|; )router-hub-token=([^;]*)/)?.[1];
     const CONFIG = { version: __ROUTER_HUB_VERSION_JSON__, apiBase: __ROUTER_HUB_API_BASE_JSON__, token: __ROUTER_HUB_TOKEN_JSON__ || sessionStorage.getItem('router-hub-token') || cookieToken };
     const apiBase = CONFIG.apiBase.replace('{PROTOCOL}', location.protocol).replace('{HOST}', location.hostname).replace(/\/$/, '');
-    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [] };
+    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [], wireguard: null };
     const tableSorts = { nginx: { key: 'site', dir: 1 }, bans: { key: 'reason', dir: 1 }, rewrites: { key: 'domain', dir: 1 }, hosts: { key: 'ip', dir: 1 }, dnsmasq: { key: 'mac', dir: 1 } };
     let wolStatusTimer;
     let wolStatusRequest;
@@ -1428,7 +1558,7 @@
 
     function stopAdguardPolling() { clearInterval(adguardPollingTimer); adguardPollingTimer = undefined; }
     function startAdguardPolling() { stopAdguardPolling(); adguardPollingTimer = setInterval(() => { if (state.view === 'adguard') loadAdguardStatusOnly(); }, 15000); }
-    const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'] };
+    const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'], wireguard: ['WireGuard', 'Manage WireGuard VPN Interface and Peers'] };
     const requestedTab = new URLSearchParams(location.search).get('tab');
     if (requestedTab && Object.prototype.hasOwnProperty.call(titles, requestedTab)) state.view = requestedTab;
     function esc(v = '') { return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
@@ -1448,7 +1578,7 @@
     function jsonLines(value) { return (value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean) }
     function envObject(value) { const result = {}; for (const line of jsonLines(value)) { const split = line.indexOf('='); if (split <= 0) throw new Error('Hook environment entries must use KEY=value'); result[line.slice(0, split).trim()] = line.slice(split + 1) } return result }
     function prettyDate(value) { if (!value) return 'Unknown'; return new Date(value).toLocaleString() }
-    function refreshCurrent() { ({ dashboard: loadDashboard, services: loadServices, nginx: loadNginx, certificates: loadCertificatesWithLock, wol: loadWol, firewall: loadFirewall, adguard: loadAdguard }[state.view] || (() => { }))() }
+    function refreshCurrent() { ({ dashboard: loadDashboard, services: loadServices, nginx: loadNginx, certificates: loadCertificatesWithLock, wol: loadWol, firewall: loadFirewall, adguard: loadAdguard, wireguard: loadWireguard }[state.view] || (() => { }))() }
 
     // Tab navigation: hook into ASUS initial() when embedded, else run immediately.
     // ASUS renders the menu twice while its asynchronous menuTree module loads, so
@@ -1532,12 +1662,14 @@
       try {
         const d = await api('/dashboard');
         const metrics = [['Services', `${d.services_running}/${d.services_total}`, 'running'], ['Nginx objects', d.nginx_objects, d.nginx_running ? 'nginx online' : 'nginx offline'], ['Certificates', d.certificates, d.certificates_due ? `${d.certificates_due} need attention` : 'renewals healthy'], ['Active bans', d.active_bans, `${d.active_subnet_bans} subnet · ${d.active_ip_bans} IP`]];
-        const h = d.firewall_health;
-        const utilization = h.set_capacity ? `${h.set_entries.toLocaleString()} / ${h.set_capacity.toLocaleString()} entries (${(h.set_entries / h.set_capacity * 100).toFixed(2)}%)` : 'Unavailable';
-        const healthSummary = h.dropped_line_count || h.command_timeout_count || h.error_count
-          ? `<span class="status warn">Needs attention</span><div class="muted">${h.dropped_line_count.toLocaleString()} dropped log lines · ${h.command_timeout_count.toLocaleString()} command timeouts · ${h.error_count.toLocaleString()} errors</div>`
-          : '<span class="status ok">Healthy</span><div class="muted">No dropped lines, timeouts, or errors reported</div>';
-        document.getElementById('dashboard-grid').innerHTML = metrics.map(x => `<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('') + `<div class="card pad span-8"><h2 style="margin-top:0;font-size:13px">Router Hub</h2><p class="muted">Version ${esc(d.version)} · ${d.test_mode ? 'x64 test mode' : 'Asuswrt-Merlin mode'}</p><p>Configuration is file-backed. Router Hub writes atomically, validates nginx before reload, and avoids shell interpolation for managed commands.</p></div><div class="card pad span-4"><h2 style="margin-top:0;font-size:13px">Security</h2><p>${status(d.firewall_enabled, 'Ban shield enabled', 'Ban shield disabled')}</p></div><div class="card pad span-12"><h2 style="margin-top:0;font-size:13px">Ban shield performance</h2><p><strong>Set usage:</strong> ${utilization}</p><p><strong>Engine:</strong> ${esc(h.state)} · ${healthSummary}</p><p class="muted">The summary is checked when this dashboard is loaded or refreshed. Active-ban capacity is 8,192; investigate if usage reaches the thousands or health counters increase.</p></div>`;
+        document.getElementById('dashboard-grid').innerHTML = metrics.map(x => `<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('');
+        const versionEl = document.getElementById('rh-version');
+        if (versionEl) versionEl.textContent = `v${d.version}`;
+        const modeEl = document.getElementById('rh-mode');
+        if (modeEl) {
+          modeEl.textContent = d.test_mode ? 'x64 test mode' : 'Asuswrt-Merlin mode';
+          modeEl.style.display = 'inline-flex';
+        }
       } catch (e) { toast(e.message, true) }
     }
 
@@ -1624,8 +1756,12 @@
         document.getElementById('fw-ban-summary').textContent = `Active bans: ${state.firewall.snapshot.banned_subnets.length} subnet · ${state.firewall.snapshot.banned_ips.length} IP`;
         const health = document.getElementById('fw-health');
         const tuningNeedsHardening = t.score_retention_days <= t.subnet_ban_days || t.subnet_promotion_window_days <= t.subnet_ban_days || t.reputation_retention_days <= t.max_ban_days;
-        health.className = `notice ${(h.state === 'degraded' || tuningNeedsHardening) ? 'warn' : ''}`;
-        health.textContent = `Engine ${h.state}. IP threshold ${t.ip_failures}; score memory ${t.score_retention_days}d; subnet ban minimum ${t.subnet_ban_days}d.${tuningNeedsHardening ? ' Retention is not long enough to preserve hardening across configured bans; save updated tuning.' : ''}${h.last_error ? ' Last error: ' + h.last_error : ''}`;
+        const utilization = h.set_capacity ? `${h.set_entries.toLocaleString()} / ${h.set_capacity.toLocaleString()} entries (${(h.set_entries / h.set_capacity * 100).toFixed(2)}%)` : 'Unavailable';
+        const healthSummary = h.dropped_line_count || h.command_timeout_count || h.error_count || tuningNeedsHardening || h.last_error
+          ? `<span class="status warn">Needs attention</span><div class="muted" style="margin-top:4px">${h.dropped_line_count.toLocaleString()} dropped log lines · ${h.command_timeout_count.toLocaleString()} command timeouts · ${h.error_count.toLocaleString()} errors${tuningNeedsHardening ? ' · Retention is not long enough to preserve hardening across configured bans; save updated tuning.' : ''}${h.last_error ? ' · Last error: ' + esc(h.last_error) : ''}</div>`
+          : '<span class="status ok">Healthy</span><div class="muted" style="margin-top:4px">No dropped lines, timeouts, or errors reported</div>';
+        health.style.borderColor = (h.state === 'degraded' || tuningNeedsHardening) ? '#7a6127' : '';
+        health.innerHTML = `<h2 style="margin-top:0;font-size:13px">Ban shield performance</h2><p><strong>Set usage:</strong> ${utilization}</p><p><strong>Engine:</strong> ${esc(h.state)} · ${healthSummary}</p><p class="muted">IP threshold ${t.ip_failures}; score memory ${t.score_retention_days}d; subnet ban minimum ${t.subnet_ban_days}d. Active-ban capacity is 8,192; investigate if usage reaches the thousands or health counters increase.</p>`;
         document.getElementById('allow-list').innerHTML = p.allowlist.length ? p.allowlist.map(n => `<span class="tag">${esc(n)} <button class="btn small" onclick="removeAllowlist('${encodeURIComponent(n)}')">×</button></span>`).join('') : '<span class="muted">No allowlist entries</span>';
         document.getElementById('rules-body').innerHTML = p.rules.length ? p.rules.map(r => { const rs = (state.firewall.snapshot.rule_stats || []).find(([name]) => name === r.name); const matchCount = rs ? rs[1].match_count : null; const banCount = rs ? rs[1].ban_count : null; const statsHtml = matchCount !== null ? `${matchCount.toLocaleString()} hit(s) · ${banCount.toLocaleString()} ban(s)` : '<span class="muted">—</span>'; return `<tr><td><strong>${esc(r.name)}</strong> ${status(r.enabled, 'Enabled', 'Disabled')}</td><td>weight ${r.weight}<br><span class="muted">${Math.ceil(s.global_threshold / r.weight)} hit(s) from zero</span></td><td>${statsHtml}</td><td><div class="row-actions"><button class="btn small" onclick="editRule('${r.id}')">Edit</button><button class="btn small danger" onclick="deleteRule('${r.id}')">Delete</button></div></td></tr>`; }).join('') : emptyRow(4);
       } catch (e) { toast(e.message, true) }
@@ -1670,6 +1806,15 @@
     function removeDnsmasqHost(index) { state.dnsmasqHosts.splice(index, 1); renderDnsmasqHosts() }
     async function openDnsmasqHosts() { const modal = document.getElementById('dnsmasq-hosts-modal'); try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts'); renderDnsmasqHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
     function closeDnsmasqHosts() { document.getElementById('dnsmasq-hosts-modal').close() }
+
+    async function loadWireguardStatus() { try { const st = await api('/wireguard/status'); const badge = document.getElementById('wireguard-status-badge'); if (badge) { badge.innerHTML = st.is_running ? `<span class="badge success" style="background:#3c763d;color:#fff;padding:4px 8px;border-radius:4px">Running</span>` : `<span class="badge danger" style="background:#a94442;color:#fff;padding:4px 8px;border-radius:4px">Stopped</span>`; } } catch(e) {} }
+    async function loadWireguard() { try { const cfg = await api('/wireguard/config'); state.wireguard = cfg; const f = document.getElementById('wireguard-form'); if (f) { f.elements.private_key.value = cfg.interface.private_key || ''; f.elements.address.value = cfg.interface.address || ''; f.elements.listen_port.value = cfg.interface.listen_port || ''; f.elements.post_up.value = cfg.interface.post_up || ''; f.elements.post_down.value = cfg.interface.post_down || ''; } renderWireguardPeers(); await loadWireguardStatus(); } catch (e) { toast(e.message, true); } }
+    async function saveWireguardSettings(e) { e.preventDefault(); const f = e.target; const cfg = state.wireguard || { interface: {}, peers: [] }; cfg.interface = { private_key: f.elements.private_key.value, address: f.elements.address.value, listen_port: f.elements.listen_port.value ? parseInt(f.elements.listen_port.value, 10) : null, post_up: f.elements.post_up.value || null, post_down: f.elements.post_down.value || null }; try { state.wireguard = await api('/wireguard/config', { method: 'PUT', body: JSON.stringify(cfg) }); toast('WireGuard settings saved'); renderWireguardPeers(); } catch (err) { toast(err.message, true); } }
+    async function toggleWireguard(enable) { try { const res = await api('/wireguard/toggle', { method: 'POST', body: JSON.stringify({ enable }) }); toast(res.message); loadWireguardStatus(); } catch(e) { toast(e.message, true); } }
+    function renderWireguardPeers() { const body = document.getElementById('wireguard-peers-body'); const peers = state.wireguard?.peers || []; body.innerHTML = peers.length ? peers.map((p, i) => `<tr><td><input class="input" value="${esc(p.public_key)}" placeholder="Public Key" oninput="wgPeerChange(${i},'public_key',this.value)"></td><td><input class="input" value="${esc(p.allowed_ips)}" placeholder="Allowed IPs" oninput="wgPeerChange(${i},'allowed_ips',this.value)"></td><td><input class="input" value="${esc(p.endpoint||'')}" placeholder="Endpoint" oninput="wgPeerChange(${i},'endpoint',this.value)"></td><td><button class="btn small danger" onclick="removeWireguardPeer(${i})">Delete</button></td></tr>`).join('') : emptyRow(4, 'No peers configured'); }
+    function wgPeerChange(i, k, v) { if(state.wireguard.peers[i]) state.wireguard.peers[i][k] = v; }
+    function addWireguardPeer() { if(!state.wireguard) state.wireguard = { interface: {}, peers: [] }; state.wireguard.peers.push({ public_key: '', allowed_ips: '', endpoint: null, preshared_key: null, persistent_keepalive: null }); renderWireguardPeers(); const inputs = document.querySelectorAll('#wireguard-peers-body input'); inputs[inputs.length - 3]?.focus(); }
+    function removeWireguardPeer(i) { state.wireguard.peers.splice(i, 1); renderWireguardPeers(); }
     async function saveDnsmasqHosts() { try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts', { method: 'PUT', body: JSON.stringify(state.dnsmasqHosts) }); closeDnsmasqHosts(); toast('dnsmasq.conf.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
     function launchAdGuard() { if (state.adguard?.launch_url) window.open(state.adguard.launch_url, '_blank'); else if (state.adguard?.api_endpoint) window.open(state.adguard.api_endpoint, '_blank'); else toast('API endpoint not configured', true) }
     async function toggleAdguardFiltering(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/filtering', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard filtering ${enabled ? 'enabled' : `paused for ${duration_minutes} min`}`); loadAdguardStatusOnly() } catch (e) { toast(e.message, true) } }
@@ -1707,6 +1852,225 @@
       } catch (e) { toast(e.message, true) }
     }
     new MutationObserver(applyCertificateLockUi).observe(document.getElementById('certs-body'), { childList: true });
+
+    let lastUsage = null;
+    let loadHistory1 = [];
+    let loadHistory5 = [];
+    let loadHistory15 = [];
+    let netHistory = [];
+    const MAX_HISTORY = 60;
+    
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      const k = bytes / 1024;
+      if (k < 1024) return k.toFixed(2) + ' KB';
+      const m = k / 1024;
+      if (m < 1024) return m.toFixed(2) + ' MB';
+      return (m / 1024).toFixed(2) + ' GB';
+    }
+    
+    function formatUptime(secs) {
+      const d = Math.floor(secs / 86400);
+      const h = Math.floor((secs % 86400) / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = Math.floor(secs % 60);
+      if (d > 0) return `${d} days, ${h}h ${m}m ${s}s`;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      return `${m}m ${s}s`;
+    }
+
+    async function pollSystemUsage() {
+      if (state.view !== 'dashboard') return;
+      try {
+        const usage = await api('/system/usage');
+        document.getElementById('system-usage-grid').style.display = 'grid';
+        
+        // RAM
+        const mem = usage.memory;
+        const ramUsed = mem.total_kb - (mem.available_kb || mem.free_kb);
+        const ramPct = mem.total_kb > 0 ? (ramUsed / mem.total_kb * 100).toFixed(0) : 0;
+        document.getElementById('txt-ram-used').textContent = (ramUsed / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-ram-free').textContent = ((mem.available_kb || mem.free_kb) / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-ram-total').textContent = (mem.total_kb / 1024).toFixed(0) + ' MB';
+        document.getElementById('bar-ram').style.width = ramPct + '%';
+        document.getElementById('txt-ram-pct').textContent = ramPct + '%';
+        
+        // Swap
+        const swapUsed = mem.swap_total_kb - mem.swap_free_kb;
+        const swapPct = mem.swap_total_kb > 0 ? (swapUsed / mem.swap_total_kb * 100).toFixed(0) : 0;
+        document.getElementById('txt-swap-used').textContent = (swapUsed / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-swap-free').textContent = (mem.swap_free_kb / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-swap-total').textContent = (mem.swap_total_kb / 1024).toFixed(0) + ' MB';
+        document.getElementById('bar-swap').style.width = swapPct + '%';
+        document.getElementById('txt-swap-pct').textContent = swapPct + '%';
+        
+        // Uptime & Load Avg
+        document.getElementById('txt-uptime').textContent = formatUptime(usage.uptime_seconds);
+        if (usage.load_average) {
+          document.getElementById('txt-loadavg').textContent = `Load Average: ${usage.load_average.map(n => n.toFixed(2)).join(', ')}`;
+        }
+
+        if (lastUsage) {
+          // Network
+          const dlBytes = usage.network.rx_bytes - lastUsage.network.rx_bytes;
+          const ulBytes = usage.network.tx_bytes - lastUsage.network.tx_bytes;
+          const dlSpeed = dlBytes > 0 ? dlBytes : 0;
+          const ulSpeed = ulBytes > 0 ? ulBytes : 0;
+          document.getElementById('txt-dl').textContent = formatBytes(dlSpeed) + '/s';
+          document.getElementById('txt-ul').textContent = formatBytes(ulSpeed) + '/s';
+          
+          // Network Bars (relative to 10MB/s for visual scaling, cap at 100%)
+          const maxSpeed = 10 * 1024 * 1024;
+          document.getElementById('bar-dl').style.width = Math.min(100, (dlSpeed / maxSpeed) * 100) + '%';
+          document.getElementById('bar-ul').style.width = Math.min(100, (ulSpeed / maxSpeed) * 100) + '%';
+          
+          // CPU Cores
+          let overallCpuPct = 0;
+          let coreHtml = '';
+          const currentCpus = usage.cpu;
+          const prevCpus = lastUsage.cpu;
+          let maxCorePct = 0;
+          
+          for (let i = 0; i < currentCpus.length; i++) {
+            const curr = currentCpus[i];
+            const prev = prevCpus.find(p => p.name === curr.name);
+            if (prev) {
+              const currTotal = curr.user + curr.nice + curr.system + curr.idle + curr.iowait + curr.irq + curr.softirq + curr.steal;
+              const prevTotal = prev.user + prev.nice + prev.system + prev.idle + prev.iowait + prev.irq + prev.softirq + prev.steal;
+              const totalDiff = currTotal - prevTotal;
+              const currIdle = curr.idle + curr.iowait;
+              const prevIdle = prev.idle + prev.iowait;
+              const idleDiff = currIdle - prevIdle;
+              
+              const pct = totalDiff > 0 ? ((totalDiff - idleDiff) / totalDiff) * 100 : 0;
+              
+              if (curr.name === 'cpu') {
+                overallCpuPct = pct;
+              } else {
+                maxCorePct = Math.max(maxCorePct, pct);
+                const colors = ['#ffcb66', '#31d7dc', '#ff6b76', '#4cdb98'];
+                const color = colors[(i - 1) % colors.length];
+                coreHtml += `<div style="display:flex;align-items:center;">
+                  <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                    <div style="width:${pct}%;height:100%;background:${color};border-radius:6px;"></div>
+                  </div>
+                  <div style="width:120px;text-align:right;font-size:12px;display:flex;justify-content:space-between;padding-left:12px;"><span style="color:#b0bec5">${curr.name.toUpperCase()}</span><span>${pct.toFixed(0)}%</span></div>
+                </div>`;
+              }
+            }
+          }
+          document.getElementById('cpu-cores').innerHTML = coreHtml;
+          
+          // History
+          const load1 = usage.load_average ? usage.load_average[0] : 0;
+          const load5 = usage.load_average ? usage.load_average[1] : 0;
+          const load15 = usage.load_average ? usage.load_average[2] : 0;
+          
+          loadHistory1.push(load1);
+          loadHistory5.push(load5);
+          loadHistory15.push(load15);
+          if (loadHistory1.length > MAX_HISTORY) loadHistory1.shift();
+          if (loadHistory5.length > MAX_HISTORY) loadHistory5.shift();
+          if (loadHistory15.length > MAX_HISTORY) loadHistory15.shift();
+          
+          // Draw Canvas
+          const canvas = document.getElementById('cpu-canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Handle High DPI displays
+          const rect = canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          ctx.scale(dpr, dpr);
+          
+          const cssWidth = rect.width;
+          const cssHeight = rect.height;
+
+          // Grid
+          ctx.strokeStyle = '#22323a';
+          ctx.lineWidth = 1;
+          for(let i=1; i<4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, cssHeight * i / 4);
+            ctx.lineTo(cssWidth, cssHeight * i / 4);
+            ctx.stroke();
+          }
+          for(let i=1; i<10; i++) {
+            ctx.beginPath();
+            ctx.moveTo(cssWidth * i / 10, 0);
+            ctx.lineTo(cssWidth * i / 10, cssHeight);
+            ctx.stroke();
+          }
+          
+          // Scale max to num cores or highest load
+          const numCores = Math.max(1, currentCpus.length - 1);
+          const maxLoad = Math.max(numCores, ...loadHistory1, ...loadHistory5, ...loadHistory15);
+          
+          // Draw Line function
+          const drawLine = (history, color, width) => {
+            if (history.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            const step = cssWidth / (MAX_HISTORY - 1);
+            for (let i = 0; i < history.length; i++) {
+              const x = i * step;
+              const y = cssHeight - (history[i] / maxLoad * cssHeight);
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+          };
+
+          // Draw load lines (15m, 5m, 1m)
+          drawLine(loadHistory15, 'rgba(255, 203, 102, 0.4)', 2);
+          drawLine(loadHistory5, 'rgba(255, 107, 118, 0.6)', 2);
+          drawLine(loadHistory1, '#31d7dc', 2);
+          
+          // Fill under 1m
+          if (loadHistory1.length > 1) {
+            const step = cssWidth / (MAX_HISTORY - 1);
+            ctx.lineTo((loadHistory1.length - 1) * step, cssHeight);
+            ctx.lineTo(0, cssHeight);
+            ctx.fillStyle = 'rgba(49, 215, 220, 0.1)';
+            ctx.fill();
+          }
+          
+          // Text overlays
+          ctx.fillStyle = '#b0bec5';
+          ctx.font = '10px Arial';
+          ctx.fillText(maxLoad.toFixed(1), 2, 10);
+          ctx.fillText((maxLoad / 2).toFixed(1), 2, cssHeight / 2 + 4);
+          ctx.fillText('0.0', 2, cssHeight - 2);
+          
+          // Legend
+          const legend = [
+            { label: '1m', color: '#31d7dc' },
+            { label: '5m', color: '#ff6b76' },
+            { label: '15m', color: '#ffcb66' }
+          ];
+          let legendX = cssWidth - 10;
+          ctx.textAlign = 'right';
+          for (let i = legend.length - 1; i >= 0; i--) {
+            ctx.fillStyle = '#b0bec5';
+            ctx.fillText(legend[i].label, legendX, 10);
+            legendX -= ctx.measureText(legend[i].label).width + 4;
+            
+            ctx.fillStyle = legend[i].color;
+            ctx.fillRect(legendX - 8, 4, 6, 6);
+            legendX -= 14;
+          }
+          ctx.textAlign = 'left'; // reset
+        }
+        
+        lastUsage = usage;
+      } catch (e) {
+        console.error('Failed to poll system usage:', e);
+      }
+    }
+    
+    setInterval(pollSystemUsage, 1000);
 
     refreshCurrent();
   </script>

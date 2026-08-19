@@ -12,6 +12,8 @@ data_dir = "/opt/etc/router-hub"
 runtime_dir = "/opt/var/run/router-hub"
 hosts_add = "/jffs/configs/hosts.add"
 dnsmasq_conf_add = "/jffs/configs/dnsmasq.conf.add"
+# Set to the path of your wg-quick configuration file. The interface name (e.g. wgs1) is derived from the filename.
+wireguard_conf = "/opt/etc/wireguard/wgs1.conf"
 
 [commands]
 mount = "/bin/mount"
@@ -27,6 +29,8 @@ logread = "/opt/sbin/logread"
 nvram = "/bin/nvram"
 ip = "/opt/sbin/ip"
 ping = "/bin/ping"
+wg = "/opt/bin/wg"
+wg_quick = "/opt/bin/wg-quick"
 
 [asus_ui]
 enabled = true

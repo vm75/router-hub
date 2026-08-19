@@ -21,6 +21,7 @@ pub struct AppConfig {
     pub certificates: CertificatesConfig,
     pub firewall: FirewallRuntimeConfig,
     pub adguard: AdGuardConfig,
+    pub system: SystemConfig,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -37,6 +38,7 @@ impl Default for AppConfig {
             certificates: CertificatesConfig::default(),
             firewall: FirewallRuntimeConfig::default(),
             adguard: AdGuardConfig::default(),
+            system: SystemConfig::default(),
         }
     }
 }
@@ -81,6 +83,12 @@ impl AppConfig {
         self.paths.log_file = fixture_root.join("var/log/router-hub.log");
         self.paths.hosts_add = fixture_root.join("router/hosts.add");
         self.paths.dnsmasq_conf_add = fixture_root.join("router/dnsmasq.add");
+        self.paths.wireguard_conf = fixture_root.join("etc/wireguard/wg0.conf");
+        self.paths.proc_stat = fixture_root.join("proc/stat");
+        self.paths.proc_meminfo = fixture_root.join("proc/meminfo");
+        self.paths.proc_net_dev = fixture_root.join("proc/net/dev");
+        self.paths.proc_uptime = fixture_root.join("proc/uptime");
+        self.paths.proc_loadavg = fixture_root.join("proc/loadavg");
         self.services.init_dir = fixture_root.join("etc/init.d");
         self.services.log_dirs = vec![fixture_root.join("var/log")];
         self.nginx.root_dir = fixture_root.join("etc/nginx");
@@ -131,6 +139,12 @@ impl AppConfig {
             &mut self.paths.log_file,
             &mut self.paths.hosts_add,
             &mut self.paths.dnsmasq_conf_add,
+            &mut self.paths.wireguard_conf,
+            &mut self.paths.proc_stat,
+            &mut self.paths.proc_meminfo,
+            &mut self.paths.proc_net_dev,
+            &mut self.paths.proc_uptime,
+            &mut self.paths.proc_loadavg,
             &mut self.commands.mount,
             &mut self.commands.umount,
             &mut self.commands.nginx,
@@ -144,6 +158,8 @@ impl AppConfig {
             &mut self.commands.nvram,
             &mut self.commands.ip,
             &mut self.commands.ping,
+            &mut self.commands.wg,
+            &mut self.commands.wg_quick,
             &mut self.asus_ui.rendered_page,
             &mut self.asus_ui.menu_tree,
             &mut self.services.init_dir,
@@ -360,6 +376,12 @@ pub struct PathsConfig {
     pub log_file: PathBuf,
     pub hosts_add: PathBuf,
     pub dnsmasq_conf_add: PathBuf,
+    pub wireguard_conf: PathBuf,
+    pub proc_stat: PathBuf,
+    pub proc_meminfo: PathBuf,
+    pub proc_net_dev: PathBuf,
+    pub proc_uptime: PathBuf,
+    pub proc_loadavg: PathBuf,
 }
 
 impl Default for PathsConfig {
@@ -370,6 +392,12 @@ impl Default for PathsConfig {
             log_file: "/opt/var/log/router-hub.log".into(),
             hosts_add: "/jffs/configs/hosts.add".into(),
             dnsmasq_conf_add: "/jffs/configs/dnsmasq.conf.add".into(),
+            wireguard_conf: "/opt/etc/wireguard/wg0.conf".into(),
+            proc_stat: "/proc/stat".into(),
+            proc_meminfo: "/proc/meminfo".into(),
+            proc_net_dev: "/proc/net/dev".into(),
+            proc_uptime: "/proc/uptime".into(),
+            proc_loadavg: "/proc/loadavg".into(),
         }
     }
 }
@@ -390,6 +418,8 @@ pub struct CommandsConfig {
     pub nvram: PathBuf,
     pub ip: PathBuf,
     pub ping: PathBuf,
+    pub wg: PathBuf,
+    pub wg_quick: PathBuf,
 }
 
 impl Default for CommandsConfig {
@@ -408,6 +438,8 @@ impl Default for CommandsConfig {
             nvram: "/bin/nvram".into(),
             ip: "/opt/sbin/ip".into(),
             ping: "/bin/ping".into(),
+            wg: "/opt/bin/wg".into(),
+            wg_quick: "/opt/bin/wg-quick".into(),
         }
     }
 }
@@ -622,6 +654,20 @@ impl Default for AdGuardConfig {
             username: "".into(),
             password: "".into(),
             lan_ip: "192.168.1.1".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SystemConfig {
+    pub wan_interface: String,
+}
+
+impl Default for SystemConfig {
+    fn default() -> Self {
+        Self {
+            wan_interface: "eth0".into(),
         }
     }
 }

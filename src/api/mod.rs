@@ -3,6 +3,8 @@ pub mod certificates;
 pub mod firewall;
 pub mod nginx;
 pub mod services;
+pub mod system;
+pub mod wireguard;
 pub mod wol;
 
 use axum::{
@@ -76,6 +78,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth/check", get(auth_check))
         .route("/runtime", get(runtime))
         .route("/dashboard", get(dashboard))
+        .route("/system/usage", get(system::usage))
         .route("/services", get(services::list))
         .route("/services/{name}/{action}", post(services::action))
         .route("/services/{name}/logs", get(services::logs))
@@ -180,6 +183,12 @@ pub fn router() -> Router<AppState> {
         .route("/adguard/protection", post(adguard::set_protection))
         .route("/adguard/filtering", post(adguard::set_filtering))
         .route("/adguard/status", get(adguard::get_adguard_status))
+        .route(
+            "/wireguard/config",
+            get(wireguard::get_config).put(wireguard::update_config),
+        )
+        .route("/wireguard/status", get(wireguard::get_status))
+        .route("/wireguard/toggle", post(wireguard::toggle))
 }
 
 pub async fn index(State(state): State<AppState>) -> Response {

@@ -2,6 +2,13 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.7.0
+
+### Added
+
+- Reimplemented WireGuard management to natively integrate with live kernel interfaces using the `wg showconf` and `wg syncconf` commands.
+- Updated WireGuard parser to gracefully handle lowercase properties and common formatting discrepancies.
+
 ## 0.6.2
 
 ### Added
