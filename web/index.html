@@ -59,6 +59,33 @@
       margin-top: 2px;
     }
 
+    /* ── Mode pill (replaces plain rh-badge for the mode indicator) ── */
+    .rh-mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      background: linear-gradient(135deg, #1a3a4e 0%, #0d2230 100%);
+      border: 1px solid #2e6080;
+      color: #7ecfee;
+      box-shadow: 0 0 8px rgba(49,215,220,.15);
+      white-space: nowrap;
+    }
+
+    .rh-mode-pill::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #31d7dc;
+      box-shadow: 0 0 4px #31d7dc;
+    }
+
     .rh-shell,
     .rh-shell *,
     .rh-overlay,
@@ -147,6 +174,8 @@
     .rh-tab.tabClicked {
       background: #4D595D
     }
+
+
 
     /* ── ASUS form typography: exact matches from form_style.css ── */
     .rh-shell .formfonttitle {
@@ -351,6 +380,13 @@
       color: var(--asus-muted);
       font-size: 12px
     }
+
+    /* ── Sidebar and toggle: hidden everywhere except mobile standalone ── */
+    #rh-sidebar,
+    #rh-sidebar-toggle {
+      display: none
+    }
+
 
     /* ── Tables ── */
     .table-wrap {
@@ -947,7 +983,82 @@
       }
     }
 
+    /* ── Standalone mobile: sidebar + 2×2 metric grid ── */
     @media(max-width:760px) {
+      #rh-sidebar {
+        display: none;
+        width: 100%;
+        background: #1a2530;
+        border-bottom: 1px solid #2a3a4e;
+        margin-bottom: 8px;
+        overflow: hidden
+      }
+
+      #rh-sidebar.open {
+        display: block
+      }
+
+      #rh-sidebar .rh-tab {
+        float: none;
+        height: auto;
+        margin: 0;
+        border-radius: 0;
+        display: flex;
+        align-items: center;
+        padding: 10px 14px;
+        font-size: 12px;
+        line-height: 1.4;
+        border-bottom: 1px solid #243040;
+        text-align: left
+      }
+
+      #rh-sidebar .rh-tab:last-child {
+        border-bottom: 0
+      }
+
+      #rh-sidebar .rh-tab.tab {
+        background: transparent
+      }
+
+      #rh-sidebar .rh-tab.tab:hover {
+        background: #253545
+      }
+
+      #rh-sidebar .rh-tab.tabClicked {
+        background: #1e4060;
+        border-left: 3px solid #31d7dc;
+        color: #7ecfee
+      }
+
+      #rh-sidebar-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 14px;
+        background: #1a2530;
+        border: none;
+        border-bottom: 1px solid #2a3a4e;
+        border-radius: 6px 6px 0 0;
+        color: #7ecfee;
+        font: 12px Verdana, sans-serif;
+        cursor: pointer;
+        text-align: left;
+        margin-bottom: 8px
+      }
+
+      #rh-sidebar-toggle svg {
+        flex-shrink: 0;
+        transition: transform .2s
+      }
+
+      #rh-sidebar-toggle.open svg:last-child {
+        transform: rotate(180deg)
+      }
+
+      .rh-tabs {
+        display: none
+      }
 
       .span-4,
       .span-6,
@@ -959,8 +1070,22 @@
         padding: 4px 2px 8px
       }
 
+      /* 2×2 metric grid on narrow screens */
       .metric {
-        grid-column: span 12
+        grid-column: span 6;
+        padding: 10px 12px
+      }
+
+      .metric .value {
+        font-size: 20px
+      }
+
+      .metric .label {
+        font-size: 10px
+      }
+
+      .metric .sub {
+        font-size: 11px
       }
 
       .form-grid {
@@ -994,12 +1119,13 @@
       <img src="__ROUTER_HUB_LOGO_DATA_URI__" alt="Router Hub Logo" class="rh-hero-logo">
       <div style="flex:1">
         <div class="rh-hero-title">Router Hub</div>
-        <div class="rh-hero-sub">Entware Services &middot; Nginx &middot; Certificates &middot; Firewall &middot; AdGuard Home</div>
+        <div class="rh-hero-sub">Router Admin</div>
       </div>
-      <div class="rh-badge" id="rh-mode" style="font-size:11px;color:#8b9bb0;min-height:24px;display:none;background:rgba(0,0,0,0.2);border:1px solid #2a3a4e;"></div>
+      <div class="rh-mode-pill" id="rh-mode" style="display:none;"></div>
     </div>
 
     <!-- Fallback tab nav for standalone mode; tabs are moved to ASUS #tabMenu when embedded -->
+    <!-- On mobile the tab strip is hidden; a sidebar replaces it -->
     <div id="rh-nav" class="submenuBlock rh-tabs">
       <div class="tabClicked rh-tab" data-view="dashboard">Dashboard</div>
       <div class="tab rh-tab" data-view="services">Services</div>
@@ -1009,6 +1135,23 @@
       <div class="tab rh-tab" data-view="firewall">Ban Shield</div>
       <div class="tab rh-tab" data-view="adguard">AdGuard</div>
       <div class="tab rh-tab" data-view="wireguard">WireGuard</div>
+    </div>
+
+    <!-- Mobile sidebar (standalone only) -->
+    <button class="rh-sidebar-toggle" id="rh-sidebar-toggle" aria-expanded="false" aria-controls="rh-sidebar" onclick="rhToggleSidebar()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <span id="rh-sidebar-label">Dashboard</span>
+      <svg style="margin-left:auto" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div id="rh-sidebar" class="rh-sidebar" role="navigation" aria-label="Page navigation">
+      <div class="tabClicked rh-tab" data-view="dashboard" data-sidebar>Dashboard</div>
+      <div class="tab rh-tab" data-view="services" data-sidebar>Services</div>
+      <div class="tab rh-tab" data-view="nginx" data-sidebar>Nginx</div>
+      <div class="tab rh-tab" data-view="certificates" data-sidebar>Certificates</div>
+      <div class="tab rh-tab" data-view="wol" data-sidebar>Wake-on-LAN</div>
+      <div class="tab rh-tab" data-view="firewall" data-sidebar>Ban Shield</div>
+      <div class="tab rh-tab" data-view="adguard" data-sidebar>AdGuard</div>
+      <div class="tab rh-tab" data-view="wireguard" data-sidebar>WireGuard</div>
     </div>
 
     <!-- Header row: formfonttitle left, brand/status right (AdaptiveQoS_Bandwidth_Monitor pattern) -->
@@ -1607,6 +1750,27 @@
         tab.classList.toggle('tab', !selected);
       });
     }
+    function rhToggleSidebar() {
+      const sidebar = document.getElementById('rh-sidebar');
+      const btn = document.getElementById('rh-sidebar-toggle');
+      if (!sidebar || !btn) return;
+      const open = sidebar.classList.toggle('open');
+      btn.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open);
+    }
+
+    function rhSyncSidebarActive(view) {
+      const sidebar = document.getElementById('rh-sidebar');
+      if (!sidebar) return;
+      sidebar.querySelectorAll('[data-view]').forEach(x => {
+        x.classList.toggle('tabClicked', x.dataset.view === view);
+        x.classList.toggle('tab', x.dataset.view !== view);
+      });
+      const label = document.getElementById('rh-sidebar-label');
+      const activeTab = sidebar.querySelector(`[data-view="${view}"]`);
+      if (label && activeTab) label.textContent = activeTab.textContent.trim();
+    }
+
     function rhSetupTabs() {
       const asusTabs = document.getElementById('tabMenu');
       const ownNav = document.getElementById('rh-nav');
@@ -1624,13 +1788,23 @@
       if (model && typeof based_modelid === 'string' && based_modelid.trim()) model.textContent = based_modelid;
       const navRoot = asusTabs || ownNav;
       if (!navRoot) return;
-      if (!navRoot.dataset.rhTabsBound) {
-        navRoot.dataset.rhTabsBound = 'true';
-        navRoot.addEventListener('click', event => {
+
+      // Wire sidebar nav (mobile only, standalone)
+      const sidebar = document.getElementById('rh-sidebar');
+      if (sidebar && !sidebar.dataset.rhTabsBound) {
+        sidebar.dataset.rhTabsBound = 'true';
+        sidebar.addEventListener('click', event => {
           const tab = event.target.closest('[data-view]'); if (!tab) return;
+          // Sync sidebar active state
+          rhSyncSidebarActive(tab.dataset.view);
+          // Close sidebar after selection
+          const btn = document.getElementById('rh-sidebar-toggle');
+          sidebar.classList.remove('open');
+          if (btn) { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+          // Sync horizontal nav active state too
           navRoot.querySelectorAll('[data-view]').forEach(x => {
-            x.classList.toggle('tabClicked', x === tab);
-            x.classList.toggle('tab', x !== tab);
+            x.classList.toggle('tabClicked', x.dataset.view === tab.dataset.view);
+            x.classList.toggle('tab', x.dataset.view !== tab.dataset.view);
           });
           document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
           const previousView = state.view;
@@ -1647,7 +1821,34 @@
           refreshCurrent();
         });
       }
+
+      if (!navRoot.dataset.rhTabsBound) {
+        navRoot.dataset.rhTabsBound = 'true';
+        navRoot.addEventListener('click', event => {
+          const tab = event.target.closest('[data-view]'); if (!tab) return;
+          navRoot.querySelectorAll('[data-view]').forEach(x => {
+            x.classList.toggle('tabClicked', x === tab);
+            x.classList.toggle('tab', x !== tab);
+          });
+          // Keep sidebar in sync when horizontal tabs are used
+          rhSyncSidebarActive(tab.dataset.view);
+          document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+          const previousView = state.view;
+          state.view = tab.dataset.view;
+          const url = new URL(location.href);
+          url.searchParams.set('tab', state.view);
+          history.replaceState(null, '', url);
+          if (previousView === 'wol' && state.view !== 'wol') stopWolStatusPolling();
+          if (previousView === 'certificates' && state.view !== 'certificates') stopCertificatePolling();
+          if (previousView === 'adguard' && state.view !== 'adguard') stopAdguardPolling();
+          document.getElementById('view-' + state.view).classList.add('active');
+          document.getElementById('page-title').textContent = titles[state.view][0];
+          document.getElementById('page-subtitle').textContent = titles[state.view][1];
+          refreshCurrent();
+        });
+      }
       rhApplyView();
+      rhSyncSidebarActive(state.view);
     }
     // Install before the ASUS window load handler so the observer sees both menu
     // renders. Keep the initial() hook as a fallback even if ASUS setup throws.
