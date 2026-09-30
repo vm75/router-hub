@@ -271,11 +271,7 @@ mod tests {
             Some("/host/:ip")
         );
         assert_eq!(
-            sanitize_path(
-                Some("/item/550e8400-e29b-41d4-a716-446655440000"),
-                256
-            )
-            .as_deref(),
+            sanitize_path(Some("/item/550e8400-e29b-41d4-a716-446655440000"), 256).as_deref(),
             Some("/item/:uuid")
         );
         assert_eq!(
