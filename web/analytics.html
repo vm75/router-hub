@@ -3,6 +3,10 @@
           Security Analytics is optional and disabled by default. Local analytics never require an external service. AI analysis is separately opt-in, advisory only, and strict mode never sends raw logs or real source IP addresses.
         </div>
         <div class="grid" id="analytics-metrics"></div>
+        <div class="card pad" style="margin-top:12px">
+          <div class="card-head" style="padding:0 0 10px"><h2>Protection health</h2><span class="muted">Last 24 hours</span></div>
+          <div id="analytics-health" class="hint">Analytics is disabled.</div>
+        </div>
         <div class="grid" style="margin-top:12px">
           <div class="card pad span-8">
             <div class="card-head" style="padding:0 0 10px">
@@ -72,6 +76,10 @@
         <div class="card" style="margin-top:12px">
           <div class="card-head"><h2>Recent rule activity</h2><span class="muted">Last 24 hours</span></div>
           <div class="table-wrap"><table class="table"><thead><tr><th>Rule</th><th>Matches</th><th>Ban transitions</th></tr></thead><tbody id="analytics-rules-body"></tbody></table></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="card-head"><h2>Protection history</h2><span class="muted">Hourly rollups, then daily retention</span></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Period</th><th>Blocked packets</th><th>New bans</th><th>Active bans</th><th>Health</th></tr></thead><tbody id="analytics-history-body"></tbody></table></div>
         </div>
         <div class="card" style="margin-top:12px">
           <div class="card-head"><h2>AI findings</h2><span class="muted">Advisory only</span></div>
