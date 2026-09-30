@@ -1,0 +1,80 @@
+      <section class="view" id="view-analytics">
+        <div class="notice warn">
+          Security Analytics is optional and disabled by default. Local analytics never require an external service. AI analysis is separately opt-in, advisory only, and strict mode never sends raw logs or real source IP addresses.
+        </div>
+        <div class="grid" id="analytics-metrics"></div>
+        <div class="grid" style="margin-top:12px">
+          <div class="card pad span-8">
+            <div class="card-head" style="padding:0 0 10px">
+              <h2>Local findings</h2>
+              <button class="btn" onclick="loadAnalytics()">Refresh</button>
+            </div>
+            <div id="analytics-findings" class="empty">Analytics is disabled.</div>
+          </div>
+          <div class="card pad span-4">
+            <h2 style="margin-top:0">Analytics overhead</h2>
+            <div id="analytics-overhead" class="hint">No analytics work recorded.</div>
+          </div>
+        </div>
+        <div class="card pad" style="margin-top:12px">
+          <div class="toolbar">
+            <div>
+              <strong>Collection and retention</strong>
+              <div class="hint">Hot-path work is bounded; kernel verification is low-frequency and hourly summaries are persisted atomically.</div>
+            </div>
+          </div>
+          <form id="analytics-form" class="form" onsubmit="saveAnalyticsSettings(event)">
+            <div class="form-grid">
+              <label class="field"><span>Analytics</span><select class="input" name="enabled"><option value="false">Disabled</option><option value="true">Enabled</option></select></label>
+              <label class="field"><span>Status sample interval (seconds)</span><input class="input" type="number" min="60" max="3600" name="sample_interval_seconds" required></label>
+              <label class="field"><span>Kernel verification interval (seconds)</span><input class="input" type="number" min="3600" max="86400" name="kernel_verify_interval_seconds" required></label>
+              <label class="field"><span>Rollup interval (minutes)</span><input class="input" type="number" min="60" max="1440" name="rollup_interval_minutes" required></label>
+              <label class="field"><span>Hourly retention (days)</span><input class="input" type="number" min="1" max="31" name="hourly_retention_days" required></label>
+              <label class="field"><span>Daily retention (days)</span><input class="input" type="number" min="1" max="365" name="daily_retention_days" required></label>
+              <label class="field"><span>Sanitized samples/hour</span><input class="input" type="number" min="0" max="64" name="max_samples_per_hour" required></label>
+              <label class="field"><span>Max sanitized path bytes</span><input class="input" type="number" min="64" max="512" name="max_sample_path_bytes" required></label>
+              <label class="field"><span>Max rollup bytes</span><input class="input" type="number" min="4096" max="65536" name="max_summary_bytes" required></label>
+              <label class="field"><span>Local issue detection</span><select class="input" name="detect_issues"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+              <label class="field"><span>Kernel counters / consistency</span><select class="input" name="collect_kernel_counters"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+              <label class="field"><span>Sanitized event samples</span><select class="input" name="collect_event_samples"><option value="true">Enabled</option><option value="false">Disabled</option></select></label>
+            </div>
+
+            <hr style="border:0;border-top:1px solid #2a4050;margin:18px 0">
+            <div class="toolbar">
+              <div>
+                <strong>Optional OpenAI-compatible analysis</strong>
+                <div class="hint">Configure the exact chat-completions endpoint. The API key is write-only and is never returned after saving.</div>
+              </div>
+              <div class="actions">
+                <button type="button" class="btn" onclick="previewAnalyticsAi()">Preview AI payload</button>
+                <button type="button" class="btn" id="analytics-ai-run" onclick="runAnalyticsAi()">Analyze now</button>
+              </div>
+            </div>
+            <div class="notice warn">Strict privacy is mandatory. Query strings, raw logs and real source addresses are excluded. The final serialized payload is secret-scanned and size-gated before any request leaves the router.</div>
+            <div class="form-grid">
+              <label class="field"><span>AI analysis</span><select class="input" name="ai_enabled"><option value="false">Disabled</option><option value="true">Enabled</option></select></label>
+              <label class="field"><span>Automatic analysis</span><select class="input" name="ai_automatic"><option value="false">Manual only</option><option value="true">At most once per configured interval</option></select></label>
+              <label class="field full"><span>OpenAI-compatible endpoint</span><input class="input" name="ai_endpoint" placeholder="https://provider.example/v1/chat/completions"></label>
+              <label class="field"><span>Model</span><input class="input" name="ai_model" placeholder="model-name"></label>
+              <label class="field"><span>API key</span><input class="input" type="password" autocomplete="new-password" name="ai_api_key" placeholder="Leave blank to keep saved key"><span class="hint" id="analytics-api-key-state">No key saved</span></label>
+              <label class="field"><span>Automatic interval (hours)</span><input class="input" type="number" min="24" name="ai_interval_hours" required></label>
+              <label class="field"><span>Privacy mode</span><input class="input" name="ai_privacy_mode" value="strict" readonly></label>
+              <label class="field"><span>Max outbound payload (bytes)</span><input class="input" type="number" min="1" max="65536" name="ai_max_payload_bytes" required></label>
+              <label class="field"><span>Max samples sent</span><input class="input" type="number" min="0" max="100" name="ai_max_samples" required></label>
+              <label class="field"><span>Max output tokens</span><input class="input" type="number" min="1" max="4096" name="ai_max_output_tokens" required></label>
+              <label class="field"><span>Request timeout (seconds)</span><input class="input" type="number" min="5" max="60" name="ai_timeout_seconds" required></label>
+              <label class="field full"><span>Additional headers (JSON object)</span><textarea class="input" rows="4" name="ai_additional_headers" placeholder='{"HTTP-Referer":"https://router.local"}'></textarea><span class="hint">Authorization, Cookie, Host and related sensitive transport headers cannot be overridden here.</span></label>
+              <label class="field"><span>Saved API key</span><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" name="ai_clear_api_key"> Clear saved API key</label></label>
+            </div>
+            <div class="actions" style="margin-top:12px"><button type="submit" class="btn primary">Save analytics settings</button></div>
+          </form>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="card-head"><h2>Recent rule activity</h2><span class="muted">Last 24 hours</span></div>
+          <div class="table-wrap"><table class="table"><thead><tr><th>Rule</th><th>Matches</th><th>Ban transitions</th></tr></thead><tbody id="analytics-rules-body"></tbody></table></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="card-head"><h2>AI findings</h2><span class="muted">Advisory only</span></div>
+          <div id="analytics-ai-findings" class="empty">No AI analysis has been saved.</div>
+        </div>
+      </section>
