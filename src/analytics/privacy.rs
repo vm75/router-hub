@@ -101,7 +101,8 @@ pub fn parse_request_line(value: Option<&str>) -> (Option<String>, Option<String
 }
 
 pub fn scan_outbound_payload(payload: &[u8], secrets: &[&str]) -> Result<()> {
-    let text = std::str::from_utf8(payload).map_err(|_| anyhow::anyhow!("AI payload is not UTF-8"))?;
+    let text =
+        std::str::from_utf8(payload).map_err(|_| anyhow::anyhow!("AI payload is not UTF-8"))?;
     let lower = text.to_ascii_lowercase();
     for marker in [
         "authorization:",
@@ -196,9 +197,10 @@ fn looks_like_uuid(value: &str) -> bool {
     let bytes = value.as_bytes();
     bytes.len() == 36
         && [8, 13, 18, 23].iter().all(|index| bytes[*index] == b'-')
-        && bytes.iter().enumerate().all(|(index, byte)| {
-            [8, 13, 18, 23].contains(&index) || byte.is_ascii_hexdigit()
-        })
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| [8, 13, 18, 23].contains(&index) || byte.is_ascii_hexdigit())
 }
 
 fn looks_like_secret_segment(value: &str) -> bool {
@@ -207,7 +209,9 @@ fn looks_like_secret_segment(value: &str) -> bool {
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || "-_=.".contains(character))
         && value.chars().any(|character| character.is_ascii_digit())
-        && value.chars().any(|character| character.is_ascii_alphabetic())
+        && value
+            .chars()
+            .any(|character| character.is_ascii_alphabetic())
 }
 
 fn truncate_utf8(value: &mut String, max_bytes: usize) {
@@ -242,10 +246,7 @@ mod tests {
             sanitize_path(Some("/api/users/12345?token=secret"), 256).as_deref(),
             Some("/api/users/:id")
         );
-        assert_eq!(
-            sanitize_path(Some("/.env"), 256).as_deref(),
-            Some("/.env")
-        );
+        assert_eq!(sanitize_path(Some("/.env"), 256).as_deref(), Some("/.env"));
     }
 
     #[test]

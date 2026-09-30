@@ -138,8 +138,8 @@ pub async fn analyze(
         body.extend_from_slice(&chunk);
     }
 
-    let outer: ChatResponse =
-        serde_json::from_slice(&body).context("AI endpoint returned invalid chat-completions JSON")?;
+    let outer: ChatResponse = serde_json::from_slice(&body)
+        .context("AI endpoint returned invalid chat-completions JSON")?;
     let content = outer
         .choices
         .into_iter()
@@ -215,7 +215,8 @@ pub fn validate_ai_settings(settings: &AiSettings, test_mode: bool) -> Result<()
         bail!("AI API key is required when AI analysis is enabled");
     }
 
-    let endpoint = Url::parse(settings.endpoint.trim()).context("AI endpoint is not a valid URL")?;
+    let endpoint =
+        Url::parse(settings.endpoint.trim()).context("AI endpoint is not a valid URL")?;
     match endpoint.scheme() {
         "https" => {}
         "http" if test_mode || endpoint_is_private(&endpoint) => {}

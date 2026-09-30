@@ -213,11 +213,10 @@ impl AnalyticsManager {
         let history_path = config.paths.data_dir.join("analytics-history.json");
         let key_path = config.paths.data_dir.join("analytics-pseudonym.key");
 
-        let mut settings = load_json::<AnalyticsSettings>(&settings_path)
-            .unwrap_or_else(|error| {
-                warn!(%error, "unable to load analytics settings; analytics remains disabled");
-                AnalyticsSettings::default()
-            });
+        let mut settings = load_json::<AnalyticsSettings>(&settings_path).unwrap_or_else(|error| {
+            warn!(%error, "unable to load analytics settings; analytics remains disabled");
+            AnalyticsSettings::default()
+        });
         if let Err(error) = validate_settings(&settings, config.test_mode) {
             warn!(%error, "invalid analytics settings; analytics remains disabled");
             settings = AnalyticsSettings::default();
@@ -441,35 +440,38 @@ impl AnalyticsManager {
                 .iter()
                 .filter(|ban| ban.offense_count >= 2)
                 .count();
-            accumulator.kernel_state_consistent = Some(
-                status.health.set_entries == status.snapshot.active_ban_count,
-            );
+            accumulator.kernel_state_consistent =
+                Some(status.health.set_entries == status.snapshot.active_ban_count);
 
             if let Some(previous) = &previous {
-                accumulator.engine_errors = accumulator.engine_errors.saturating_add(counter_delta(
-                    status.health.error_count,
-                    previous.error_count,
-                ));
-                accumulator.command_timeouts = accumulator.command_timeouts.saturating_add(
-                    counter_delta(
+                accumulator.engine_errors = accumulator.engine_errors.saturating_add(
+                    counter_delta(status.health.error_count, previous.error_count),
+                );
+                accumulator.command_timeouts =
+                    accumulator.command_timeouts.saturating_add(counter_delta(
                         status.health.command_timeout_count,
                         previous.command_timeout_count,
-                    ),
-                );
-                accumulator.dropped_lines = accumulator.dropped_lines.saturating_add(counter_delta(
-                    status.health.dropped_line_count,
-                    previous.dropped_line_count,
-                ));
+                    ));
+                accumulator.dropped_lines =
+                    accumulator.dropped_lines.saturating_add(counter_delta(
+                        status.health.dropped_line_count,
+                        previous.dropped_line_count,
+                    ));
                 accumulator.evictions = accumulator.evictions.saturating_add(counter_delta(
                     status.snapshot.eviction_count,
                     previous.eviction_count,
                 ));
 
                 for (name, (matches, bans)) in &current_rules {
-                    let (previous_matches, previous_bans) =
-                        previous.rule_stats.get(name).copied().unwrap_or((*matches, *bans));
+                    let (previous_matches, previous_bans) = previous
+                        .rule_stats
+                        .get(name)
+                        .copied()
+                        .unwrap_or((*matches, *bans));
                     let entry = accumulator.rules.entry(name.clone()).or_default();
-                    entry.0 = entry.0.saturating_add(counter_delta(*matches, previous_matches));
+                    entry.0 = entry
+                        .0
+                        .saturating_add(counter_delta(*matches, previous_matches));
                     entry.1 = entry.1.saturating_add(counter_delta(*bans, previous_bans));
                 }
             }
@@ -482,7 +484,10 @@ impl AnalyticsManager {
 
     fn detect_local_issues(&self, status: &FirewallStatus, previous: Option<&StatusBaseline>) {
         if status.policy.enabled
-            && matches!(status.health.state, EngineState::Degraded | EngineState::Stopped)
+            && matches!(
+                status.health.state,
+                EngineState::Degraded | EngineState::Stopped
+            )
         {
             self.add_finding(AnalyticsFinding {
                 severity: "critical".into(),
@@ -505,7 +510,10 @@ impl AnalyticsManager {
                     "{} of {} entries are in use",
                     status.health.set_entries, status.health.set_capacity
                 )],
-                recommendation: Some("Review retention and active-ban growth before increasing resource caps.".into()),
+                recommendation: Some(
+                    "Review retention and active-ban growth before increasing resource caps."
+                        .into(),
+                ),
                 confidence: None,
                 source: "local".into(),
             });
@@ -515,14 +523,21 @@ impl AnalyticsManager {
                 severity: "critical".into(),
                 category: "enforcement".into(),
                 title: "Firewall state diverges from active ban state".into(),
-                evidence: vec!["The engine-reported set entry count differs from the active ban count".into()],
-                recommendation: Some("Run Router Hub firewall reconciliation and verify the owned ipsets.".into()),
+                evidence: vec![
+                    "The engine-reported set entry count differs from the active ban count".into(),
+                ],
+                recommendation: Some(
+                    "Run Router Hub firewall reconciliation and verify the owned ipsets.".into(),
+                ),
                 confidence: None,
                 source: "local".into(),
             });
         }
         if let Some(previous) = previous {
-            let dropped = counter_delta(status.health.dropped_line_count, previous.dropped_line_count);
+            let dropped = counter_delta(
+                status.health.dropped_line_count,
+                previous.dropped_line_count,
+            );
             if dropped > 0 {
                 self.add_finding(AnalyticsFinding {
                     severity: "warning".into(),
@@ -543,8 +558,12 @@ impl AnalyticsManager {
                     severity: "warning".into(),
                     category: "enforcement".into(),
                     title: "Firewall command timeouts increased".into(),
-                    evidence: vec![format!("{timeouts} command timeouts occurred since the previous sample")],
-                    recommendation: Some("Inspect router load and firewall command availability.".into()),
+                    evidence: vec![format!(
+                        "{timeouts} command timeouts occurred since the previous sample"
+                    )],
+                    recommendation: Some(
+                        "Inspect router load and firewall command availability.".into(),
+                    ),
                     confidence: None,
                     source: "local".into(),
                 });
@@ -632,8 +651,13 @@ impl AnalyticsManager {
                 severity: "critical".into(),
                 category: "enforcement".into(),
                 title: "Kernel ipset membership diverges from Router Hub state".into(),
-                evidence: vec!["Owned ipset entry counts do not match active bans plus allowlist exceptions".into()],
-                recommendation: Some("Run firewall reconciliation and inspect the Router Hub-owned ipsets.".into()),
+                evidence: vec![
+                    "Owned ipset entry counts do not match active bans plus allowlist exceptions"
+                        .into(),
+                ],
+                recommendation: Some(
+                    "Run firewall reconciliation and inspect the Router Hub-owned ipsets.".into(),
+                ),
                 confidence: None,
                 source: "local".into(),
             });
@@ -679,10 +703,18 @@ impl AnalyticsManager {
         }
         if self.config.firewall.protect_forward {
             counters.forward_v4 = self
-                .read_chain_counter(&self.config.commands.iptables, "ROUTER_HUB_FORWARD", timeout)
+                .read_chain_counter(
+                    &self.config.commands.iptables,
+                    "ROUTER_HUB_FORWARD",
+                    timeout,
+                )
                 .await?;
             counters.forward_v6 = self
-                .read_chain_counter(&self.config.commands.ip6tables, "ROUTER_HUB_FORWARD", timeout)
+                .read_chain_counter(
+                    &self.config.commands.ip6tables,
+                    "ROUTER_HUB_FORWARD",
+                    timeout,
+                )
                 .await?;
         }
         Ok(counters)
@@ -800,7 +832,9 @@ impl AnalyticsManager {
         }
         let bytes = serde_json::to_vec_pretty(&*history)?;
         write_atomic_private(&self.history_path, &bytes)?;
-        let estimated = bytes.len().saturating_add(estimate_accumulator_bytes(&self.accumulator.lock()));
+        let estimated = bytes
+            .len()
+            .saturating_add(estimate_accumulator_bytes(&self.accumulator.lock()));
         drop(history);
 
         {
@@ -809,7 +843,8 @@ impl AnalyticsManager {
                 .disk_bytes_written
                 .saturating_add(bytes.len() as u64);
             overhead.estimated_memory_bytes = estimated;
-            overhead.last_rollup_micros = started.elapsed().as_micros().min(u64::MAX as u128) as u64;
+            overhead.last_rollup_micros =
+                started.elapsed().as_micros().min(u64::MAX as u128) as u64;
         }
         *self.last_rollup_at.write().await = Some(now);
         Ok(())
@@ -822,7 +857,11 @@ impl AnalyticsManager {
             .lock()
             .to_rollup(Utc::now(), self.dropped_events.load(Ordering::Relaxed));
         let history = self.history.read().await;
-        let last_24h = aggregate_since(&history.hourly, &current, Utc::now() - chrono::Duration::hours(24));
+        let last_24h = aggregate_since(
+            &history.hourly,
+            &current,
+            Utc::now() - chrono::Duration::hours(24),
+        );
         let findings = current.findings.clone();
         let overhead = self.overhead.lock().clone();
         AnalyticsStatus {
@@ -918,7 +957,10 @@ impl AnalyticsManager {
         }
         scan_outbound_payload(
             &bytes,
-            &[self.config.server.auth_token.as_str(), settings.ai.api_key.as_str()],
+            &[
+                self.config.server.auth_token.as_str(),
+                settings.ai.api_key.as_str(),
+            ],
         )?;
         Ok(AiPreview {
             privacy_mode: settings.ai.privacy_mode,
@@ -1109,10 +1151,7 @@ pub fn record_engine_event(event: &EngineEvent) {
     }
     let event = match event {
         EngineEvent::Match {
-            rule,
-            ip,
-            groups,
-            ..
+            rule, ip, groups, ..
         } => {
             let (request_method, request_path) = parse_request_line(
                 groups
@@ -1120,10 +1159,7 @@ pub fn record_engine_event(event: &EngineEvent) {
                     .or_else(|| groups.get("request_line"))
                     .map(String::as_str),
             );
-            let method = groups
-                .get("method")
-                .cloned()
-                .or(request_method);
+            let method = groups.get("method").cloned().or(request_method);
             let path = groups
                 .get("path")
                 .or_else(|| groups.get("uri"))
@@ -1192,8 +1228,8 @@ fn load_json<T>(path: &Path) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
-    let bytes = std::fs::read(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let bytes =
+        std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
     serde_json::from_slice(&bytes).with_context(|| format!("failed to parse {}", path.display()))
 }
 
@@ -1206,7 +1242,12 @@ fn load_or_create_privacy_key(path: &Path, auth_token: &str) -> Result<[u8; 32]>
     }
     let mut hasher = Sha256::new();
     hasher.update(Uuid::new_v4().as_bytes());
-    hasher.update(Utc::now().timestamp_nanos_opt().unwrap_or_default().to_le_bytes());
+    hasher.update(
+        Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .to_le_bytes(),
+    );
     hasher.update(std::process::id().to_le_bytes());
     hasher.update(auth_token.as_bytes());
     let digest = hasher.finalize();
@@ -1287,8 +1328,12 @@ fn prune_history(history: &mut AnalyticsHistory, settings: &AnalyticsSettings, n
     history.schema_version = HISTORY_SCHEMA_VERSION;
     let hourly_cutoff = now - chrono::Duration::days(settings.hourly_retention_days as i64);
     let daily_cutoff = now - chrono::Duration::days(settings.daily_retention_days as i64);
-    history.hourly.retain(|rollup| rollup.period_end >= hourly_cutoff);
-    history.daily.retain(|rollup| rollup.period_end >= daily_cutoff);
+    history
+        .hourly
+        .retain(|rollup| rollup.period_end >= hourly_cutoff);
+    history
+        .daily
+        .retain(|rollup| rollup.period_end >= daily_cutoff);
 }
 
 fn rebuild_daily(history: &mut AnalyticsHistory, now: DateTime<Utc>) {
@@ -1373,7 +1418,9 @@ fn aggregate_rollups(
             .saturating_add(rollup.analytics_event_drops);
         if rollup.kernel_state_consistent == Some(false) {
             output.kernel_state_consistent = Some(false);
-        } else if output.kernel_state_consistent.is_none() && rollup.kernel_state_consistent.is_some() {
+        } else if output.kernel_state_consistent.is_none()
+            && rollup.kernel_state_consistent.is_some()
+        {
             output.kernel_state_consistent = Some(true);
         }
         for rule in &rollup.rule_activity {
@@ -1389,7 +1436,9 @@ fn aggregate_rollups(
         }
         if output.samples.len() < 64 {
             let remaining = 64 - output.samples.len();
-            output.samples.extend(rollup.samples.iter().take(remaining).cloned());
+            output
+                .samples
+                .extend(rollup.samples.iter().take(remaining).cloned());
         }
     }
     output.rule_activity = rules
@@ -1404,7 +1453,9 @@ fn aggregate_rollups(
 }
 
 fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
-    serde_json::to_vec(value).map(|bytes| bytes.len()).unwrap_or(usize::MAX)
+    serde_json::to_vec(value)
+        .map(|bytes| bytes.len())
+        .unwrap_or(usize::MAX)
 }
 
 fn estimate_accumulator_bytes(accumulator: &Accumulator) -> usize {
@@ -1438,7 +1489,10 @@ mod tests {
     #[test]
     fn rollup_aggregation_keeps_latest_active_counts() {
         let now = Utc::now();
-        let mut first = AnalyticsRollup::empty(now - chrono::Duration::hours(2), now - chrono::Duration::hours(1));
+        let mut first = AnalyticsRollup::empty(
+            now - chrono::Duration::hours(2),
+            now - chrono::Duration::hours(1),
+        );
         first.new_ip_bans = 2;
         first.active_ip_bans = 2;
         let mut second = AnalyticsRollup::empty(now - chrono::Duration::hours(1), now);

@@ -48,7 +48,8 @@ fn inject_analytics(source: &str) -> String {
     let sidebar_tabs = format!(
         "      <div class=\"tab rh-tab\" data-view=\"analytics\" data-sidebar>Security Analytics</div>\n{sidebar_anchor}"
     );
-    let title_anchor = "firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard:";
+    let title_anchor =
+        "firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard:";
     let titles = "firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], analytics: ['Security Analytics', 'Low-overhead protection telemetry and optional privacy-safe AI review'], adguard:";
     let refresh_anchor = "firewall: loadFirewall, adguard: loadAdguard";
     let refresh = "firewall: loadFirewall, analytics: loadAnalytics, adguard: loadAdguard";
