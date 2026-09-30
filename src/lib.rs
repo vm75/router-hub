@@ -10,5 +10,5 @@ pub mod models;
 pub mod nginx;
 pub mod state;
 pub mod storage;
-pub mod util;
 pub mod system;
+pub mod util;

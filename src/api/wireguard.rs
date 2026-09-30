@@ -148,8 +148,15 @@ fn write_wg_conf(config: &WireGuardConfig) -> String {
 }
 
 pub async fn get_config(State(state): State<AppState>) -> Result<Json<WireGuardConfig>, ApiError> {
-    let iface = state.config.paths.wireguard_conf.file_stem().unwrap_or_default().to_string_lossy().to_string();
-    
+    let iface = state
+        .config
+        .paths
+        .wireguard_conf
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
     let result = state
         .runner
         .run(
@@ -180,7 +187,11 @@ pub async fn update_config(
 ) -> Result<Json<WireGuardConfig>, ApiError> {
     let content = write_wg_conf(&config);
     let path = &state.config.paths.wireguard_conf;
-    let iface = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let iface = path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
     if let Some(parent) = path.parent() {
         let _ = tokio::fs::create_dir_all(parent).await;
@@ -205,14 +216,24 @@ pub async fn update_config(
     let _ = tokio::fs::remove_file(&temp_path).await;
 
     if !result.success && !result.simulated {
-        return Err(ApiError::conflict(format!("wg syncconf failed: {}", result.stderr)));
+        return Err(ApiError::conflict(format!(
+            "wg syncconf failed: {}",
+            result.stderr
+        )));
     }
 
     Ok(Json(config))
 }
 
 pub async fn get_status(State(state): State<AppState>) -> Result<Json<WireGuardStatus>, ApiError> {
-    let iface = state.config.paths.wireguard_conf.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let iface = state
+        .config
+        .paths
+        .wireguard_conf
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
 
     let result = state
         .runner
@@ -346,6 +367,4 @@ allowedips = 10.0.0.2/32
         assert!(generated.contains("PrivateKey = myprivatekey"));
         assert!(generated.contains("Endpoint = 192.168.1.100:51820"));
     }
-
-
 }

@@ -162,4 +162,3 @@ fn parse_proc_loadavg(path: &Path) -> Result<[f64; 3]> {
     }
     Ok([0.0, 0.0, 0.0])
 }
-

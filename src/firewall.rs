@@ -202,16 +202,14 @@ impl FirewallManager {
             if !policy.enabled || ban_config.files.is_empty() {
                 engine.handle().disable()?;
                 *inner = None;
-            } else {
-                if let Err(update_error) = engine.handle().update_config(ban_config.clone()) {
-                    engine.handle().flush()?;
-                    let new_engine = BanEngine::start(ban_config).map_err(|restart_error| {
-                        anyhow::anyhow!(
-                            "live policy update failed ({update_error}); replacement engine failed ({restart_error})"
-                        )
-                    })?;
-                    *inner = Some(new_engine);
-                }
+            } else if let Err(update_error) = engine.handle().update_config(ban_config.clone()) {
+                engine.handle().flush()?;
+                let new_engine = BanEngine::start(ban_config).map_err(|restart_error| {
+                    anyhow::anyhow!(
+                        "live policy update failed ({update_error}); replacement engine failed ({restart_error})"
+                    )
+                })?;
+                *inner = Some(new_engine);
             }
         } else if policy.enabled && !ban_config.files.is_empty() {
             let engine = BanEngine::start(ban_config)?;
