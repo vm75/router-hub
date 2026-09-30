@@ -33,14 +33,14 @@ pub struct AiCallResult {
 #[derive(Serialize)]
 struct ChatRequest<'a> {
     model: &'a str,
-    messages: Vec<ChatMessage<'a>>,
+    messages: Vec<ChatMessage>,
     max_tokens: u32,
     temperature: f32,
 }
 
 #[derive(Serialize)]
-struct ChatMessage<'a> {
-    role: &'a str,
+struct ChatMessage {
+    role: &'static str,
     content: String,
 }
 
@@ -59,24 +59,10 @@ struct ChatResponseMessage {
     content: Value,
 }
 
-pub async fn analyze(
-    settings: &AiSettings,
-    payload: &Value,
-    router_auth_token: &str,
-    test_mode: bool,
-) -> Result<AiCallResult> {
-    validate_ai_settings(settings, test_mode)?;
-
-    let payload_bytes = serde_json::to_vec(payload).context("failed to serialize AI payload")?;
-    if payload_bytes.len() > settings.max_payload_bytes || payload_bytes.len() > 65_536 {
-        bail!("AI payload exceeds the configured privacy/performance limit");
-    }
-    scan_outbound_payload(
-        &payload_bytes,
-        &[router_auth_token, settings.api_key.as_str()],
-    )?;
-
-    let request = ChatRequest {
+pub fn request_json(settings: &AiSettings, payload: &Value) -> Result<Value> {
+    let sanitized_payload = serde_json::to_string(payload)
+        .context("failed to serialize privacy-sanitized AI payload")?;
+    serde_json::to_value(ChatRequest {
         model: &settings.model,
         messages: vec![
             ChatMessage {
@@ -85,16 +71,41 @@ pub async fn analyze(
             },
             ChatMessage {
                 role: "user",
-                content: String::from_utf8(payload_bytes.clone())
-                    .context("AI payload was unexpectedly not UTF-8")?,
+                content: sanitized_payload,
             },
         ],
         max_tokens: settings.max_output_tokens,
         temperature: 0.1,
-    };
-    let request_bytes = serde_json::to_vec(&request)
-        .context("failed to serialize OpenAI-compatible request")?
-        .len();
+    })
+    .context("failed to serialize OpenAI-compatible request")
+}
+
+pub fn validate_request_body(
+    settings: &AiSettings,
+    request: &Value,
+    router_auth_token: &str,
+) -> Result<Vec<u8>> {
+    let request_bytes =
+        serde_json::to_vec(request).context("failed to serialize OpenAI-compatible request")?;
+    if request_bytes.len() > settings.max_payload_bytes || request_bytes.len() > 65_536 {
+        bail!("AI request exceeds the configured privacy/performance limit");
+    }
+    scan_outbound_payload(
+        &request_bytes,
+        &[router_auth_token, settings.api_key.as_str()],
+    )?;
+    Ok(request_bytes)
+}
+
+pub async fn analyze(
+    settings: &AiSettings,
+    payload: &Value,
+    router_auth_token: &str,
+    test_mode: bool,
+) -> Result<AiCallResult> {
+    validate_ai_settings(settings, test_mode)?;
+    let request = request_json(settings, payload)?;
+    let request_bytes = validate_request_body(settings, &request, router_auth_token)?;
 
     let client = Client::builder()
         .timeout(Duration::from_secs(settings.timeout_seconds))
@@ -158,7 +169,7 @@ pub async fn analyze(
 
     Ok(AiCallResult {
         analysis,
-        request_bytes,
+        request_bytes: request_bytes.len(),
         response_bytes: body.len(),
     })
 }
@@ -323,5 +334,27 @@ mod tests {
             .additional_headers
             .insert("X-Api-Key".into(), "secret".into());
         assert!(validate_ai_settings(&settings, false).is_err());
+    }
+
+    #[test]
+    fn final_request_body_is_size_and_secret_gated() {
+        let settings = AiSettings {
+            model: "test-model".into(),
+            api_key: "provider-secret".into(),
+            ..AiSettings::default()
+        };
+        let request = request_json(&settings, &serde_json::json!({"source":"SRC_1234"})).unwrap();
+        assert!(validate_request_body(&settings, &request, "router-secret").is_ok());
+
+        let leaked = request_json(
+            &settings,
+            &serde_json::json!({"unexpected":"router-secret"}),
+        )
+        .unwrap();
+        assert!(validate_request_body(&settings, &leaked, "router-secret").is_err());
+
+        let mut tiny = settings;
+        tiny.max_payload_bytes = 32;
+        assert!(validate_request_body(&tiny, &request, "router-secret").is_err());
     }
 }
