@@ -6,6 +6,8 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::config::AppConfig;
 
 const UI: &str = include_str!("../web/index.html");
+const ANALYTICS_UI: &str = include_str!("../web/analytics.html");
+const ANALYTICS_JS: &str = include_str!("../web/analytics.js");
 const ASP_TEMPLATE: &str = include_str!("../config/asus-wrt.asp.template");
 const LOGO_SVG: &str = include_str!("../router-hub.svg");
 
@@ -27,11 +29,41 @@ fn render_ui_with_token(config: &AppConfig, token: Option<&str>) -> String {
         "data:image/svg+xml;base64,{}",
         BASE64.encode(LOGO_SVG.as_bytes())
     );
-    UI.replace("__ROUTER_HUB_VERSION__", env!("CARGO_PKG_VERSION"))
+
+    inject_analytics(UI)
+        .replace("__ROUTER_HUB_VERSION__", env!("CARGO_PKG_VERSION"))
         .replace("__ROUTER_HUB_VERSION_JSON__", &version_json)
         .replace("__ROUTER_HUB_API_BASE_JSON__", &api_base_json)
         .replace("__ROUTER_HUB_TOKEN_JSON__", &token_json)
         .replace("__ROUTER_HUB_LOGO_DATA_URI__", &logo_data_uri)
+}
+
+fn inject_analytics(source: &str) -> String {
+    let desktop_anchor = "      <div class=\"tab rh-tab\" data-view=\"adguard\">AdGuard</div>";
+    let desktop_tabs = format!(
+        "      <div class=\"tab rh-tab\" data-view=\"analytics\">Security Analytics</div>\n{desktop_anchor}"
+    );
+    let sidebar_anchor =
+        "      <div class=\"tab rh-tab\" data-view=\"adguard\" data-sidebar>AdGuard</div>";
+    let sidebar_tabs = format!(
+        "      <div class=\"tab rh-tab\" data-view=\"analytics\" data-sidebar>Security Analytics</div>\n{sidebar_anchor}"
+    );
+    let title_anchor = "firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard:";
+    let titles = "firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], analytics: ['Security Analytics', 'Low-overhead protection telemetry and optional privacy-safe AI review'], adguard:";
+    let refresh_anchor = "firewall: loadFirewall, adguard: loadAdguard";
+    let refresh = "firewall: loadFirewall, analytics: loadAnalytics, adguard: loadAdguard";
+    let pane_anchor = "    </div><!-- .rh-tab-pane -->";
+    let pane = format!("{ANALYTICS_UI}\n{pane_anchor}");
+    let initial_refresh = "    refreshCurrent();";
+    let analytics_script = format!("{ANALYTICS_JS}\n{initial_refresh}");
+
+    source
+        .replace(desktop_anchor, &desktop_tabs)
+        .replace(sidebar_anchor, &sidebar_tabs)
+        .replace(title_anchor, titles)
+        .replace(refresh_anchor, refresh)
+        .replace(pane_anchor, &pane)
+        .replacen(initial_refresh, &analytics_script, 1)
 }
 
 pub fn render_asus_ui(config: &AppConfig) -> String {
@@ -168,6 +200,9 @@ mod tests {
         assert!(!standalone.contains("nginx-card nginx-accordion\" open"));
         assert!(standalone.contains("data-custom-config"));
         assert!(standalone.contains("firewall-settings-form"));
+        assert!(standalone.contains("data-view=\"analytics\""));
+        assert!(standalone.contains("id=\"analytics-form\""));
+        assert!(standalone.contains("function loadAnalytics()"));
         assert!(!standalone.contains(">Start nginx<"));
         assert!(!standalone.contains(">Stop nginx<"));
 
@@ -188,6 +223,7 @@ mod tests {
         );
         assert!(rendered.contains("new MutationObserver"));
         assert!(rendered.contains("rhInstallAsusTabs(asusTabs)"));
+        assert!(rendered.contains("Security Analytics"));
     }
 
     #[test]
