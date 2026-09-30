@@ -952,21 +952,13 @@ impl AnalyticsManager {
             bail!("security analytics is disabled");
         }
         let payload = self.build_ai_payload(&settings).await?;
-        let bytes = serde_json::to_vec(&payload)?;
-        if bytes.len() > settings.ai.max_payload_bytes || bytes.len() > 65_536 {
-            bail!("AI payload exceeds the configured privacy/performance limit");
-        }
-        scan_outbound_payload(
-            &bytes,
-            &[
-                self.config.server.auth_token.as_str(),
-                settings.ai.api_key.as_str(),
-            ],
-        )?;
+        let request = ai::request_json(&settings.ai, &payload)?;
+        let bytes =
+            ai::validate_request_body(&settings.ai, &request, &self.config.server.auth_token)?;
         Ok(AiPreview {
             privacy_mode: settings.ai.privacy_mode,
             bytes: bytes.len(),
-            payload,
+            payload: request,
         })
     }
 
@@ -1286,11 +1278,7 @@ fn write_atomic_private(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 fn counter_delta(current: u64, previous: u64) -> u64 {
-    if current >= previous {
-        current - previous
-    } else {
-        0
-    }
+    current.saturating_sub(previous)
 }
 
 fn pair_delta(current: Option<CounterPair>, previous: Option<CounterPair>) -> CounterPair {
