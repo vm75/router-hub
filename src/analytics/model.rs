@@ -26,7 +26,7 @@ impl Default for AnalyticsSettings {
         Self {
             enabled: false,
             sample_interval_seconds: 300,
-            kernel_verify_interval_seconds: 3600,
+            kernel_verify_interval_seconds: 7200,
             rollup_interval_minutes: 60,
             hourly_retention_days: 14,
             daily_retention_days: 90,
