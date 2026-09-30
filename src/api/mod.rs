@@ -16,6 +16,7 @@ use axum::{
 };
 use serde::Serialize;
 
+const FAVICON_PNG: &[u8] = include_bytes!("../../router-hub.png");
 const LOGO_SVG: &[u8] = include_bytes!("../../router-hub.svg");
 
 use tower_http::{
@@ -59,8 +60,8 @@ pub fn app(state: AppState) -> anyhow::Result<Router> {
         .route("/", get(index))
         .route("/favicon.ico", get(logo_svg))
         .route("/favicon.svg", get(logo_svg))
-        .route("/favicon.png", get(logo_svg))
-        .route("/router-hub.png", get(logo_svg))
+        .route("/favicon.png", get(favicon_png))
+        .route("/router-hub.png", get(favicon_png))
         .route("/router-hub.svg", get(logo_svg))
         .route("/healthz", get(health))
         .route("/api/version", get(version))
@@ -192,6 +193,10 @@ pub fn router() -> Router<AppState> {
 
 pub async fn index(State(state): State<AppState>) -> Response {
     Html(asus_ui::render_ui(&state.config)).into_response()
+}
+
+pub async fn favicon_png() -> Response {
+    ([("content-type", "image/png")], FAVICON_PNG).into_response()
 }
 
 pub async fn logo_svg() -> Response {
