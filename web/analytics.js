@@ -22,6 +22,15 @@
       document.getElementById('analytics-metrics').innerHTML = metricRows.map(row => `<div class="card metric"><div class="label">${row[0]}</div><div class="value">${row[1]}</div><div class="sub">${row[2]}</div></div>`).join('');
       const findings = summary.findings || statusValue.findings || [];
       document.getElementById('analytics-findings').innerHTML = findings.length ? findings.map(analyticsFindingHtml).join('') : `<div class="notice">${statusValue.enabled ? 'No local warnings in the current window.' : 'Analytics is disabled.'}</div>`;
+      const consistency = summary.kernel_state_consistent === false ? 'Diverged' : summary.kernel_state_consistent === true ? 'Consistent' : 'Not verified yet';
+      document.getElementById('analytics-health').innerHTML = [
+        ['Kernel / state', consistency],
+        ['Active bans', `${analyticsNumber(summary.active_ip_bans)} IP · ${analyticsNumber(summary.active_subnet_bans)} subnet`],
+        ['Engine errors', analyticsNumber(summary.engine_errors)],
+        ['Command timeouts', analyticsNumber(summary.command_timeouts)],
+        ['Dropped log lines', analyticsNumber(summary.dropped_lines)],
+        ['Evictions', analyticsNumber(summary.evictions)]
+      ].map(row => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #263742"><span>${row[0]}</span><strong>${row[1]}</strong></div>`).join('');
       const overhead = statusValue.overhead || {};
       document.getElementById('analytics-overhead').innerHTML = [
         ['Processing time', `${((overhead.processing_micros || 0) / 1000).toFixed(1)} ms`],
@@ -37,6 +46,20 @@
       ].map(row => `<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #263742"><span>${row[0]}</span><strong>${row[1]}</strong></div>`).join('');
       const rules = summary.rule_activity || [];
       document.getElementById('analytics-rules-body').innerHTML = rules.length ? rules.slice().sort((a, b) => (b.matches || 0) - (a.matches || 0)).map(rule => `<tr><td><code>${esc(rule.name)}</code></td><td>${analyticsNumber(rule.matches)}</td><td>${analyticsNumber(rule.ban_transitions)}</td></tr>`).join('') : emptyRow(3, 'No rule activity recorded');
+    }
+    function renderAnalyticsHistory(historyValue) {
+      const hourly = (historyValue?.hourly || []).slice(-12).map(item => ({ ...item, kind: 'Hourly' }));
+      const daily = (historyValue?.daily || []).slice(-7).map(item => ({ ...item, kind: 'Daily' }));
+      const rows = [...hourly, ...daily].sort((a, b) => new Date(b.period_end) - new Date(a.period_end));
+      const body = document.getElementById('analytics-history-body');
+      if (!body) return;
+      body.innerHTML = rows.length ? rows.map(row => {
+        const blocked = (row.input_packets_blocked || 0) + (row.forward_packets_blocked || 0);
+        const newBans = (row.new_ip_bans || 0) + (row.new_subnet_bans || 0);
+        const active = (row.active_ip_bans || 0) + (row.active_subnet_bans || 0);
+        const health = row.kernel_state_consistent === false ? 'Diverged' : row.kernel_state_consistent === true ? 'Consistent' : 'Not verified';
+        return `<tr><td><strong>${row.kind}</strong><div class="muted">${prettyDate(row.period_end)}</div></td><td>${analyticsNumber(blocked)}</td><td>${analyticsNumber(newBans)}</td><td>${analyticsNumber(active)}</td><td>${health}</td></tr>`;
+      }).join('') : emptyRow(5, 'No persisted analytics history yet');
     }
     function populateAnalyticsForm(config) {
       const form = document.getElementById('analytics-form');
@@ -73,6 +96,7 @@
       try {
         const [statusValue, configValue, historyValue] = await Promise.all([api('/analytics/status'), api('/analytics/config'), api('/analytics/history')]);
         renderAnalyticsStatus(statusValue);
+        renderAnalyticsHistory(historyValue);
         populateAnalyticsForm(configValue);
         renderAnalyticsAi(historyValue);
       } catch (e) { toast(e.message, true); }
