@@ -192,9 +192,17 @@ pub fn validate_ai_settings(settings: &AiSettings, test_mode: bool) -> Result<()
         let lower = name.to_ascii_lowercase();
         if matches!(
             lower.as_str(),
-            "authorization" | "proxy-authorization" | "cookie" | "set-cookie" | "host"
-        ) {
-            bail!("AI additional_headers cannot override sensitive transport headers");
+            "authorization"
+                | "proxy-authorization"
+                | "cookie"
+                | "set-cookie"
+                | "host"
+                | "content-type"
+        ) || ["auth", "key", "token", "secret", "cookie"]
+            .iter()
+            .any(|marker| lower.contains(marker))
+        {
+            bail!("AI additional_headers cannot contain or override sensitive transport headers");
         }
         HeaderName::from_bytes(name.as_bytes())
             .with_context(|| format!("invalid AI header name `{name}`"))?;
@@ -306,5 +314,14 @@ mod tests {
             ..AiSettings::default()
         };
         assert!(validate_ai_settings(&settings, false).is_ok());
+    }
+
+    #[test]
+    fn sensitive_custom_headers_are_rejected() {
+        let mut settings = AiSettings::default();
+        settings
+            .additional_headers
+            .insert("X-Api-Key".into(), "secret".into());
+        assert!(validate_ai_settings(&settings, false).is_err());
     }
 }
