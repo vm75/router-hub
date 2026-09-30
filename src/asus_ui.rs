@@ -55,8 +55,9 @@ fn inject_analytics(source: &str) -> String {
     let refresh = "firewall: loadFirewall, analytics: loadAnalytics, adguard: loadAdguard";
     let pane_anchor = "    </div><!-- .rh-tab-pane -->";
     let pane = format!("{ANALYTICS_UI}\n{pane_anchor}");
-    let initial_refresh = "    refreshCurrent();";
-    let analytics_script = format!("{ANALYTICS_JS}\n{initial_refresh}");
+    let script_anchor = "    setInterval(pollSystemUsage, 1000);\n\n    refreshCurrent();";
+    let analytics_script =
+        format!("    setInterval(pollSystemUsage, 1000);\n\n{ANALYTICS_JS}\n    refreshCurrent();");
 
     source
         .replace(desktop_anchor, &desktop_tabs)
@@ -64,7 +65,7 @@ fn inject_analytics(source: &str) -> String {
         .replace(title_anchor, titles)
         .replace(refresh_anchor, refresh)
         .replace(pane_anchor, &pane)
-        .replacen(initial_refresh, &analytics_script, 1)
+        .replace(script_anchor, &analytics_script)
 }
 
 pub fn render_asus_ui(config: &AppConfig) -> String {

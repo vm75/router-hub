@@ -22,7 +22,7 @@ use parking_lot::Mutex as ParkingMutex;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, Notify, RwLock, mpsc};
-use tracing::{info, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
@@ -301,8 +301,8 @@ impl AnalyticsManager {
                 let settings = self.settings.read().await.clone();
                 let mut accumulator = self.accumulator.lock();
                 if accumulator.samples.len() >= settings.max_samples_per_hour {
-                    self.overhead.lock().samples_dropped =
-                        self.overhead.lock().samples_dropped.saturating_add(1);
+                    let mut overhead = self.overhead.lock();
+                    overhead.samples_dropped = overhead.samples_dropped.saturating_add(1);
                     return;
                 }
                 accumulator.samples.push(SanitizedSample {
@@ -346,10 +346,7 @@ impl AnalyticsManager {
             if !settings.enabled {
                 *self.baseline.lock().await = None;
                 *self.last_kernel_counters.lock().await = None;
-                tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs(30)) => {},
-                    _ = self.notify.notified() => {},
-                }
+                self.notify.notified().await;
                 continue;
             }
 
@@ -571,14 +568,14 @@ impl AnalyticsManager {
 
             let mut total_bans = 0u64;
             let mut dominant: Option<(&str, u64)> = None;
-            for (name, (matches, bans)) in &status.snapshot.rule_stats {
+            for (name, stats) in &status.snapshot.rule_stats {
                 let (previous_matches, previous_bans) = previous
                     .rule_stats
                     .get(name)
                     .copied()
-                    .unwrap_or((matches.match_count, matches.ban_count));
-                let match_delta = counter_delta(matches.match_count, previous_matches);
-                let ban_delta = counter_delta(matches.ban_count, previous_bans);
+                    .unwrap_or((stats.match_count, stats.ban_count));
+                let match_delta = counter_delta(stats.match_count, previous_matches);
+                let ban_delta = counter_delta(stats.ban_count, previous_bans);
                 total_bans = total_bans.saturating_add(ban_delta);
                 if dominant.map(|(_, count)| ban_delta > count).unwrap_or(true) {
                     dominant = Some((name.as_str(), ban_delta));
@@ -726,8 +723,10 @@ impl AnalyticsManager {
         chain: &str,
         timeout: Duration,
     ) -> Result<Option<CounterPair>> {
-        self.overhead.lock().external_commands =
-            self.overhead.lock().external_commands.saturating_add(1);
+        {
+            let mut overhead = self.overhead.lock();
+            overhead.external_commands = overhead.external_commands.saturating_add(1);
+        }
         let result = CommandRunner::new(self.config.test_mode)
             .run(command, ["-nvxL", chain], timeout)
             .await?;
@@ -772,8 +771,10 @@ impl AnalyticsManager {
     }
 
     async fn read_ipset_count(&self, set_name: &str, timeout: Duration) -> Result<Option<usize>> {
-        self.overhead.lock().external_commands =
-            self.overhead.lock().external_commands.saturating_add(1);
+        {
+            let mut overhead = self.overhead.lock();
+            overhead.external_commands = overhead.external_commands.saturating_add(1);
+        }
         let result = CommandRunner::new(self.config.test_mode)
             .run(&self.config.commands.ipset, ["list", set_name], timeout)
             .await?;
@@ -979,8 +980,10 @@ impl AnalyticsManager {
             bail!("AI analysis is disabled");
         }
         let payload = self.build_ai_payload(&settings).await?;
-        self.overhead.lock().ai_requests_attempted =
-            self.overhead.lock().ai_requests_attempted.saturating_add(1);
+        {
+            let mut overhead = self.overhead.lock();
+            overhead.ai_requests_attempted = overhead.ai_requests_attempted.saturating_add(1);
+        }
         let result = match ai::analyze(
             &settings.ai,
             &payload,
@@ -991,8 +994,8 @@ impl AnalyticsManager {
         {
             Ok(result) => result,
             Err(error) => {
-                self.overhead.lock().ai_requests_failed =
-                    self.overhead.lock().ai_requests_failed.saturating_add(1);
+                let mut overhead = self.overhead.lock();
+                overhead.ai_requests_failed = overhead.ai_requests_failed.saturating_add(1);
                 return Err(error);
             }
         };
@@ -1153,6 +1156,9 @@ pub fn record_engine_event(event: &EngineEvent) {
         EngineEvent::Match {
             rule, ip, groups, ..
         } => {
+            if !ingress.collect_samples.load(Ordering::Relaxed) {
+                return;
+            }
             let (request_method, request_path) = parse_request_line(
                 groups
                     .get("request")
@@ -1168,16 +1174,8 @@ pub fn record_engine_event(event: &EngineEvent) {
             InternalEvent::Match {
                 rule: rule.clone(),
                 ip: *ip,
-                method: ingress
-                    .collect_samples
-                    .load(Ordering::Relaxed)
-                    .then_some(method)
-                    .flatten(),
-                path: ingress
-                    .collect_samples
-                    .load(Ordering::Relaxed)
-                    .then_some(path)
-                    .flatten(),
+                method,
+                path,
                 status: groups.get("status").cloned(),
             }
         }
