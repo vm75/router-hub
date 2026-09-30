@@ -41,7 +41,7 @@ use self::{
     },
     privacy::{
         hex_decode_32, hex_encode, parse_request_line, pseudonymize_ip, sanitize_method,
-        sanitize_path, sanitize_rule_name, sanitize_status, scan_outbound_payload,
+        sanitize_path, sanitize_rule_name, sanitize_status,
     },
 };
 
