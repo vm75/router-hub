@@ -66,12 +66,16 @@ pub fn sanitize_path(path: Option<&str>, max_bytes: usize) -> Option<String> {
             sanitized.push_str(":id");
         } else if looks_like_uuid(segment) {
             sanitized.push_str(":uuid");
+        } else if segment.parse::<IpAddr>().is_ok() {
+            sanitized.push_str(":ip");
+        } else if segment.contains('@') {
+            sanitized.push_str(":id");
         } else if looks_like_secret_segment(segment) {
             sanitized.push_str(":token");
         } else {
             for character in segment.chars() {
                 if character.is_ascii_alphanumeric()
-                    || matches!(character, '.' | '-' | '_' | '~' | '%' | ':' | '@')
+                    || matches!(character, '.' | '-' | '_' | '~' | '%' | ':')
                 {
                     sanitized.push(character);
                 } else {
@@ -106,18 +110,25 @@ pub fn scan_outbound_payload(payload: &[u8], secrets: &[&str]) -> Result<()> {
     let lower = text.to_ascii_lowercase();
     for marker in [
         "authorization:",
+        "\"authorization\":",
         "proxy-authorization:",
+        "\"proxy-authorization\":",
         "cookie:",
+        "\"cookie\":",
         "set-cookie:",
+        "\"set-cookie\":",
         "bearer ",
         "basic ",
         "-----begin private key",
         "-----begin rsa private key",
+        "-----begin openssh private key",
         "password=",
         "password\":",
         "secret=",
         "secret\":",
         "token=",
+        "sessionid=",
+        "\"session\":",
     ] {
         if lower.contains(marker) {
             bail!("AI payload failed the strict privacy secret scan");
@@ -250,10 +261,46 @@ mod tests {
     }
 
     #[test]
+    fn paths_remove_email_ip_uuid_and_token_identifiers() {
+        assert_eq!(
+            sanitize_path(Some("/user/alice@example.com"), 256).as_deref(),
+            Some("/user/:id")
+        );
+        assert_eq!(
+            sanitize_path(Some("/host/192.168.1.25"), 256).as_deref(),
+            Some("/host/:ip")
+        );
+        assert_eq!(
+            sanitize_path(
+                Some("/item/550e8400-e29b-41d4-a716-446655440000"),
+                256
+            )
+            .as_deref(),
+            Some("/item/:uuid")
+        );
+        assert_eq!(
+            sanitize_path(Some("/reset/AbCdEfGhIjKlMnOpQrSt1234"), 256).as_deref(),
+            Some("/reset/:token")
+        );
+    }
+
+    #[test]
     fn scanner_rejects_configured_secrets() {
         let payload = br#"{"value":"super-secret-value"}"#;
         assert!(scan_outbound_payload(payload, &["super-secret-value"]).is_err());
         assert!(scan_outbound_payload(br#"{"path":"/.env"}"#, &["different-secret"]).is_ok());
+    }
+
+    #[test]
+    fn scanner_rejects_adversarial_secret_shapes() {
+        for payload in [
+            br#"{"Authorization":"Bearer abcdefgh"}"#.as_slice(),
+            br#"{"cookie":"sessionid=abcdefgh"}"#.as_slice(),
+            br#"{"password":"abcdefgh"}"#.as_slice(),
+            b"-----BEGIN OPENSSH PRIVATE KEY-----".as_slice(),
+        ] {
+            assert!(scan_outbound_payload(payload, &[]).is_err());
+        }
     }
 
     #[test]
