@@ -282,7 +282,10 @@ impl AdGuardClient {
         let mut map = serde_json::Map::new();
         map.insert("enabled".to_string(), serde_json::Value::Bool(enabled));
         if !enabled {
-            map.insert("duration".to_string(), serde_json::Value::Number(duration_ms.unwrap_or(0).into()));
+            map.insert(
+                "duration".to_string(),
+                serde_json::Value::Number(duration_ms.unwrap_or(0).into()),
+            );
         }
         let payload = serde_json::Value::Object(map);
         self.client
