@@ -20,30 +20,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  lockfile-refresh:
-    name: WIP refresh Cargo.lock
-    permissions:
-      contents: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Check out feature branch
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: feature/security-analytics
-          persist-credentials: true
-
-      - name: Refresh dependency feature resolution
-        run: cargo check
-
-      - name: Commit lockfile
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Cargo.lock
-          git commit -m 'build: refresh lockfile for analytics streaming'
-          git push origin HEAD:feature/security-analytics
-
   full:
     name: Full CI (Rust 1.85)
     runs-on: ubuntu-24.04
