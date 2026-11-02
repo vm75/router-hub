@@ -102,10 +102,32 @@ pub struct CertificateStatus {
     pub renewal_due: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DehydratedActivity {
+    Idle,
+    Running,
+    Completed,
+    Failed,
+    Locked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CertificateOperation {
+    pub certificate: String,
+    pub action: String,
+    pub status: DehydratedActivity,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DehydratedLockStatus {
     pub locked: bool,
     pub path: PathBuf,
+    pub status: DehydratedActivity,
+    pub operation: Option<CertificateOperation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
