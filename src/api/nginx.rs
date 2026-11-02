@@ -747,11 +747,17 @@ async fn nginx_stop(state: &AppState) -> anyhow::Result<CommandResult> {
 }
 
 async fn run_nginx(state: &AppState, args: Vec<String>) -> anyhow::Result<CommandResult> {
+    let mut command_args = Vec::new();
+    if let Some(prefix) = &state.config.nginx.prefix_path {
+        command_args.push("-p".to_string());
+        command_args.push(prefix.to_string_lossy().to_string());
+    }
+    command_args.extend(args);
     state
         .runner
         .run(
             &state.config.commands.nginx,
-            args,
+            command_args,
             Duration::from_secs(state.config.nginx.reload_timeout_seconds),
         )
         .await
