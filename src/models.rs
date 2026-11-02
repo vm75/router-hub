@@ -258,6 +258,7 @@ pub struct Dashboard {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeInfo {
     pub version: String,
+    pub platform: crate::config::Platform,
     pub api_base_url: String,
     pub token_hint: String,
     pub test_mode: bool,
