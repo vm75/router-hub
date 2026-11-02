@@ -27,7 +27,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     asus_ui::{install_menu_entry, render_ui_file},
-    config::AppConfig,
+    config::{AppConfig, Platform},
     firewall::FirewallManager,
     state::AppState,
     storage::Stores,
@@ -41,6 +41,10 @@ struct Cli {
 
     #[arg(long, global = true)]
     test_mode: bool,
+
+    /// Run native Linux services without Asuswrt integration or command simulation.
+    #[arg(long, global = true, conflicts_with = "test_mode")]
+    linux_mode: bool,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -66,6 +70,9 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
     let mut config = AppConfig::load(&cli.config)?;
+    if cli.linux_mode {
+        config.platform = Platform::Linux;
+    }
     if cli.test_mode {
         config.apply_test_mode(&cli.config)?;
     }
@@ -82,7 +89,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::MountUi => {
-            if !config.test_mode && config.asus_ui.enabled {
+            if !config.test_mode && config.platform == Platform::Asuswrt && config.asus_ui.enabled {
                 install_menu_entry(&config)?;
             }
             render_ui_file(&config)?;
@@ -131,14 +138,15 @@ async fn serve(config: AppConfig) -> Result<()> {
         warn!(%error, "unable to reconcile nginx auxiliary configuration");
     }
 
-    if config.asus_ui.enabled && !config.test_mode {
+    if config.asus_ui.enabled && !config.test_mode && config.platform == Platform::Asuswrt {
         if let Err(error) = install_menu_entry(&config) {
             warn!(%error, "unable to update ASUS menu tree; continuing with rendered UI");
         }
         if let Err(error) = render_ui_file(&config) {
             warn!(%error, "unable to render ASUS UI page; continuing with standalone listener");
         }
-    } else {
+    } else if config.test_mode {
+        // Fixture-backed UI rendering remains part of the original test mode.
         render_ui_file(&config)?;
     }
 
