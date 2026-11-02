@@ -89,7 +89,10 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::MountUi => {
-            if !config.test_mode && config.platform == Platform::Asuswrt && config.asus_ui.enabled {
+            if config.platform == Platform::Linux {
+                anyhow::bail!("mount-ui requires Asuswrt; use the standalone UI on Linux");
+            }
+            if !config.test_mode && config.asus_ui.enabled {
                 install_menu_entry(&config)?;
             }
             render_ui_file(&config)?;
@@ -145,8 +148,8 @@ async fn serve(config: AppConfig) -> Result<()> {
         if let Err(error) = render_ui_file(&config) {
             warn!(%error, "unable to render ASUS UI page; continuing with standalone listener");
         }
-    } else if config.test_mode {
-        // Fixture-backed UI rendering remains part of the original test mode.
+    } else if config.test_mode || config.platform == Platform::Asuswrt {
+        // Preserve standalone ASUS rendering in simulated and router modes.
         render_ui_file(&config)?;
     }
 
