@@ -70,6 +70,7 @@ impl CommandRunner {
             simulated: false,
         })
     }
+
     /// Run a command and all its hook subprocesses in a dedicated Unix process
     /// group. On timeout, kill the group rather than only the parent shell.
     pub async fn run_process_group<I, S>(
@@ -100,7 +101,9 @@ impl CommandRunner {
         #[cfg(unix)]
         command.as_std_mut().process_group(0);
 
-        let child = command.spawn().with_context(|| format!("failed to start {}", program.display()))?;
+        let child = command
+            .spawn()
+            .with_context(|| format!("failed to start {}", program.display()))?;
         #[cfg(unix)]
         let child_pid = child.id();
         let output = match timeout(timeout_duration, child.wait_with_output()).await {
@@ -112,7 +115,10 @@ impl CommandRunner {
                     // This includes a DNS hook's shell, curl, and propagation sleep.
                     let signal_result = unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
                     if signal_result != 0 {
-                        tracing::warn!(%pid, error = %std::io::Error::last_os_error(), "unable to kill dehydrated process group");
+                        let error = std::io::Error::last_os_error();
+                        if error.raw_os_error() != Some(libc::ESRCH) {
+                            tracing::warn!(%pid, %error, "unable to kill dehydrated process group");
+                        }
                     }
                 }
                 bail!("command timed out: {}", program.display());
@@ -180,7 +186,10 @@ mod tests {
             .await;
         assert!(result.unwrap_err().to_string().contains("timed out"));
         tokio::time::sleep(Duration::from_millis(1200)).await;
-        assert!(!marker.exists(), "a timed-out command left a subprocess running");
+        assert!(
+            !marker.exists(),
+            "a timed-out command left a subprocess running"
+        );
     }
 
     #[tokio::test]
