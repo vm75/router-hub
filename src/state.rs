@@ -122,11 +122,16 @@ impl AppState {
             }
         };
 
-        let operation = self.certificate_operation.lock().await.clone();
-        let running = operation
+        let mut operation = self.certificate_operation.lock().await.clone();
+        let managed_running = operation
             .as_ref()
-            .is_some_and(|op| op.status == DehydratedActivity::Running)
-            || self.dehydrated_process_running();
+            .is_some_and(|op| op.status == DehydratedActivity::Running);
+        let external_running = self.dehydrated_process_running();
+        let running = managed_running || external_running;
+        if external_running && !managed_running {
+            // Do not attribute another Dehydrated process to our last operation.
+            operation = None;
+        }
         let status = if running {
             DehydratedActivity::Running
         } else if locked && operation
@@ -171,9 +176,8 @@ impl AppState {
         {
             let executable = self.config.commands.dehydrated.to_string_lossy();
             let Ok(entries) = std::fs::read_dir("/proc") else {
-                // If /proc is inaccessible, conservatively avoid assuming the
-                // lock is stale; managed operations remain tracked in memory.
-                return false;
+                // A lock cannot safely be cleared if process state is unknown.
+                return true;
             };
             for entry in entries.flatten() {
                 if !entry.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit()) {
