@@ -2,6 +2,18 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Added native Linux integration platform with real external commands, no ASUS menu changes, and an isolated nginx prefix option.
+- Added `make test-linux` for an unprivileged real-nginx, API, authentication, and metrics smoke test.
+
+### Fixed
+
+- Confined native Linux firewall-policy persistence to the configured data directory instead of consulting router-specific `/opt` paths.
+- Avoided Asuswrt NVRAM discovery for AdGuard LAN IP in native Linux mode.
+
 ## 0.7.1
 
 ### Fixed
