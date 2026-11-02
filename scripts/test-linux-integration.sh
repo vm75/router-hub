@@ -169,7 +169,7 @@ real_result() {
 unauth=$(curl --silent --output /dev/null --write-out '%{http_code}' "$api/api/runtime")
 [[ "$unauth" == 401 ]] || { echo "Expected HTTP 401, got $unauth" >&2; exit 1; }
 
-get /api/runtime | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["test_mode"] is False, x'
+get /api/runtime | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["test_mode"] is False and x["platform"] == "linux", x'
 get /api/system/usage | python3 -c 'import json,sys; x=json.load(sys.stdin); assert "cpu" in x and "memory" in x, x'
 get /api/firewall | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["policy"]["enabled"] is False, x'
 
