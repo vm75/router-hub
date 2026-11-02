@@ -71,7 +71,7 @@ certs_dir = "/opt/var/lib/router-hub/dehydrated/certs"
 renew_interval_hours = 12
 renew_before_days = 30
 # Allow for DNS provider propagation delays (NameSilo hook defaults to 600 seconds).
-command_timeout_seconds = 1800
+command_timeout_seconds = 3600
 
 [firewall]
 poll_interval_ms = 1000
