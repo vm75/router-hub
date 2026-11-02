@@ -715,6 +715,7 @@ mod tests {
     fn test_linux_platform_config() {
         let mut config = AppConfig::default();
         config.platform = Platform::Linux;
+        assert_eq!(toml::to_string(&config.platform).unwrap().trim(), "\"linux\"");
         config.server.auth_token = "long-test-token-for-linux-integration".into();
         assert!(config.validate().is_ok());
         config.test_mode = true;
