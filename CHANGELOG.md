@@ -2,6 +2,15 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Distinguish active dehydrated certificate renewals from leftover lock files in the Certificates UI, and prevent clearing a lock while the renewal or a known DNS hook is running.
+- Serialize certificate issue/renewal requests, retain completed/failed operation status, and log failures to remove dehydrated locks.
+- Terminate dehydrated's entire process group on command timeout so DNS hook subprocesses do not outlive a timed-out renewal.
+- Set the example certificate timeout to one hour so it exceeds the NameSilo hook's ten-minute DNS propagation wait.
+
 ## 0.7.1
 
 ### Fixed
