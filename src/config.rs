@@ -753,6 +753,7 @@ mod tests {
                 [nginx]
                 root_dir = "../nginx"
                 config_path = "/absolute/nginx.conf"
+                prefix_path = "../nginx-prefix"
             "#,
         )
         .unwrap();
@@ -772,6 +773,10 @@ mod tests {
         assert_eq!(
             config.nginx.config_path,
             PathBuf::from("/absolute/nginx.conf")
+        );
+        assert_eq!(
+            config.nginx.prefix_path,
+            Some(temp.path().join("etc/nginx-prefix"))
         );
     }
 
