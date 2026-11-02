@@ -118,6 +118,61 @@ make run
 The test configuration is safe for exercising the UI and API, but it is not a
 router deployment configuration.
 
+## Native Linux integration (real services)
+
+For testing the production execution path on a development Linux machine,
+use `platform = "linux"` and `test_mode = false` in a **separate**
+configuration. Alternatively, pass `--linux-mode` to select the Linux
+platform from the CLI. Do **not** pass `--test-mode`: that flag simulates
+external commands. Simulated test mode and the Linux platform cannot be
+combined.
+
+The native Linux platform runs the normal command runner and HTTP API,
+reads real Linux `/proc` metrics, and uses the configured service paths. It
+skips ASUS menu installation, standalone startup does not emit an ASUS ASP
+page, and AdGuard LAN IP discovery does not call router NVRAM. Set a real
+`[adguard].lan_ip` if AdGuard Home is enabled. All native Linux paths and
+executables must be configured for the development host. Use
+`[server].daemonize = false` for local interactive runs.
+
+The built-in **unprivileged** smoke test requires `cargo`, `nginx`,
+`openssl`, `curl`, and `python3`. It creates an isolated temporary
+configuration and nginx prefix, runs the real router-hub binary, verifies
+authentication and system metrics, and exercises real nginx validation,
+startup, reload, shutdown, and a managed file edit:
+
+```sh
+make test-linux
+# Or retain the temporary directory and logs after execution:
+ROUTER_HUB_KEEP_LINUX_LAB=1 make test-linux
+```
+
+The smoke test neither uses mocks nor touches the host's nginx configuration.
+It deliberately leaves the Ban Shield firewall policy **disabled**, does
+not send WOL packets, and does not issue public certificates or change DNS.
+It is a real local integration smoke test, not exhaustive feature coverage.
+
+To test additional features against actual services, point the Linux
+configuration to a dedicated nginx tree, real `dehydrated`, `openssl`,
+`ip`, `ping`, `wg`/`wg-quick`, and a dedicated AdGuard Home API endpoint.
+Use `[nginx].prefix_path` when nginx's relative includes must resolve below
+a separate `-p` prefix. Certificate DNS-01 tests require a real DNS
+provider and a domain you control; `scripts/test-dehydrated.sh` exercises
+the dehydrated command against Let's Encrypt staging without changing Router
+Hub's certificate store. HTTP-01 additionally requires a publicly reachable
+ACME challenge. Run real ipset/iptables Ban Shield enforcement only inside an
+isolated Linux network namespace or a disposable VM: even
+`observe_only = true` can remove Router Hub-owned firewall hooks during
+reconciliation. A local systemd unit does not automatically satisfy the
+Entware-style init script interface; use real compatible init scripts in a
+separate `[services].init_dir`.
+
+The Linux platform does **not** emulate firmware behaviors such as NVRAM,
+ASUS menu injection, JFFS startup hooks, or router-specific service actions.
+Those still need router validation. Linux keeps its firewall policy within
+`[paths].data_dir` instead of reading or mirroring the router's
+`/opt/etc/router-hub/firewall-policy.json`.
+
 ## Build and install on a router
 
 Build the release artifact for the target CPU. The helper also writes a SHA-256
