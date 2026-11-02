@@ -18,8 +18,8 @@ use crate::{
     config::AppConfig,
     firewall::FirewallManager,
     models::{
-        CertificateMethod, CertificateSpec, CertificateStatus, CommandResult, DehydratedLockStatus,
-        DehydratedUpdate,
+        CertificateMethod, CertificateOperation, CertificateSpec, CertificateStatus, CommandResult,
+        DehydratedActivity, DehydratedLockStatus, DehydratedUpdate,
     },
     storage::Stores,
 };
@@ -37,6 +37,8 @@ pub struct AppState {
     pub filtering_timer: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
     pub filtering_paused_until: Arc<Mutex<Option<DateTime<Utc>>>>,
     dehydrated_update_lock: Arc<Mutex<()>>,
+    certificate_operation_lock: Arc<Mutex<()>>,
+    certificate_operation: Arc<Mutex<Option<CertificateOperation>>>,
 }
 
 impl AppState {
@@ -50,6 +52,8 @@ impl AppState {
             filtering_timer: Arc::new(Mutex::new(None)),
             filtering_paused_until: Arc::new(Mutex::new(None)),
             dehydrated_update_lock: Arc::new(Mutex::new(())),
+            certificate_operation_lock: Arc::new(Mutex::new(())),
+            certificate_operation: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -117,10 +121,38 @@ impl AppState {
                 return Err(error).with_context(|| format!("failed to inspect {}", path.display()));
             }
         };
-        Ok(DehydratedLockStatus { locked, path })
+
+        let operation = self.certificate_operation.lock().await.clone();
+        let running = operation
+            .as_ref()
+            .is_some_and(|op| op.status == DehydratedActivity::Running)
+            || self.dehydrated_process_running();
+        let status = if running {
+            DehydratedActivity::Running
+        } else if locked && operation
+            .as_ref()
+            .is_some_and(|op| op.status == DehydratedActivity::Failed)
+        {
+            DehydratedActivity::Failed
+        } else if locked {
+            // The owner is unknown; only offer manual clearing after checking processes.
+            DehydratedActivity::Locked
+        } else {
+            operation
+                .as_ref()
+                .map_or(DehydratedActivity::Idle, |op| op.status)
+        };
+        Ok(DehydratedLockStatus { locked, path, status, operation })
     }
 
     pub async fn clear_dehydrated_lock(&self) -> Result<DehydratedLockStatus> {
+        // Serialize with issue/renew so a concurrent request cannot remove its lock.
+        let _guard = self.certificate_operation_lock
+            .try_lock()
+            .context("cannot clear lock while a certificate operation is running")?;
+        if self.dehydrated_lock_status().await?.status == DehydratedActivity::Running {
+            bail!("cannot clear lock while dehydrated or a certificate hook is running");
+        }
         let path = self.dehydrated_lock_path();
         match fs::remove_file(&path).await {
             Ok(()) => {}
@@ -130,6 +162,39 @@ impl AppState {
             }
         }
         self.dehydrated_lock_status().await
+    }
+
+    fn dehydrated_process_running(&self) -> bool {
+        // Detect operations started outside this process (for example, after a
+        // Router Hub restart), including active shell-based DNS hooks.
+        #[cfg(target_os = "linux")]
+        {
+            let executable = self.config.commands.dehydrated.to_string_lossy();
+            let Ok(entries) = std::fs::read_dir("/proc") else {
+                // If /proc is inaccessible, conservatively avoid assuming the
+                // lock is stale; managed operations remain tracked in memory.
+                return false;
+            };
+            for entry in entries.flatten() {
+                if !entry.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit()) {
+                    continue;
+                }
+                let Ok(cmdline) = std::fs::read(entry.path().join("cmdline")) else {
+                    continue;
+                };
+                if cmdline.split(|b| *b == 0).any(|arg| {
+                    let arg = String::from_utf8_lossy(arg);
+                    arg == executable
+                        || (arg.starts_with('/')
+                            && arg.contains("dehydrated")
+                            && arg.contains("hook")
+                            && arg.ends_with(".sh"))
+                }) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     async fn read_certificate_expiry(&self, path: &Path) -> Result<Option<DateTime<Utc>>> {
@@ -160,6 +225,10 @@ impl AppState {
     }
 
     pub async fn issue_certificate(&self, id: Uuid, renew: bool) -> Result<CommandResult> {
+        // Both the periodic loop and manual API actions must share this guard.
+        let _guard = self.certificate_operation_lock
+            .try_lock()
+            .context("another certificate operation is already running")?;
         let spec = self
             .stores
             .certificates
@@ -170,39 +239,77 @@ impl AppState {
             .cloned()
             .context("certificate not found")?;
 
-        if self.dehydrated_lock_status().await?.locked {
-            bail!(
-                "dehydrated lock file is present; clear it before issuing or renewing certificates"
-            );
+        let lock_status = self.dehydrated_lock_status().await?;
+        if lock_status.locked || lock_status.status == DehydratedActivity::Running {
+            bail!("dehydrated is running or a lock is present; cannot issue or renew");
         }
 
-        self.write_dehydrated_files(&spec).await?;
+        let action = if renew { "renew" } else { "issue" };
+        let mut operation = CertificateOperation {
+            certificate: spec.name.clone(),
+            action: action.to_owned(),
+            status: DehydratedActivity::Running,
+            started_at: Utc::now(),
+            finished_at: None,
+            error: None,
+        };
+        *self.certificate_operation.lock().await = Some(operation.clone());
 
+        let result = self.run_certificate_operation(&spec, renew).await;
+        let failure = match &result {
+            Ok(output) if output.success => None,
+            Ok(output) => Some(if output.stderr.is_empty() {
+                format!("dehydrated exited unsuccessfully (code {:?})", output.code)
+            } else {
+                output.stderr.clone()
+            }),
+            Err(error) => Some(format!("{error:#}")),
+        };
+
+        // The process-group runner kills the hook subprocesses on timeout before
+        // returning, so cleanup cannot race a still-running managed hook.
+        let cleanup_failure = match fs::remove_file(self.dehydrated_lock_path()).await {
+            Ok(()) => None,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => {
+                warn!(%error, "failed to clear dehydrated lock");
+                Some(format!("failed to clear dehydrated lock: {error}"))
+            }
+        };
+
+        operation.finished_at = Some(Utc::now());
+        operation.error = failure.or(cleanup_failure);
+        operation.status = if operation.error.is_some() {
+            DehydratedActivity::Failed
+        } else {
+            DehydratedActivity::Completed
+        };
+        *self.certificate_operation.lock().await = Some(operation);
+        result
+    }
+
+    async fn run_certificate_operation(
+        &self,
+        spec: &CertificateSpec,
+        renew: bool,
+    ) -> Result<CommandResult> {
+        self.write_dehydrated_files(spec).await?;
         let mut args = vec![
             "--cron".to_string(),
             "--accept-terms".to_string(),
             "--config".to_string(),
-            self.certificate_config_path(&spec)
-                .to_string_lossy()
-                .to_string(),
+            self.certificate_config_path(spec).to_string_lossy().to_string(),
         ];
         if renew {
             args.push("--force".to_string());
         }
-
-        let result = self
-            .runner
-            .run(
+        self.runner
+            .run_process_group(
                 &self.config.commands.dehydrated,
                 args,
                 Duration::from_secs(self.config.certificates.command_timeout_seconds),
             )
-            .await;
-
-        // Ensure the lock file is cleared even if dehydrated fails or times out
-        let _ = tokio::fs::remove_file(self.dehydrated_lock_path()).await;
-
-        result
+            .await
     }
 
     pub async fn update_dehydrated(&self) -> Result<DehydratedUpdate> {
