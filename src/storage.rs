@@ -696,6 +696,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_linux_firewall_policy_uses_only_data_directory() {
+        let temp = tempdir().unwrap();
+        let mut config = AppConfig::default();
+        config.platform = Platform::Linux;
+        config.paths.data_dir = temp.path().join("data");
+        config.certificates.certs_dir = temp.path().join("certs");
+        config.nginx.root_dir = temp.path().join("nginx");
+
+        let stores = Stores::load(&config).await.unwrap();
+        assert!(!stores.firewall_policy.read().await.enabled);
+        stores.save_firewall_policy().await.unwrap();
+        assert!(config.paths.data_dir.join("firewall-policy.json").is_file());
+    }
+
+    #[tokio::test]
     async fn test_firewall_policy_fallback_load() {
         let primary_temp = tempdir().unwrap();
         let fallback_temp = tempdir().unwrap();
