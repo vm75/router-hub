@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::{
     api::ApiError,
     models::{
-        ApiMessage, CertificateSpec, CertificateStatus, CommandResult, DehydratedLockStatus,
-        DehydratedUpdate,
+        ApiMessage, CertificateSpec, CertificateStatus, CommandResult, DehydratedActivity,
+        DehydratedLockStatus, DehydratedUpdate,
     },
     state::AppState,
     util::validate_simple_name,
@@ -127,9 +127,15 @@ pub async fn update_dehydrated(
 }
 
 async fn ensure_dehydrated_unlocked(state: &AppState) -> Result<(), ApiError> {
-    if state.dehydrated_lock_status().await?.locked {
+    let lock = state.dehydrated_lock_status().await?;
+    if lock.status == DehydratedActivity::Running {
         return Err(ApiError::conflict(
-            "dehydrated lock file is present; clear it before issuing or renewing certificates",
+            "dehydrated is already running; wait for the current certificate operation",
+        ));
+    }
+    if lock.locked {
+        return Err(ApiError::conflict(
+            "dehydrated lock file is present; clear it only after confirming no process is running",
         ));
     }
     Ok(())
