@@ -61,6 +61,8 @@ pid_path = "/opt/var/run/nginx.pid"
 domains_available_dir = "/opt/etc/nginx/domains-available"
 domains_enabled_dir = "/opt/etc/nginx/domains-enabled"
 templates_dir = "/opt/etc/nginx/templates"
+# Editable versioned catalog for composable Nginx options.
+composer_path = "/opt/etc/nginx/composer.toml"
 # Router Hub updates these includes when sites are created or edited.
 subdomain_upstream_map_path = "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
 domain_upstream_map_path = "/opt/etc/nginx/conf.d/02_domain_upstream_map.conf"
