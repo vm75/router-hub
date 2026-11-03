@@ -14,8 +14,7 @@ use crate::{
         ApiMessage, CommandResult, NginxFileEntry, NginxLogEntry, NginxObject, NginxObjectKind,
         NginxTemplateEntry,
     },
-    nginx as nginx_core,
-    nginx_compose,
+    nginx as nginx_core, nginx_compose,
     state::AppState,
 };
 
@@ -217,11 +216,21 @@ pub async fn preview_composed(
     Json(request): Json<ComposePreview>,
 ) -> Result<Json<PreviewContent>, ApiError> {
     let server_names = nginx_core::normalize_server_names(
-        request.kind, &request.domain, &request.name, &request.server_names,
-    ).map_err(ApiError::bad_request)?;
+        request.kind,
+        &request.domain,
+        &request.name,
+        &request.server_names,
+    )
+    .map_err(ApiError::bad_request)?;
     let definition = nginx_compose::SiteDefinition::new(
-        request.kind, &request.domain, &request.name,
-        &server_names, request.upstream.as_deref().filter(|value| !value.trim().is_empty()),
+        request.kind,
+        &request.domain,
+        &request.name,
+        &server_names,
+        request
+            .upstream
+            .as_deref()
+            .filter(|value| !value.trim().is_empty()),
         request.compose,
     );
     Ok(Json(PreviewContent {
@@ -238,26 +247,54 @@ pub async fn create_object(
     if kind == NginxObjectKind::Domain {
         request.name.clone_from(&request.domain);
     }
-    let template = request.template.as_deref().filter(|value| !value.is_empty());
+    let template = request
+        .template
+        .as_deref()
+        .filter(|value| !value.is_empty());
     if request.compose.is_some()
-        && (template.is_some() || request.content.as_deref().is_some_and(|v| !v.trim().is_empty()))
+        && (template.is_some()
+            || request
+                .content
+                .as_deref()
+                .is_some_and(|v| !v.trim().is_empty()))
     {
-        return Err(ApiError::bad_request("choose either composed options or a template/custom content"));
+        return Err(ApiError::bad_request(
+            "choose either composed options or a template/custom content",
+        ));
     }
     let server_names = nginx_core::normalize_server_names(
-        kind, &request.domain, &request.name, &request.server_names,
-    ).map_err(ApiError::bad_request)?;
-    let upstream = request.upstream.as_deref().filter(|value| !value.trim().is_empty());
+        kind,
+        &request.domain,
+        &request.name,
+        &request.server_names,
+    )
+    .map_err(ApiError::bad_request)?;
+    let upstream = request
+        .upstream
+        .as_deref()
+        .filter(|value| !value.trim().is_empty());
     let definition = request.compose.clone().map(|options| {
         nginx_compose::SiteDefinition::new(
-            kind, &request.domain, &request.name, &server_names, upstream, options)
+            kind,
+            &request.domain,
+            &request.name,
+            &server_names,
+            upstream,
+            options,
+        )
     });
     let content = if let Some(definition) = &definition {
         definition.render().map_err(ApiError::bad_request)?
     } else {
         render_object_content(
-            &state, kind, &request.domain, &request.name,
-            template, request.content.as_deref(), &server_names)?
+            &state,
+            kind,
+            &request.domain,
+            &request.name,
+            template,
+            request.content.as_deref(),
+            &server_names,
+        )?
     };
     let map_key = (kind == NginxObjectKind::Subfolder)
         .then(|| nginx_core::subfolder_map_key(&content, &request.name))
@@ -362,7 +399,9 @@ pub async fn update_object(
         .map_err(not_found_or_internal)?;
     let previous_definition = nginx_compose::read(&state.config, kind, &domain, &name)?;
     if previous_definition.is_some() && body.compose.is_none() {
-        return Err(ApiError::bad_request("composed sites must be edited using compose options"));
+        return Err(ApiError::bad_request(
+            "composed sites must be edited using compose options",
+        ));
     }
     let previous_server_names = nginx_core::extract_server_names(&previous);
     let previous_server_names =
@@ -381,9 +420,15 @@ pub async fn update_object(
     )?;
     let template = body.template.as_deref().filter(|value| !value.is_empty());
     if body.compose.is_some()
-        && (template.is_some() || body.content.as_deref().is_some_and(|v| !v.trim().is_empty()))
+        && (template.is_some()
+            || body
+                .content
+                .as_deref()
+                .is_some_and(|v| !v.trim().is_empty()))
     {
-        return Err(ApiError::bad_request("choose either composed options or template/custom content"));
+        return Err(ApiError::bad_request(
+            "choose either composed options or template/custom content",
+        ));
     }
     let server_names = body
         .server_names
@@ -399,15 +444,20 @@ pub async fn update_object(
     };
     nginx_core::validate_site_upstream(kind, upstream).map_err(ApiError::bad_request)?;
     let definition = body.compose.clone().map(|options| {
-        nginx_compose::SiteDefinition::new(
-            kind, &domain, &name, &server_names, upstream, options)
+        nginx_compose::SiteDefinition::new(kind, &domain, &name, &server_names, upstream, options)
     });
     let content = if let Some(definition) = &definition {
         definition.render().map_err(ApiError::bad_request)?
     } else {
         render_object_content(
-            &state, kind, &domain, &name, template,
-            body.content.as_deref(), &server_names)?
+            &state,
+            kind,
+            &domain,
+            &name,
+            template,
+            body.content.as_deref(),
+            &server_names,
+        )?
     };
     let map_key = (kind == NginxObjectKind::Subfolder)
         .then(|| nginx_core::subfolder_map_key(&content, &name))

@@ -1345,19 +1345,43 @@ async fn test_nginx_composed_preview_and_lifecycle() {
         "upstream": "http://127.0.0.1:8096",
         "compose": options
     });
-    let response = app.clone().oneshot(send("POST", "/api/nginx/compose/preview", request)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(send("POST", "/api/nginx/compose/preview", request))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let data: serde_json::Value = serde_json::from_slice(
-        &axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
-    assert!(data["content"].as_str().unwrap().contains("proxy_read_timeout 1200s;"));
-    assert!(!state.config.nginx.domains_available_dir.join("example.test").exists());
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        data["content"]
+            .as_str()
+            .unwrap()
+            .contains("proxy_read_timeout 1200s;")
+    );
+    assert!(
+        !state
+            .config
+            .nginx
+            .domains_available_dir
+            .join("example.test")
+            .exists()
+    );
 
     // The existing domain and subdomain lifecycle keeps working for composed sites.
     let domain = serde_json::json!({
         "domain": "example.test", "name": "example.test", "enabled": false,
         "content": "server { server_name example.test; return 404; }"
     });
-    let response = app.clone().oneshot(send("POST", "/api/nginx/objects/domain", domain)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(send("POST", "/api/nginx/objects/domain", domain))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let subdomain = serde_json::json!({
         "domain": "example.test", "name": "media",
@@ -1368,9 +1392,16 @@ async fn test_nginx_composed_preview_and_lifecycle() {
             "long_lived": true, "read_timeout": "1200s"
         }
     });
-    let response = app.clone().oneshot(send("POST", "/api/nginx/objects/subdomain", subdomain)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(send("POST", "/api/nginx/objects/subdomain", subdomain))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let definition_path = state.config.nginx.domains_available_dir
+    let definition_path = state
+        .config
+        .nginx
+        .domains_available_dir
         .join("example.test/subdomains-available/media.toml");
     assert!(definition_path.is_file());
     let generated_path = definition_path.with_extension("conf");
@@ -1381,11 +1412,16 @@ async fn test_nginx_composed_preview_and_lifecycle() {
     let request = Request::builder()
         .uri("/api/nginx/objects/subdomain/example.test/media")
         .header(auth.0, auth.1)
-        .body(Body::empty()).unwrap();
+        .body(Body::empty())
+        .unwrap();
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let object: serde_json::Value = serde_json::from_slice(
-        &axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(object["object"]["composed"], true);
     assert_eq!(object["definition"]["options"]["large_upload"], true);
 
@@ -1394,24 +1430,47 @@ async fn test_nginx_composed_preview_and_lifecycle() {
         "compose": {"access": "lan", "large_upload": true,
             "streaming": true, "long_lived": true, "read_timeout": "1800s"}
     });
-    let response = app.clone().oneshot(send("PUT", "/api/nginx/objects/subdomain/example.test/media", update)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(send(
+            "PUT",
+            "/api/nginx/objects/subdomain/example.test/media",
+            update,
+        ))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert!(std::fs::read_to_string(&generated_path).unwrap().contains("proxy_read_timeout 1800s;"));
-    assert!(std::fs::read_to_string(&definition_path).unwrap().contains("8097"));
+    assert!(
+        std::fs::read_to_string(&generated_path)
+            .unwrap()
+            .contains("proxy_read_timeout 1800s;")
+    );
+    assert!(
+        std::fs::read_to_string(&definition_path)
+            .unwrap()
+            .contains("8097")
+    );
 
     // Accidentally saving a composed site through the raw editor is rejected.
-    let response = app.clone().oneshot(send("PUT", "/api/nginx/objects/subdomain/example.test/media",
-        serde_json::json!({"content": "server { return 404; }"}))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(send(
+            "PUT",
+            "/api/nginx/objects/subdomain/example.test/media",
+            serde_json::json!({"content": "server { return 404; }"}),
+        ))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let request = Request::builder()
         .method("DELETE")
         .uri("/api/nginx/objects/subdomain/example.test/media")
         .header(auth.0, auth.1)
-        .body(Body::empty()).unwrap();
+        .body(Body::empty())
+        .unwrap();
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(!definition_path.exists());
     assert!(!generated_path.exists());
 }
-
