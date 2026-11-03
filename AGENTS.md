@@ -35,6 +35,12 @@ Useful repository shortcuts are `make check`, `make test`, `make run`,
 with `test-fixtures/etc/router-hub/router-hub.toml`; it does not execute router commands or send
 Wake-on-LAN packets.
 
+For **real Linux integration** use `platform = "linux"` (or
+`--linux-mode`) with `test_mode = false`. `make test-linux` runs a
+temporary unprivileged real-nginx smoke test; it does not exercise live
+firewall enforcement, DNS providers, or router firmware. Keep real firewall
+tests in isolated network namespaces/VMs and always use lab-only paths.
+
 For a release artifact, use `./scripts/build-release.sh <rust-target>`.
 The repository contains a helper default for `aarch64-unknown-linux-musl`,
 but a target is supported only after testing it on the matching router CPU and

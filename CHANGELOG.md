@@ -10,6 +10,13 @@ Router Hub follows [Semantic Versioning](https://semver.org/).
 - Serialize certificate issue/renewal requests, retain completed/failed operation status, and log failures to remove dehydrated locks.
 - Terminate dehydrated's entire process group on command timeout so DNS hook subprocesses do not outlive a timed-out renewal.
 - Set the example certificate timeout to one hour so it exceeds the NameSilo hook's ten-minute DNS propagation wait.
+- Confined native Linux firewall-policy persistence to the configured data directory instead of consulting router-specific `/opt` paths.
+- Avoided Asuswrt NVRAM discovery for AdGuard LAN IP in native Linux mode.
+
+### Added
+
+- Added native Linux integration platform with real external commands, no ASUS menu changes, and an isolated nginx prefix option.
+- Added `make test-linux` for an unprivileged real-nginx, API, authentication, and metrics smoke test.
 
 ## 0.7.1
 
@@ -19,6 +26,7 @@ Router Hub follows [Semantic Versioning](https://semver.org/).
 - Improved mobile responsiveness for AdGuard Home pause controls.
 
 ## 0.7.0
+
 ### Added
 
 - Reimplemented WireGuard management to natively integrate with live kernel interfaces using the `wg showconf` and `wg syncconf` commands.

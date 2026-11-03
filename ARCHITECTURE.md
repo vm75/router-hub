@@ -21,8 +21,8 @@ ipset/iptables, NVRAM, and optionally an AdGuard Home HTTP API.
 
 | Component | Responsibility | Important dependencies |
 | --- | --- | --- |
-| `src/main.rs` | CLI, configuration loading, startup, shutdown, listener, background task startup, and init-script signal handling | `config`, `state`, `api` |
-| `src/config.rs` | TOML schema, defaults, validation, test-mode path overrides | filesystem paths and command paths |
+| `src/main.rs` | CLI, configuration loading, startup, shutdown, listener, Linux platform selection, background task startup, and init-script signal handling | `config`, `state`, `api` |
+| `src/config.rs` | TOML schema, platform selection, defaults, validation, test-mode path overrides | filesystem paths and command paths |
 | `src/api/` | Axum routes, authentication layer, request validation, JSON responses | `AppState` and domain modules |
 | `src/state.rs` | Shared runtime state, dehydrated configuration, renewal loop, and tool updater | `storage`, `firewall`, dehydrated/OpenSSL through `CommandRunner`, GitHub HTTPS download |
 | `src/storage.rs` | Load/save JSON stores with atomic replacement, dehydrated certificate discovery, and policy fallback | configured data paths |
@@ -43,6 +43,16 @@ backend is a separate, narrow argument-vector executor for `ipset` and
 configuration is deliberately emitted in its shell-sourceable format, with
 shell-quoted paths and validated hook variable names; installed hooks remain
 administrator-trusted programs.
+
+The native Linux platform (`platform = "linux"`, `test_mode = false`)
+uses the same command runner and application services as production, but
+does not mount the ASUS menu, write an ASP page at standalone startup, or
+query NVRAM for AdGuard LAN IP discovery. It requires real Linux command paths,
+a lab-only data directory, and a dedicated nginx tree (with an optional
+`nginx.prefix_path` passed as `-p`). The unprivileged
+`scripts/test-linux-integration.sh` smoke test runs real nginx commands
+and leaves firewall enforcement disabled. Privileged firewall tests must be
+isolated because observe-only reconciliation can still remove owned hooks.
 
 The UI is a client of the API and contains no server-side state. Nginx object
 state is represented by its configured files and symlinks, not a duplicate JSON
@@ -226,6 +236,11 @@ bans, scores outside retention, reputation outside retention, and stale subnet
 offenders are not restored. Restored subnets are processed before contained IP
 bans, and all restored targets are reconciled into the backend before
 allowlist exceptions are applied.
+
+On Asuswrt only, firewall policy persistence retains the fallback/mirror
+at `/opt/etc/router-hub/firewall-policy.json`. The Linux platform only
+loads and saves `data_dir/firewall-policy.json` to avoid touching host
+or router data.
 
 The engine prefers a valid version-1 state file. If it is absent, it imports
 either the historical `Vec<BanRecord>` shape or the historical

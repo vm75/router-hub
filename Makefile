@@ -1,9 +1,12 @@
-.PHONY: check test run fmt clippy
+.PHONY: check test test-linux run fmt clippy
 check:
 	cargo check --all-targets
 
 test:
 	cargo test
+
+test-linux:
+	bash scripts/test-linux-integration.sh
 
 run:
 	cargo run -- --config ./test-fixtures/etc/router-hub/router-hub.toml --test-mode serve
