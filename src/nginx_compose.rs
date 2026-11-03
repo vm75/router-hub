@@ -1,65 +1,261 @@
-//! Declarative, version-controlled nginx sites. Existing .conf sites remain authoritative
-//! unless an adjacent .toml file explicitly opts into composition.
-use std::{fs, path::PathBuf, process::Command};
+//! Nginx composition is defined by a versioned TOML catalog, not Rust feature enums.
+//! A site's adjacent .toml file opts in; existing custom and template sites stay intact.
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+    process::Command,
+};
 
 use anyhow::{Context, Result, bail};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::{config::AppConfig, models::NginxObjectKind, nginx};
 
-fn version() -> u8 {
-    1
+const SITE_SCHEMA: u8 = 1;
+const CATALOG_SCHEMA: u8 = 1;
+
+/// Site values are keyed by catalog option ID. New options need no Rust changes.
+pub type SiteOptions = BTreeMap<String, serde_json::Value>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OptionCatalog {
+    pub schema_version: u8,
+    pub base: Vec<BaseDefinition>,
+    pub options: Vec<OptionDefinition>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BaseDefinition {
+    pub kind: NginxObjectKind,
+    #[serde(default)]
+    pub effects: Vec<Effect>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Access {
-    #[default]
-    Public,
-    Lan,
+pub enum OptionType {
+    Optional,
+    Choice,
+    Parameterized,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RootMode {
-    #[default]
-    Subfolders,
-    Proxy,
-    ProxyAndSubfolders,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OptionDefinition {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub option_type: OptionType,
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    pub kinds: Vec<NginxObjectKind>,
+    #[serde(default)]
+    pub default: Option<String>,
+    #[serde(default)]
+    pub pattern: Option<String>,
+    #[serde(default)]
+    pub priority: i32,
+    #[serde(default)]
+    pub requires: Vec<String>,
+    #[serde(default)]
+    pub requirements: Vec<ScopedRequirement>,
+    #[serde(default)]
+    pub effects: Vec<Effect>,
+    #[serde(default)]
+    pub choices: Vec<ChoiceDefinition>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SubfolderMode {
-    #[default]
-    Standard,
-    Pwa,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScopedRequirement {
+    pub kind: NginxObjectKind,
+    pub condition: String,
 }
 
-/// Only capabilities that are represented by the currently shipped/deployed templates.
-/// Add new capabilities here deliberately, with validation and rendering tests.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct SiteOptions {
-    pub access: Access,
-    pub root: RootMode,
-    pub subfolder: SubfolderMode,
-    pub large_upload: bool,
-    pub long_lived: bool,
-    pub streaming: bool,
-    pub websocket: bool,
-    pub pwa: bool,
-    pub sessions_lan_only: bool,
-    pub strip_origin: bool,
-    pub body_size: Option<String>,
-    pub read_timeout: Option<String>,
-    pub send_timeout: Option<String>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChoiceDefinition {
+    pub value: String,
+    pub label: String,
+    #[serde(default)]
+    pub effects: Vec<Effect>,
+}
+
+/// Directive arguments are data; slots are the only structural operation supported.
+/// "site" means server for domain/subdomain and location for subfolder.
+/// "location:/path" adds a named location under a domain or subdomain server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Effect {
+    pub slot: String,
+    pub directive: String,
+    pub value: String,
+    #[serde(default)]
+    pub kinds: Vec<NginxObjectKind>,
+}
+
+impl OptionCatalog {
+    pub fn parse(content: &str) -> Result<Self> {
+        let catalog: Self = toml::from_str(content).context("invalid nginx composer catalog TOML")?;
+        catalog.validate()?;
+        Ok(catalog)
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != CATALOG_SCHEMA {
+            bail!("unsupported nginx composer catalog schema_version {}", self.schema_version);
+        }
+        for kind in [NginxObjectKind::Domain, NginxObjectKind::Subdomain, NginxObjectKind::Subfolder] {
+            if self.base.iter().filter(|base| base.kind == kind).count() != 1 {
+                bail!("nginx composer catalog requires exactly one base for {}", kind.as_str());
+            }
+        }
+        for base in &self.base {
+            for effect in &base.effects { validate_effect(effect)?; }
+        }
+        let mut names = BTreeSet::new();
+        for option in &self.options {
+            if !valid_identifier(&option.id) || !names.insert(option.id.as_str()) {
+                bail!("invalid or duplicate nginx composer option ID: {}", option.id);
+            }
+            if option.label.trim().is_empty() || option.kinds.is_empty() {
+                bail!("option {} must have a label and at least one kind", option.id);
+            }
+            for effect in &option.effects { validate_effect(effect)?; }
+            match option.option_type {
+                OptionType::Optional => {
+                    if !option.choices.is_empty() || option.pattern.is_some()
+                        || option.default.as_deref().is_some_and(|v| v != "true" && v != "false") {
+                        bail!("invalid optional option definition: {}", option.id);
+                    }
+                }
+                OptionType::Choice => {
+                    if option.choices.is_empty() || option.pattern.is_some() || option.default.is_none() {
+                        bail!("choice {} needs choices and a default", option.id);
+                    }
+                    let mut values = BTreeSet::new();
+                    for choice in &option.choices {
+                        if !valid_identifier(&choice.value) || !values.insert(choice.value.as_str()) {
+                            bail!("invalid or duplicate choice {}: {}", option.id, choice.value);
+                        }
+                        for effect in &choice.effects { validate_effect(effect)?; }
+                    }
+                    if !values.contains(option.default.as_deref().unwrap_or_default()) {
+                        bail!("default for choice {} must match a choice", option.id);
+                    }
+                }
+                OptionType::Parameterized => {
+                    if !option.choices.is_empty() || option.pattern.is_none() {
+                        bail!("parameterized option {} needs a regex pattern", option.id);
+                    }
+                    validate_pattern(option.pattern.as_deref().unwrap_or_default())?;
+                    if let Some(default) = &option.default {
+                        validate_parameter(option, default)?;
+                    }
+                }
+            }
+        }
+        // Validate dependencies at catalog load time: typoed references must not
+        // silently disable a required feature.
+        for option in &self.options {
+            for condition in option.requires.iter()
+                .chain(option.requirements.iter().map(|r| &r.condition)) {
+                let (id, _, _) = parse_condition(condition)?;
+                if !names.contains(id) {
+                    bail!("option {} requires missing catalog option {id}", option.id);
+                }
+            }
+            for requirement in &option.requirements {
+                if !option.kinds.contains(&requirement.kind) {
+                    bail!("condition for {} applies to an unsupported site kind", option.id);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn option(&self, id: &str) -> Option<&OptionDefinition> {
+        self.options.iter().find(|o| o.id == id)
+    }
+}
+
+pub fn load_catalog(config: &AppConfig) -> Result<OptionCatalog> {
+    let path = &config.nginx.composer_path;
+    let meta = fs::symlink_metadata(path)
+        .with_context(|| format!("nginx composer catalog missing: {}", path.display()))?;
+    if !meta.file_type().is_file() {
+        bail!("nginx composer catalog must be a regular file: {}", path.display());
+    }
+    let content = fs::read_to_string(path)?;
+    OptionCatalog::parse(&content).with_context(|| format!("catalog: {}", path.display()))
+}
+
+fn valid_identifier(value: &str) -> bool {
+    !value.is_empty() && value.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
+        && value.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+fn validate_pattern(pattern: &str) -> Result<()> {
+    if pattern.len() > 512 { bail!("parameter pattern is too long"); }
+    Regex::new(&format!(r"\A(?:{pattern})\z"))?;
+    Ok(())
+}
+
+fn validate_parameter(option: &OptionDefinition, input: &str) -> Result<()> {
+    if input.len() > 256 || input.is_empty() || input.contains(['\r', '\n', ';', '{', '}', '#']) {
+        bail!("invalid value for nginx option {}", option.id);
+    }
+    let pattern = option.pattern.as_deref().context("parameter pattern missing")?;
+    if !Regex::new(&format!(r"\A(?:{pattern})\z"))?.is_match(input) {
+        bail!("invalid value for nginx option {}: {input}", option.id);
+    }
+    Ok(())
+}
+
+fn validate_effect(effect: &Effect) -> Result<()> {
+    if !valid_identifier(&effect.directive) || effect.value.len() > 4096
+        || effect.value.contains(['\r', '\n', ';', '{', '}', '#']) {
+        bail!("invalid nginx directive or value: {}", effect.directive);
+    }
+    match effect.slot.as_str() {
+        "site" | "server" | "location" => {},
+        slot if slot.starts_with("location:/") && slot[9..].len() <= 128
+            && slot[9..].bytes().all(|b|
+                b.is_ascii_alphanumeric() || matches!(b, b'/' | b'_' | b'-' | b'.')) => {},
+        _ => bail!("invalid nginx composer slot: {}", effect.slot),
+    }
+    // Only well-defined substitutions are accepted, avoiding unresolved braces.
+    let mut rest = effect.value.as_str();
+    while let Some(start) = rest.find("{{") {
+        let remaining = &rest[start + 2..];
+        let end = remaining.find("}}").context("unterminated composer placeholder")?;
+        if !matches!(&remaining[..end], "domain" | "name" | "regex_name" | "server_name" | "value") {
+            bail!("unknown nginx composer placeholder: {}", &remaining[..end]);
+        }
+        rest = &remaining[end + 2..];
+    }
+    Ok(())
+}
+
+fn parse_condition(input: &str) -> Result<(&str, &'static str, &str)> {
+    if let Some((id, value)) = input.split_once("!=") {
+        if valid_identifier(id) && valid_identifier(value) { return Ok((id, "!=", value)); }
+    }
+    if let Some((id, value)) = input.split_once('=') {
+        if valid_identifier(id) && valid_identifier(value) { return Ok((id, "=", value)); }
+    }
+    if valid_identifier(input) { return Ok((input, "enabled", "")); }
+    bail!("invalid catalog condition: {input}")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SiteDefinition {
-    #[serde(default = "version")]
+    #[serde(default = "site_schema")]
     pub schema_version: u8,
     pub kind: NginxObjectKind,
     pub domain: String,
@@ -72,243 +268,229 @@ pub struct SiteDefinition {
     pub options: SiteOptions,
 }
 
+fn site_schema() -> u8 { SITE_SCHEMA }
+
 impl SiteDefinition {
-    pub fn new(
-        kind: NginxObjectKind,
-        domain: &str,
-        name: &str,
-        server_names: &[String],
-        upstream: Option<&str>,
-        options: SiteOptions,
-    ) -> Self {
+    pub fn new(kind: NginxObjectKind, domain: &str, name: &str,
+        server_names: &[String], upstream: Option<&str>, options: SiteOptions) -> Self {
         Self {
-            schema_version: version(),
-            kind,
-            domain: domain.into(),
-            name: name.into(),
-            server_names: server_names.to_vec(),
-            upstream: upstream.map(str::to_string),
-            options,
+            schema_version: SITE_SCHEMA, kind, domain: domain.into(), name: name.into(),
+            server_names: server_names.to_vec(), upstream: upstream.map(str::to_string),
+            options: options.into_iter().filter(|(_, value)| !value.is_null()).collect(),
         }
     }
 
-    pub fn validate(&self) -> Result<()> {
-        if self.schema_version != 1 {
-            bail!("unsupported nginx site schema_version");
+    fn selected_value(&self, option: &OptionDefinition) -> Result<Option<String>> {
+        let input = self.options.get(&option.id);
+        match option.option_type {
+            OptionType::Optional => {
+                let on = match input {
+                    None => option.default.as_deref() == Some("true"),
+                    Some(value) => value.as_bool().with_context(|| format!(
+                        "option {} must be a boolean", option.id))?,
+                };
+                Ok(on.then(|| "true".to_string()))
+            }
+            OptionType::Choice => {
+                let value = match input {
+                    None => option.default.as_deref().context("choice default missing")?,
+                    Some(value) => value.as_str().with_context(|| format!(
+                        "option {} must be a choice string", option.id))?,
+                };
+                if !option.choices.iter().any(|choice| choice.value == value) {
+                    bail!("invalid choice for {}: {value}", option.id);
+                }
+                Ok(Some(value.to_string()))
+            }
+            OptionType::Parameterized => {
+                let value = match input {
+                    None => option.default.as_deref(),
+                    Some(value) => Some(value.as_str().with_context(|| format!(
+                        "option {} must be a string", option.id))?),
+                };
+                if let Some(value) = value {
+                    validate_parameter(option, value)?;
+                }
+                Ok(value.map(str::to_string))
+            }
+        }
+    }
+
+    fn condition_met(&self, catalog: &OptionCatalog, condition: &str) -> Result<bool> {
+        let (id, operation, required) = parse_condition(condition)?;
+        let option = catalog.option(id).context("unknown dependency")?;
+        let value = self.selected_value(option)?;
+        Ok(match operation {
+            "enabled" => value.as_deref().is_some_and(|v| v != "false"),
+            "=" => value.as_deref() == Some(required),
+            "!=" => value.as_deref() != Some(required),
+            _ => unreachable!(),
+        })
+    }
+
+    pub fn validate(&self, catalog: &OptionCatalog) -> Result<()> {
+        if self.schema_version != SITE_SCHEMA {
+            bail!("unsupported nginx site schema_version {}", self.schema_version);
         }
         nginx::validate_name(&self.domain, "domain")?;
         nginx::validate_name(&self.name, "name")?;
         if self.kind == NginxObjectKind::Domain && self.domain != self.name {
             bail!("domain name must equal its domain");
         }
-        let names =
-            nginx::normalize_server_names(self.kind, &self.domain, &self.name, &self.server_names)?;
+        let names = nginx::normalize_server_names(
+            self.kind, &self.domain, &self.name, &self.server_names)?;
         if self.kind == NginxObjectKind::Subfolder && names != vec![self.domain.clone()] {
             bail!("subfolder server_names must be the parent domain");
         }
         nginx::validate_site_upstream(self.kind, self.upstream.as_deref())?;
-        let o = &self.options;
-        if let Some(size) = &o.body_size {
-            validate_size(size)?;
-        }
-        if let Some(value) = &o.read_timeout {
-            validate_duration(value)?;
-        }
-        if let Some(value) = &o.send_timeout {
-            validate_duration(value)?;
-        }
-        if self.kind != NginxObjectKind::Domain && o.root != RootMode::Subfolders {
-            bail!("root routing applies only to domain sites");
-        }
-        if self.kind != NginxObjectKind::Subfolder && o.subfolder != SubfolderMode::Standard {
-            bail!("subfolder mode applies only to subfolder sites");
-        }
-        if self.kind == NginxObjectKind::Subfolder {
-            if o.large_upload
-                || o.long_lived
-                || o.streaming
-                || o.websocket
-                || o.pwa
-                || o.sessions_lan_only
-                || o.strip_origin
-                || o.body_size.is_some()
-                || o.read_timeout.is_some()
-                || o.send_timeout.is_some()
-            {
-                bail!(
-                    "subfolder currently supports only access and standard/pwa mode; use custom nginx for other behavior"
-                );
+        for (id, input) in &self.options {
+            let option = catalog.option(id).with_context(|| format!("unknown nginx option: {id}"))?;
+            if !option.kinds.contains(&self.kind) {
+                bail!("nginx option {id} cannot be used on {}", self.kind.as_str());
             }
-        } else if self.kind == NginxObjectKind::Domain {
-            if o.streaming || o.websocket || o.pwa || o.sessions_lan_only || o.strip_origin {
-                bail!("these proxy capabilities are supported only on subdomains");
-            }
-            if o.root == RootMode::Subfolders
-                && (o.large_upload
-                    || o.long_lived
-                    || o.read_timeout.is_some()
-                    || o.send_timeout.is_some())
-            {
-                bail!("proxy capabilities require a domain proxy root");
+            if input.is_null() { bail!("nginx option {id} cannot be null"); }
+            self.selected_value(option)?;
+        }
+        for option in &catalog.options {
+            if !option.kinds.contains(&self.kind) { continue; }
+            let selected = self.selected_value(option)?;
+            if selected.is_none() { continue; }
+            for condition in option.requires.iter().chain(
+                option.requirements.iter().filter(|r| r.kind == self.kind).map(|r| &r.condition)
+            ) {
+                if !self.condition_met(catalog, condition)? {
+                    bail!("nginx option {} requires {condition}", option.id);
+                }
             }
         }
-        if o.sessions_lan_only && !o.streaming {
-            bail!("sessions_lan_only requires streaming");
-        }
-        if o.pwa && o.access != Access::Lan {
-            bail!("the deployed subdomain PWA profile requires LAN access");
-        }
-        if (self.kind == NginxObjectKind::Subdomain
-            || self.kind == NginxObjectKind::Subfolder
-            || (self.kind == NginxObjectKind::Domain && o.root != RootMode::Subfolders))
-            && self.upstream.as_deref().is_none_or(str::is_empty)
-        {
+        // The structural renderer always relies on the corresponding upstream for
+        // subdomain/subfolder; domain proxy roots are identified by catalog rules.
+        let needs_upstream = self.kind != NginxObjectKind::Domain || self.resolved(catalog)?
+            .get("location").is_some_and(|rules|
+                rules.iter().any(|r| r.directive == "proxy_pass"));
+        if needs_upstream && self.upstream.as_deref().is_none_or(str::is_empty) {
             bail!("a proxied composed site requires an upstream URL");
         }
         Ok(())
     }
 
-    pub fn render(&self) -> Result<String> {
-        self.validate()?;
-        let o = &self.options;
-        let names =
-            nginx::normalize_server_names(self.kind, &self.domain, &self.name, &self.server_names)?
-                .join(" ");
-        let mut out = String::from(
-            "# router-hub-composed: 1\n# Source: adjacent .toml (do not edit this file)\n",
-        );
-        if self.kind == NginxObjectKind::Subfolder {
-            emit(&mut out, 0, &format!("location ^~ /{}/ {{", self.name));
-            if o.access == Access::Lan {
-                emit(&mut out, 1, "include snippets/restrict.conf;");
-            }
-            emit(
-                &mut out,
-                1,
-                &format!("rewrite ^/{}/(.*)$ /$1 break;", regex::escape(&self.name)),
-            );
-            emit(&mut out, 1, "include snippets/subfolder-proxy-pass.conf;");
-            match o.subfolder {
-                SubfolderMode::Standard => emit(&mut out, 1, "include snippets/proxy-params.conf;"),
-                SubfolderMode::Pwa => {
-                    emit(&mut out, 1, "include snippets/proxy-pwa.conf;");
-                    emit(&mut out, 1, "include snippets/proxy-websocket.conf;");
-                    emit(&mut out, 1, "include snippets/proxy-byte-ranges.conf;");
-                    emit(&mut out, 1, "include snippets/pwa-no-cache.conf;");
-                }
-            }
-            emit(&mut out, 0, "}");
-            return Ok(out);
+    fn expand(&self, value: &str, parameter: Option<&str>) -> Result<String> {
+        let server_names = nginx::normalize_server_names(
+            self.kind, &self.domain, &self.name, &self.server_names)?.join(" ");
+        let out = value.replace("{{domain}}", &self.domain)
+            .replace("{{regex_name}}", &regex::escape(&self.name))
+            .replace("{{name}}", &self.name)
+            .replace("{{server_name}}", &server_names)
+            .replace("{{value}}", parameter.unwrap_or(""));
+        if out.contains("{{") || out.contains('\n') || out.contains(';') {
+            bail!("unsafe nginx composer directive value");
         }
-
-        emit(&mut out, 0, "server {");
-        emit(&mut out, 1, &format!("server_name {names};"));
-        if o.access == Access::Lan {
-            emit(&mut out, 1, "include snippets/restrict.conf;");
-        }
-        emit(&mut out, 1, "include snippets/ssl.conf;");
-        if self.kind == NginxObjectKind::Domain {
-            emit(&mut out, 1, "include snippets/acme-challenge.conf;");
-        }
-        emit(&mut out, 1, "include snippets/security-headers.conf;");
-        if o.pwa {
-            emit(&mut out, 1, "include snippets/pwa.conf;");
-        }
-        if self.kind == NginxObjectKind::Domain && o.root != RootMode::Proxy {
-            if o.body_size.is_none() {
-                emit(&mut out, 1, "client_max_body_size 100M;");
-            }
-            emit(
-                &mut out,
-                1,
-                &format!(
-                    "include domains-enabled/{}/subfolders-enabled/*.conf;",
-                    self.domain
-                ),
-            );
-        }
-        if self.kind == NginxObjectKind::Domain && o.root == RootMode::Subfolders {
-            if let Some(size) = &o.body_size {
-                emit(&mut out, 1, &format!("client_max_body_size {size};"));
-            }
-            emit(&mut out, 1, "location / { return 404; }");
-            emit(&mut out, 0, "}");
-            return Ok(out);
-        }
-        emit(&mut out, 1, "location / {");
-        if o.strip_origin {
-            emit(&mut out, 2, "proxy_set_header Origin \"\";");
-        }
-        emit(&mut out, 2, "include snippets/proxy-common.conf;");
-        if let Some(size) =
-            o.body_size
-                .as_deref()
-                .or(if o.large_upload { Some("5G") } else { None })
-        {
-            emit(&mut out, 2, &format!("client_max_body_size {size};"));
-        }
-        if o.large_upload {
-            emit(&mut out, 2, "proxy_request_buffering off;");
-        }
-        if o.streaming {
-            emit(&mut out, 2, "proxy_buffering off;");
-        }
-        let timeouts = o.long_lived || o.large_upload;
-        let default_timeout = if timeouts {
-            Some("3600s")
-        } else if o.websocket {
-            Some("60s")
-        } else {
-            None
-        };
-        if let Some(timeout) = o.read_timeout.as_deref().or(default_timeout) {
-            emit(&mut out, 2, &format!("proxy_read_timeout {timeout};"));
-        }
-        if let Some(timeout) = o.send_timeout.as_deref().or(default_timeout) {
-            emit(&mut out, 2, &format!("proxy_send_timeout {timeout};"));
-        }
-        if self.kind == NginxObjectKind::Domain {
-            emit(&mut out, 2, "proxy_pass $domain_upstream;");
-        } else {
-            emit(&mut out, 2, "include snippets/subdomain-proxy-pass.conf;");
-        }
-        emit(&mut out, 1, "}");
-        if o.sessions_lan_only {
-            emit(&mut out, 1, "location /Sessions {");
-            emit(&mut out, 2, "access_log off;");
-            emit(&mut out, 2, "include snippets/restrict.conf;");
-            emit(&mut out, 2, "include snippets/proxy-common.conf;");
-            emit(&mut out, 2, "include snippets/subdomain-proxy-pass.conf;");
-            emit(&mut out, 1, "}");
-        }
-        emit(&mut out, 0, "}");
         Ok(out)
     }
-}
 
-fn emit(out: &mut String, indent: usize, line: &str) {
-    out.push_str(&"    ".repeat(indent));
-    out.push_str(line);
-    out.push('\n');
-}
-
-fn validate_number_unit(input: &str, units: &[char]) -> Result<()> {
-    let digits = input.trim_end_matches(|c: char| c.is_ascii_alphabetic());
-    let unit = &input[digits.len()..];
-    if digits.is_empty()
-        || !digits.bytes().all(|b| b.is_ascii_digit())
-        || digits.parse::<u64>().unwrap_or(0) == 0
-        || (unit.len() != 1 || !unit.chars().all(|c| units.contains(&c)))
-    {
-        bail!("invalid nginx numeric parameter: {input}");
+    fn resolved(&self, catalog: &OptionCatalog) -> Result<BTreeMap<String, Vec<Directive>>> {
+        let mut rules: BTreeMap<String, Vec<Directive>> = BTreeMap::new();
+        let base = catalog.base.iter().find(|base| base.kind == self.kind)
+            .context("nginx composer base missing")?;
+        for effect in &base.effects {
+            self.add_effect(&mut rules, effect, 0, None)?;
+        }
+        for option in &catalog.options {
+            if !option.kinds.contains(&self.kind) { continue; }
+            let Some(value) = self.selected_value(option)? else { continue };
+            for effect in &option.effects {
+                self.add_effect(&mut rules, effect, option.priority, Some(&value))?;
+            }
+            if option.option_type == OptionType::Choice {
+                let choice = option.choices.iter().find(|c| c.value == value)
+                    .context("catalog choice missing")?;
+                for effect in &choice.effects {
+                    self.add_effect(&mut rules, effect, option.priority, Some(&value))?;
+                }
+            }
+        }
+        Ok(rules)
     }
-    Ok(())
+
+    fn add_effect(&self, rules: &mut BTreeMap<String, Vec<Directive>>,
+        effect: &Effect, priority: i32, parameter: Option<&str>) -> Result<()> {
+        if !effect.kinds.is_empty() && !effect.kinds.contains(&self.kind) { return Ok(()) }
+        let slot = if effect.slot == "site" {
+            if self.kind == NginxObjectKind::Subfolder { "location" } else { "server" }
+        } else { &effect.slot };
+        if self.kind == NginxObjectKind::Subfolder && slot != "location" {
+            bail!("subfolder directives must belong to its location");
+        }
+        let value = self.expand(&effect.value, parameter)?;
+        let key = match effect.directive.as_str() {
+            "include" => format!("include:{value}"),
+            "proxy_set_header" | "add_header" => format!("{}:{}", effect.directive,
+                value.split_whitespace().next().unwrap_or_default()),
+            _ => effect.directive.clone(),
+        };
+        let directives = rules.entry(slot.to_owned()).or_default();
+        if let Some(existing) = directives.iter_mut().find(|rule| rule.key == key) {
+            if priority > existing.priority {
+                existing.value = value;
+                existing.priority = priority;
+            } else if priority == existing.priority && existing.value != value {
+                bail!("conflicting nginx composer directives at {slot}: {}", effect.directive);
+            }
+        } else {
+            directives.push(Directive { key, directive: effect.directive.clone(), value, priority });
+        }
+        Ok(())
+    }
+
+    pub fn render(&self, catalog: &OptionCatalog) -> Result<String> {
+        self.validate(catalog)?;
+        let mut groups = self.resolved(catalog)?;
+        let mut output = String::from(
+            "# router-hub-composed: 1\n# Source: adjacent .toml (do not edit this file)\n");
+        if self.kind == NginxObjectKind::Subfolder {
+            line(&mut output, 0, &format!("location ^~ /{}/ {{", self.name));
+            write_rules(&mut output, 1, groups.remove("location"));
+            line(&mut output, 0, "}");
+            return Ok(output);
+        }
+
+        let names = nginx::normalize_server_names(
+            self.kind, &self.domain, &self.name, &self.server_names)?.join(" ");
+        line(&mut output, 0, "server {");
+        line(&mut output, 1, &format!("server_name {names};"));
+        write_rules(&mut output, 1, groups.remove("server"));
+        line(&mut output, 1, "location / {");
+        write_rules(&mut output, 2, groups.remove("location"));
+        line(&mut output, 1, "}");
+        for (slot, rules) in groups {
+            let path = slot.strip_prefix("location:").context("unsupported composer slot")?;
+            line(&mut output, 1, &format!("location {path} {{"));
+            write_rules(&mut output, 2, Some(rules));
+            line(&mut output, 1, "}");
+        }
+        line(&mut output, 0, "}");
+        Ok(output)
+    }
 }
-fn validate_size(value: &str) -> Result<()> {
-    validate_number_unit(value, &['k', 'K', 'm', 'M', 'g', 'G'])
+
+#[derive(Debug, Clone)]
+struct Directive {
+    key: String,
+    directive: String,
+    value: String,
+    priority: i32,
 }
-fn validate_duration(value: &str) -> Result<()> {
-    validate_number_unit(value, &['s', 'm', 'h', 'd'])
+
+fn line(output: &mut String, indent: usize, value: &str) {
+    output.push_str(&"    ".repeat(indent));
+    output.push_str(value);
+    output.push('\n');
+}
+
+fn write_rules(output: &mut String, indent: usize, rules: Option<Vec<Directive>>) {
+    for rule in rules.unwrap_or_default() {
+        line(output, indent, &format!("{} {};", rule.directive, rule.value));
+    }
 }
 
 pub fn definition_path(
@@ -345,12 +527,12 @@ pub fn read(
             path.display()
         );
     }
-    spec.validate()?;
+    spec.validate(&load_catalog(config)?)?;
     Ok(Some(spec))
 }
 
 pub fn write(config: &AppConfig, spec: &SiteDefinition) -> Result<()> {
-    spec.validate()?;
+    spec.validate(&load_catalog(config)?)?;
     let path = definition_path(config, spec.kind, &spec.domain, &spec.name)?;
     if let Ok(metadata) = fs::symlink_metadata(&path) {
         if !metadata.file_type().is_file() {
@@ -374,12 +556,13 @@ pub fn remove(config: &AppConfig, kind: NginxObjectKind, domain: &str, name: &st
 /// generated tree before accepting it, and restores every changed .conf on failure.
 /// Does not reload a running nginx; callers control the deployment window.
 pub fn apply_all(config: &AppConfig) -> Result<usize> {
+    let catalog = load_catalog(config)?;
     let mut specs = Vec::new();
     for object in nginx::list_objects(config, false)? {
         if let Some(spec) = read(config, object.kind, &object.domain, &object.name)? {
             let path = nginx::available_path(config, object.kind, &object.domain, &object.name)?;
             let old = fs::read_to_string(&path)?;
-            let new = spec.render()?;
+            let new = spec.render(&catalog)?;
             specs.push((spec, path, old, new));
         }
     }
@@ -502,75 +685,112 @@ pub fn apply_all(config: &AppConfig) -> Result<usize> {
 mod tests {
     use super::*;
 
+    fn catalog() -> OptionCatalog {
+        OptionCatalog::parse(include_str!("../config/nginx/composer.toml")).unwrap()
+    }
+
     fn sample(kind: NginxObjectKind) -> SiteDefinition {
-        SiteDefinition::new(
-            kind,
-            "example.test",
-            if kind == NginxObjectKind::Domain {
-                "example.test"
-            } else {
-                "media"
-            },
-            &[],
-            Some("http://127.0.0.1:8096"),
-            SiteOptions::default(),
-        )
+        SiteDefinition::new(kind, "example.test",
+            if kind == NginxObjectKind::Domain { "example.test" } else { "media" },
+            &[], Some("http://127.0.0.1:8096"), SiteOptions::new())
     }
 
     #[test]
-    fn composable_features_emit_single_directives() {
+    fn catalog_has_all_three_types_and_is_versioned() {
+        let cat = catalog();
+        assert!(cat.options.iter().any(|o| o.option_type == OptionType::Optional));
+        assert!(cat.options.iter().any(|o| o.option_type == OptionType::Choice));
+        assert!(cat.options.iter().any(|o| o.option_type == OptionType::Parameterized));
+        let mut invalid = cat.clone();
+        invalid.schema_version = 2;
+        assert!(invalid.validate().is_err());
+    }
+
+    #[test]
+    fn combined_features_resolve_without_duplicate_directives() {
         let mut site = sample(NginxObjectKind::Subdomain);
-        site.options.access = Access::Lan;
-        site.options.streaming = true;
-        site.options.large_upload = true;
-        site.options.long_lived = true;
-        site.options.websocket = true;
-        let rendered = site.render().unwrap();
-        for directive in [
-            "proxy_read_timeout",
-            "proxy_send_timeout",
-            "proxy_buffering",
-            "client_max_body_size",
-        ] {
+        for id in ["streaming", "large_upload", "long_lived", "websocket"] {
+            site.options.insert(id.into(), serde_json::json!(true));
+        }
+        site.options.insert("access".into(), serde_json::json!("lan"));
+        site.options.insert("read_timeout".into(), serde_json::json!("1200s"));
+        let rendered = site.render(&catalog()).unwrap();
+        for directive in ["proxy_read_timeout", "proxy_send_timeout", "proxy_buffering", "client_max_body_size"] {
             assert_eq!(rendered.matches(directive).count(), 1, "{directive}");
         }
+        assert!(rendered.contains("proxy_read_timeout 1200s;"));
+        assert!(rendered.contains("proxy_send_timeout 3600s;"));
         assert!(rendered.contains("include snippets/restrict.conf;"));
-        assert!(rendered.contains("client_max_body_size 5G;"));
     }
 
     #[test]
-    fn domain_route_choice_and_subfolder_pwa() {
+    fn all_routing_choices_come_from_catalog() {
+        let cat = catalog();
         let mut domain = sample(NginxObjectKind::Domain);
-        domain.options.root = RootMode::ProxyAndSubfolders;
-        let root = domain.render().unwrap();
-        assert!(root.contains("$domain_upstream"));
-        assert!(root.contains("subfolders-enabled/*.conf"));
+        let fallback = domain.render(&cat).unwrap();
+        assert!(fallback.contains("return 404;"));
+        domain.options.insert("root".into(), serde_json::json!("proxy_and_subfolders"));
+        let rendered = domain.render(&cat).unwrap();
+        assert!(rendered.contains("proxy_pass $domain_upstream;"));
+        assert!(rendered.contains("subfolders-enabled/*.conf"));
         let mut folder = sample(NginxObjectKind::Subfolder);
-        folder.options.subfolder = SubfolderMode::Pwa;
-        let content = folder.render().unwrap();
-        assert!(content.contains("proxy-pwa.conf"));
-        assert!(content.contains("location ^~ /media/"));
+        folder.options.insert("subfolder".into(), serde_json::json!("pwa"));
+        let mounted = folder.render(&cat).unwrap();
+        assert!(mounted.contains("include snippets/proxy-pwa.conf;"));
+        assert!(mounted.contains("location ^~ /media/"));
     }
 
     #[test]
-    fn rejects_incompatible_scope_and_injection() {
-        let mut folder = sample(NginxObjectKind::Subfolder);
-        folder.options.streaming = true;
-        assert!(folder.render().is_err());
-        let mut subdomain = sample(NginxObjectKind::Subdomain);
-        subdomain.options.body_size = Some("1G; deny all".into());
-        assert!(subdomain.render().is_err());
-        subdomain.options.body_size = None;
-        subdomain.options.sessions_lan_only = true;
-        assert!(subdomain.render().is_err());
+    fn new_catalog_option_needs_no_rust_changes() {
+        let mut cat = catalog();
+        cat.options.push(OptionDefinition {
+            id: "my_header".into(),
+            option_type: OptionType::Optional,
+            label: "My header".into(),
+            description: String::new(),
+            kinds: vec![NginxObjectKind::Subdomain],
+            default: None, pattern: None, priority: 30,
+            requires: vec![], requirements: vec![],
+            effects: vec![Effect {
+                slot: "location".into(), directive: "proxy_set_header".into(),
+                value: "X-Test enabled".into(), kinds: vec![],
+            }],
+            choices: vec![],
+        });
+        cat.validate().unwrap();
+        let mut site = sample(NginxObjectKind::Subdomain);
+        site.options.insert("my_header".into(), serde_json::json!(true));
+        assert!(site.render(&cat).unwrap().contains("proxy_set_header X-Test enabled;"));
     }
 
     #[test]
-    fn definition_round_trips_through_toml() {
-        let site = sample(NginxObjectKind::Subdomain);
+    fn invalid_options_parameters_and_dependencies_fail_closed() {
+        let cat = catalog();
+        let mut site = sample(NginxObjectKind::Subdomain);
+        site.options.insert("unknown".into(), serde_json::json!(true));
+        assert!(site.render(&cat).is_err());
+        site.options.remove("unknown");
+        site.options.insert("body_size".into(), serde_json::json!("5G; deny all"));
+        assert!(site.render(&cat).is_err());
+        site.options.remove("body_size");
+        site.options.insert("pwa".into(), serde_json::json!(true));
+        assert!(site.render(&cat).is_err());
+        site.options.clear();
+        site.options.insert("sessions_lan_only".into(), serde_json::json!(true));
+        assert!(site.render(&cat).is_err());
+        let mut folder = sample(NginxObjectKind::Subfolder);
+        folder.options.insert("large_upload".into(), serde_json::json!(true));
+        assert!(folder.render(&cat).is_err());
+    }
+
+    #[test]
+    fn site_definition_round_trips() {
+        let cat = catalog();
+        let mut site = sample(NginxObjectKind::Subdomain);
+        site.options.insert("access".into(), serde_json::json!("lan"));
+        site.options.insert("large_upload".into(), serde_json::json!(true));
         let saved = toml::to_string_pretty(&site).unwrap();
         let parsed: SiteDefinition = toml::from_str(&saved).unwrap();
-        assert_eq!(parsed.render().unwrap(), site.render().unwrap());
-        assert!(toml::from_str::<SiteOptions>("unknown = true").is_err());
+        assert_eq!(site.render(&cat).unwrap(), parsed.render(&cat).unwrap());
     }
 }
