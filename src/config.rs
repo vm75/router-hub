@@ -108,6 +108,8 @@ impl AppConfig {
         self.nginx.domains_enabled_dir = fixture_root.join("etc/nginx/domains-enabled");
         self.nginx.templates_dir =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/nginx/templates");
+        self.nginx.composer_path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/nginx/composer.toml");
         self.nginx.subdomain_upstream_map_path =
             fixture_root.join("etc/nginx/conf.d/03_subdomain_upstream_map.conf");
         self.nginx.domain_upstream_map_path =
@@ -180,6 +182,7 @@ impl AppConfig {
             &mut self.nginx.domains_available_dir,
             &mut self.nginx.domains_enabled_dir,
             &mut self.nginx.templates_dir,
+            &mut self.nginx.composer_path,
             &mut self.nginx.subdomain_upstream_map_path,
             &mut self.nginx.domain_upstream_map_path,
             &mut self.nginx.subfolder_upstream_map_path,
@@ -518,6 +521,8 @@ pub struct NginxConfig {
     pub domains_available_dir: PathBuf,
     pub domains_enabled_dir: PathBuf,
     pub templates_dir: PathBuf,
+    /// Version-controlled source for optional, choice and parameterized Nginx capabilities.
+    pub composer_path: PathBuf,
     /// Nginx `map $host $subdomain_upstream` include managed by site changes.
     pub subdomain_upstream_map_path: PathBuf,
     /// Nginx `map $host $domain_upstream` include managed by domain changes.
@@ -541,6 +546,7 @@ impl Default for NginxConfig {
             domains_available_dir: "/opt/etc/nginx/domains-available".into(),
             domains_enabled_dir: "/opt/etc/nginx/domains-enabled".into(),
             templates_dir: "/opt/etc/nginx/templates".into(),
+            composer_path: "/opt/etc/nginx/composer.toml".into(),
             subdomain_upstream_map_path: "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
                 .into(),
             domain_upstream_map_path: "/opt/etc/nginx/conf.d/02_domain_upstream_map.conf".into(),
