@@ -328,6 +328,24 @@ impl SiteDefinition {
         })
     }
 
+    /// Earlier branch versions serialized defaults for every kind into sidecars.
+    /// Drop only inapplicable default-valued fields; non-default out-of-scope
+    /// fields still fail validation to prevent silent behavior loss.
+    pub fn remove_legacy_defaults(&mut self, catalog: &OptionCatalog) {
+        self.options.retain(|id, value| {
+            let Some(option) = catalog.option(id) else { return true };
+            if option.kinds.contains(&self.kind) { return true }
+            match option.option_type {
+                OptionType::Optional =>
+                    value.as_bool().is_some_and(|v| v != (option.default.as_deref() == Some("true"))),
+                OptionType::Choice =>
+                    value.as_str() != option.default.as_deref(),
+                OptionType::Parameterized =>
+                    value.as_str() != option.default.as_deref(),
+            }
+        });
+    }
+
     pub fn validate(&self, catalog: &OptionCatalog) -> Result<()> {
         if self.schema_version != SITE_SCHEMA {
             bail!("unsupported nginx site schema_version {}", self.schema_version);
@@ -527,12 +545,18 @@ pub fn read(
             path.display()
         );
     }
-    spec.validate(&load_catalog(config)?)?;
+    let catalog = load_catalog(config)?;
+    let mut spec = spec;
+    spec.remove_legacy_defaults(&catalog);
+    spec.validate(&catalog)?;
     Ok(Some(spec))
 }
 
 pub fn write(config: &AppConfig, spec: &SiteDefinition) -> Result<()> {
-    spec.validate(&load_catalog(config)?)?;
+    let catalog = load_catalog(config)?;
+    let mut spec = spec.clone();
+    spec.remove_legacy_defaults(&catalog);
+    spec.validate(&catalog)?;
     let path = definition_path(config, spec.kind, &spec.domain, &spec.name)?;
     if let Ok(metadata) = fs::symlink_metadata(&path) {
         if !metadata.file_type().is_file() {
