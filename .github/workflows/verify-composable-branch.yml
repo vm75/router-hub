@@ -1,0 +1,19 @@
+name: Temporary composable nginx verification
+on:
+  push:
+    branches:
+      - feature/composable-nginx-sites
+permissions:
+  contents: read
+jobs:
+  compile-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.85
+        run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Compile and run tests
+        run: cargo +1.85.0 test --locked
+      - name: Check Clippy
+        run: cargo +1.85.0 clippy --all-targets --locked -- -D warnings
