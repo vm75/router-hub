@@ -15,6 +15,7 @@ use crate::{
         NginxTemplateEntry,
     },
     nginx as nginx_core,
+    nginx_compose,
     state::AppState,
 };
 
@@ -48,6 +49,8 @@ pub struct ObjectContent {
     server_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     upstream: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    definition: Option<nginx_compose::SiteDefinition>,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +59,8 @@ pub struct CreateObject {
     name: String,
     #[serde(default)]
     template: Option<String>,
+    #[serde(default)]
+    compose: Option<nginx_compose::SiteOptions>,
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
@@ -71,6 +76,8 @@ pub struct CreateObject {
 pub struct UpdateObject {
     #[serde(default)]
     template: Option<String>,
+    #[serde(default)]
+    compose: Option<nginx_compose::SiteOptions>,
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
@@ -185,6 +192,7 @@ pub async fn get_object(
         content,
         server_names,
         upstream,
+        definition: nginx_compose::read(&state.config, kind, &domain, &name)?,
     }))
 }
 
@@ -197,30 +205,27 @@ pub async fn create_object(
     if kind == NginxObjectKind::Domain {
         request.name.clone_from(&request.domain);
     }
-    let template = request
-        .template
-        .as_deref()
-        .filter(|value| !value.is_empty());
-    let content = render_object_content(
-        &state,
-        kind,
-        &request.domain,
-        &request.name,
-        template,
-        request.content.as_deref(),
-        &request.server_names,
-    )?;
+    let template = request.template.as_deref().filter(|value| !value.is_empty());
+    if request.compose.is_some()
+        && (template.is_some() || request.content.as_deref().is_some_and(|v| !v.trim().is_empty()))
+    {
+        return Err(ApiError::bad_request("choose either composed options or a template/custom content"));
+    }
     let server_names = nginx_core::normalize_server_names(
-        kind,
-        &request.domain,
-        &request.name,
-        &request.server_names,
-    )
-    .map_err(ApiError::bad_request)?;
-    let upstream = request
-        .upstream
-        .as_deref()
-        .filter(|value| !value.trim().is_empty());
+        kind, &request.domain, &request.name, &request.server_names,
+    ).map_err(ApiError::bad_request)?;
+    let upstream = request.upstream.as_deref().filter(|value| !value.trim().is_empty());
+    let definition = request.compose.clone().map(|options| {
+        nginx_compose::SiteDefinition::new(
+            kind, &request.domain, &request.name, &server_names, upstream, options)
+    });
+    let content = if let Some(definition) = &definition {
+        definition.render().map_err(ApiError::bad_request)?
+    } else {
+        render_object_content(
+            &state, kind, &request.domain, &request.name,
+            template, request.content.as_deref(), &server_names)?
+    };
     let map_key = (kind == NginxObjectKind::Subfolder)
         .then(|| nginx_core::subfolder_map_key(&content, &request.name))
         .transpose()?;
@@ -292,6 +297,9 @@ pub async fn create_object(
         let _ = nginx_core::delete_object(&state.config, kind, &request.domain, &request.name);
         return Err(error.into());
     }
+    if let Some(definition) = &definition {
+        nginx_compose::write(&state.config, definition)?;
+    }
     let object = find_object(&state, kind, &request.domain, &request.name).await?;
     let server_names = nginx_core::extract_server_names(&content);
     let upstream = nginx_core::site_upstream_with_key(
@@ -307,6 +315,7 @@ pub async fn create_object(
         content,
         server_names,
         upstream,
+        definition,
     }))
 }
 
@@ -318,6 +327,10 @@ pub async fn update_object(
     let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
     let previous = nginx_core::read_object(&state.config, kind, &domain, &name)
         .map_err(not_found_or_internal)?;
+    let previous_definition = nginx_compose::read(&state.config, kind, &domain, &name)?;
+    if previous_definition.is_some() && body.compose.is_none() {
+        return Err(ApiError::bad_request("composed sites must be edited using compose options"));
+    }
     let previous_server_names = nginx_core::extract_server_names(&previous);
     let previous_server_names =
         nginx_core::normalize_server_names(kind, &domain, &name, &previous_server_names)
@@ -334,6 +347,11 @@ pub async fn update_object(
         previous_map_key.as_deref(),
     )?;
     let template = body.template.as_deref().filter(|value| !value.is_empty());
+    if body.compose.is_some()
+        && (template.is_some() || body.content.as_deref().is_some_and(|v| !v.trim().is_empty()))
+    {
+        return Err(ApiError::bad_request("choose either composed options or template/custom content"));
+    }
     let server_names = body
         .server_names
         .as_deref()
@@ -347,15 +365,17 @@ pub async fn update_object(
         None => previous_upstream.as_deref(),
     };
     nginx_core::validate_site_upstream(kind, upstream).map_err(ApiError::bad_request)?;
-    let content = render_object_content(
-        &state,
-        kind,
-        &domain,
-        &name,
-        template,
-        body.content.as_deref(),
-        &server_names,
-    )?;
+    let definition = body.compose.clone().map(|options| {
+        nginx_compose::SiteDefinition::new(
+            kind, &domain, &name, &server_names, upstream, options)
+    });
+    let content = if let Some(definition) = &definition {
+        definition.render().map_err(ApiError::bad_request)?
+    } else {
+        render_object_content(
+            &state, kind, &domain, &name, template,
+            body.content.as_deref(), &server_names)?
+    };
     let map_key = (kind == NginxObjectKind::Subfolder)
         .then(|| nginx_core::subfolder_map_key(&content, &name))
         .transpose()?;
@@ -443,6 +463,9 @@ pub async fn update_object(
             }
         }
     }
+    if let Some(definition) = &definition {
+        nginx_compose::write(&state.config, definition)?;
+    }
     let object = find_object(&state, kind, &domain, &name).await?;
     let upstream = nginx_core::site_upstream_with_key(
         &state.config,
@@ -457,6 +480,7 @@ pub async fn update_object(
         server_names,
         content,
         upstream,
+        definition,
     }))
 }
 
