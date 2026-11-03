@@ -8,6 +8,7 @@ mod config;
 mod firewall;
 mod models;
 mod nginx;
+mod nginx_compose;
 mod state;
 mod storage;
 mod system;
@@ -54,6 +55,8 @@ struct Cli {
 enum Command {
     Serve,
     CheckConfig,
+    /// Regenerate Nginx .conf files from version-controlled adjacent .toml files.
+    RenderSites,
     RenderUi,
     MountUi,
     UnmountUi,
@@ -81,6 +84,11 @@ fn main() -> Result<()> {
     match cli.command.unwrap_or(Command::Serve) {
         Command::CheckConfig => {
             println!("configuration is valid: {}", cli.config.display());
+            Ok(())
+        }
+        Command::RenderSites => {
+            let changed = crate::nginx_compose::apply_all(&config)?;
+            println!("rendered {changed} composed nginx site(s); reload nginx to activate");
             Ok(())
         }
         Command::RenderUi => {
