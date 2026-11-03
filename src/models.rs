@@ -38,6 +38,8 @@ pub struct NginxObject {
     pub path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
+    #[serde(default)]
+    pub composed: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
     pub enabled: bool,
