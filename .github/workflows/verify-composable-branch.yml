@@ -4,16 +4,33 @@ on:
     branches:
       - feature/composable-nginx-sites
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: composed-nginx-branch
+  cancel-in-progress: true
 jobs:
   compile-and-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust 1.85
-        run: rustup toolchain install 1.85.0 --profile minimal
+        with:
+          persist-credentials: true
+      - name: Install Rust 1.85 tooling
+        run: rustup toolchain install 1.85.0 --profile minimal --component clippy,rustfmt
+      - name: Apply project Rust formatting
+        run: cargo +1.85.0 fmt --all
       - name: Compile and run tests
         run: cargo +1.85.0 test --locked
       - name: Check Clippy
         run: cargo +1.85.0 clippy --all-targets --locked -- -D warnings
+      - name: Commit formatting to feature branch
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add src
+            git commit -m "style: format composable nginx Rust implementation"
+            git push origin HEAD:feature/composable-nginx-sites
+          fi
