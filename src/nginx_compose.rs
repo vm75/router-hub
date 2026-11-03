@@ -155,7 +155,7 @@ impl SiteDefinition {
         if self.kind == NginxObjectKind::Subfolder {
             emit(&mut out, 0, &format!("location ^~ /{}/ {{", self.name));
             if o.access == Access::Lan { emit(&mut out, 1, "include snippets/restrict.conf;"); }
-            emit(&mut out, 1, &format!("rewrite ^/{}/(.*)$ /$1 break;", self.name));
+            emit(&mut out, 1, &format!("rewrite ^/{}/(.*)$ /$1 break;", regex::escape(&self.name)));
             emit(&mut out, 1, "include snippets/subfolder-proxy-pass.conf;");
             match o.subfolder {
                 SubfolderMode::Standard => emit(&mut out, 1, "include snippets/proxy-params.conf;"),
