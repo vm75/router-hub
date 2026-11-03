@@ -241,6 +241,7 @@ fn object_entry(
             .to_string_lossy()
             .to_string(),
         template: template_name(&content),
+        composed: crate::nginx_compose::read(config, kind, domain, name)?.is_some(),
         port: site_upstream_with_key(
             config,
             kind,
@@ -343,6 +344,7 @@ pub fn delete_object(
         }
     } else if path.is_file() {
         fs::remove_file(path)?;
+        crate::nginx_compose::remove(config, kind, domain, name)?;
     }
     Ok(())
 }
