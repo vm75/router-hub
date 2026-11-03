@@ -563,7 +563,7 @@ pub fn write(config: &AppConfig, spec: &SiteDefinition) -> Result<()> {
             bail!("refusing non-regular site definition");
         }
     }
-    let content = toml::to_string_pretty(spec)?;
+    let content = toml::to_string_pretty(&spec)?;
     nginx::atomic_write(&path, content.as_bytes())
 }
 
