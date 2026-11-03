@@ -196,6 +196,39 @@ pub async fn get_object(
     }))
 }
 
+#[derive(Deserialize)]
+pub struct ComposePreview {
+    kind: NginxObjectKind,
+    domain: String,
+    name: String,
+    #[serde(default)]
+    server_names: Vec<String>,
+    upstream: Option<String>,
+    compose: nginx_compose::SiteOptions,
+}
+
+#[derive(Serialize)]
+pub struct PreviewContent {
+    content: String,
+}
+
+/// Preview without touching the deployed configuration or upstream maps.
+pub async fn preview_composed(
+    Json(request): Json<ComposePreview>,
+) -> Result<Json<PreviewContent>, ApiError> {
+    let server_names = nginx_core::normalize_server_names(
+        request.kind, &request.domain, &request.name, &request.server_names,
+    ).map_err(ApiError::bad_request)?;
+    let definition = nginx_compose::SiteDefinition::new(
+        request.kind, &request.domain, &request.name,
+        &server_names, request.upstream.as_deref().filter(|value| !value.trim().is_empty()),
+        request.compose,
+    );
+    Ok(Json(PreviewContent {
+        content: definition.render().map_err(ApiError::bad_request)?,
+    }))
+}
+
 pub async fn create_object(
     State(state): State<AppState>,
     Path(kind): Path<String>,
