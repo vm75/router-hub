@@ -92,6 +92,10 @@ pub async fn status(State(state): State<AppState>) -> Json<NginxStatus> {
     })
 }
 
+pub async fn is_running(state: &AppState) -> bool {
+    status(State(state.clone())).await.running
+}
+
 pub async fn nginx_running(state: &AppState) -> bool {
     if state.config.test_mode {
         return true;
@@ -747,11 +751,17 @@ async fn nginx_stop(state: &AppState) -> anyhow::Result<CommandResult> {
 }
 
 async fn run_nginx(state: &AppState, args: Vec<String>) -> anyhow::Result<CommandResult> {
+    let mut command_args = Vec::new();
+    if let Some(prefix) = &state.config.nginx.prefix_path {
+        command_args.push("-p".to_string());
+        command_args.push(prefix.to_string_lossy().to_string());
+    }
+    command_args.extend(args);
     state
         .runner
         .run(
             &state.config.commands.nginx,
-            args,
+            command_args,
             Duration::from_secs(state.config.nginx.reload_timeout_seconds),
         )
         .await

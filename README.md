@@ -118,6 +118,76 @@ make run
 The test configuration is safe for exercising the UI and API, but it is not a
 router deployment configuration.
 
+## Native Linux integration (real services)
+
+For testing the production execution path on a development Linux machine,
+use `platform = "linux"` and `test_mode = false` in a **separate**
+configuration. Alternatively, pass `--linux-mode` to select the Linux
+platform from the CLI. Do **not** pass `--test-mode`: that flag simulates
+external commands. Simulated test mode and the Linux platform cannot be
+combined.
+
+The native Linux platform runs the normal command runner and HTTP API,
+reads real Linux `/proc` metrics, and uses the configured service paths. It
+skips ASUS menu installation, standalone startup does not emit an ASUS ASP
+page, and AdGuard LAN IP discovery does not call router NVRAM. Set a real
+`[adguard].lan_ip` if AdGuard Home is enabled. All native Linux paths and
+executables must be configured for the development host. Use
+`[server].daemonize = false` for local interactive runs.
+
+To prepare a persistent local setup, run:
+
+```sh
+./scripts/setup-linux.sh
+cargo run -- --config data/linux/router-hub.toml --linux-mode serve
+```
+
+The setup script checks for required tools and creates `data/linux/router-hub.toml`,
+`data/linux/nginx/nginx.conf`, and isolated state, log, and runtime directories.
+It preserves existing files on subsequent runs. New configs bind the API to
+`127.0.0.1:3030`, use nginx port `8080`, generate a random API token in the TOML
+file, and disable firewall enforcement and AdGuard integration. Nginx uses local
+temporary directories so it can run without root. Start nginx through the UI;
+the setup script does not start services or install packages.
+
+The built-in **unprivileged** smoke test requires `cargo`, `nginx`,
+`openssl`, `curl`, and `python3`. It creates an isolated temporary
+configuration and nginx prefix under `data/linux/lab`, runs the real router-hub binary, verifies
+authentication and system metrics, and exercises real nginx validation,
+startup, reload, shutdown, and a managed file edit:
+
+```sh
+make test-linux
+# Or retain the temporary directory and logs after execution:
+ROUTER_HUB_KEEP_LINUX_LAB=1 make test-linux
+```
+
+The smoke test neither uses mocks nor touches the host's nginx configuration.
+It deliberately leaves the Ban Shield firewall policy **disabled**, does
+not send WOL packets, and does not issue public certificates or change DNS.
+It is a real local integration smoke test, not exhaustive feature coverage.
+
+To test additional features against actual services, point the Linux
+configuration to a dedicated nginx tree, real `dehydrated`, `openssl`,
+`ip`, `ping`, `wg`/`wg-quick`, and a dedicated AdGuard Home API endpoint.
+Use `[nginx].prefix_path` when nginx's relative includes must resolve below
+a separate `-p` prefix. Certificate DNS-01 tests require a real DNS
+provider and a domain you control; `scripts/test-dehydrated.sh` exercises
+the dehydrated command against Let's Encrypt staging without changing Router
+Hub's certificate store. HTTP-01 additionally requires a publicly reachable
+ACME challenge. Run real ipset/iptables Ban Shield enforcement only inside an
+isolated Linux network namespace or a disposable VM: even
+`observe_only = true` can remove Router Hub-owned firewall hooks during
+reconciliation. A local systemd unit does not automatically satisfy the
+Entware-style init script interface; use real compatible init scripts in a
+separate `[services].init_dir`.
+
+The Linux platform does **not** emulate firmware behaviors such as NVRAM,
+ASUS menu injection, JFFS startup hooks, or router-specific service actions.
+Those still need router validation. Linux keeps its firewall policy within
+`[paths].data_dir` instead of reading or mirroring the router's
+`/opt/etc/router-hub/firewall-policy.json`.
+
 ## Build and install on a router
 
 Build the release artifact for the target CPU. The helper also writes a SHA-256
@@ -161,8 +231,9 @@ The installer:
    `/opt/etc/init.d/S99router-hub`;
 2. creates `/opt/etc/router-hub/router-hub.toml` and a random authentication
    token on first install;
-3. creates the runtime/data directories and installs the example firewall
-   policy when needed;
+3. installs missing shared nginx templates and snippets under `/opt/etc/nginx`
+   without replacing existing router-local files, then creates runtime/data
+   directories and installs the example firewall policy when needed;
 4. configures Mosquitto credentials in `/opt/etc/mosquitto/passwd` if `--mosquitto-user` and `--mosquitto-pass` (or `MOSQUITTO_USER` / `MOSQUITTO_PASS` env vars) are supplied;
 5. adds token-free reconciliation calls to `/jffs/scripts/post-mount` and
    `/jffs/scripts/firewall-start` (with a background retry loop);
@@ -315,3 +386,63 @@ The authoritative route map is [`src/api/mod.rs`](src/api/mod.rs).
 ## License
 
 MIT; see [`LICENSE`](LICENSE).
+
+Linux setup installs executable `S80nginx` and `S99router-hub` adapters in
+`data/linux/init.d`. These use the normal Services discovery and actions. They require
+Python 3.11 or newer and default to `data/linux/router-hub.toml`; set
+`ROUTER_HUB_CONFIG` to select another configuration. For an existing setup, set
+`[services].init_dir` to the absolute path of `data/linux/init.d` and rerun
+`./scripts/setup-linux.sh`. Existing adapters are preserved.
+
+Build Router Hub before starting it through `data/linux/init.d/S99router-hub start`.
+The adapter prefers the release binary, falling back to the debug binary, and
+requires `server.daemonize = false`. It also recognizes a foreground server
+started with an explicit `--config` argument for the same configuration.
+Nginx actions use the configured executable, prefix, configuration, and PID file.
+
+Linux setup selects dehydrated from `PATH` and writes its absolute path to
+`[commands].dehydrated`. If unavailable, it selects a local executable path
+under `data/linux/certs`; use the Certificates page’s dehydrated update action
+to download it before issuing certificates. For existing configurations, add
+an explicit `[commands].dehydrated` path and restart Router Hub.
+
+Linux setup seeds domain and subdomain `proxy` templates and a subfolder
+`location` template in `data/linux/nginx/templates`. Rerunning setup adds missing
+templates and preserves existing files. These starter templates proxy to
+`127.0.0.1:3030` and use HTTP port 8080 for virtual hosts; edit their listen ports
+and upstreams in Nginx → Templates for your deployment before creating sites.
+TLS listeners and certificate paths must be configured separately.
+
+The generated Linux nginx HTTP server listens on all IPv4 interfaces and serves
+`/.well-known/acme-challenge/` from `data/linux/certs/acme-challenge`. For HTTP-01,
+forward WAN TCP port 80 to the Linux host’s nginx HTTP port and allow that port
+through its firewall. Existing nginx configurations are preserved by setup.
+When changing a loopback listener to all interfaces on the same port, stop and
+start the configured nginx instance if a reload reports an address conflict.
+
+Router Hub's portable nginx templates live in `config/nginx/templates`. Test
+mode points directly to this shared template set. Linux setup copies it into
+`data/linux/nginx/templates`, preserving local template edits, and the Linux
+nginx smoke test uses the same source templates. The extracted templates omit
+router addresses and filesystem paths; deployment-specific listeners, paths,
+and upstreams remain in the active nginx configuration or site content.
+
+The shared nginx source tree also provides the generic `nginx.conf.template`,
+`mime.types`, `conf.d/01-global.conf`, and portable proxy/security snippets.
+Linux setup and the real Linux integration test install these shared assets into
+their nginx prefixes while preserving local files. The template keeps PID and
+error log paths as render-time settings; listeners, certificate paths, LAN
+allowlists, and challenge storage remain deployment-specific.
+
+The router installer bootstraps `/opt/etc/nginx/nginx.conf` from the shared
+`config/nginx/nginx.conf.template` only when no nginx config exists. If nginx is
+already configured, Router Hub keeps using that config. In both cases, the
+installer copies missing portable templates and snippets from `config/nginx/`
+without replacing existing router-local files. Listener addresses, access
+rules, certificate paths, and local templates remain deployment-specific.
+Router Hub adds HTTP-01 certificate domains to its managed HTTP forwarder and
+serves the challenge path from the certificate store configured in TOML.
+
+The portable `restrict.conf` starts with `deny all` so LAN-only templates do not
+expose a site when no local subnet has been configured. Add the router or host
+LAN CIDR as an `allow` directive before `deny all` in the deployed snippet.

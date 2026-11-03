@@ -617,6 +617,33 @@
       gap: 10px
     }
 
+    #wireguard-form .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px
+    }
+
+    #wireguard-form {
+      padding: 14px;
+      box-sizing: border-box
+    }
+
+    #wireguard-form .field {
+      min-width: 0
+    }
+
+    #wireguard-form .input {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0
+    }
+
+    @media (max-width: 560px) {
+      #wireguard-form .field-row {
+        grid-template-columns: minmax(0, 1fr)
+      }
+    }
+
     .form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1248,7 +1275,7 @@
       <section class="view" id="view-services">
         <div class="card">
           <div class="card-head">
-            <h2>Entware init services</h2>
+            <h2>Services</h2>
             <div class="actions"><button class="btn" onclick="loadServices()">Refresh status</button></div>
           </div>
           <div class="table-wrap">
@@ -1476,8 +1503,9 @@
           an installed hook (or the default data-directory hook) and its environment values. Existing matching
           <code>.cfg</code>/<code>.txt</code> pairs are imported when Router Hub starts.</div>
         <div class="notice warn" id="certificate-lock-notice" hidden>
-          Dehydrated is locked at <code id="certificate-lock-path"></code>. Certificate issue and renewal are disabled.
-          <button class="btn small danger" onclick="clearDehydratedLock()">Clear lock</button>
+          <span id="certificate-lock-message"></span>
+          <code id="certificate-lock-path" hidden></code>
+          <button class="btn small danger" id="certificate-lock-clear" onclick="clearDehydratedLock()" hidden>Clear lock</button>
         </div>
         <div class="card">
           <div class="card-head">
@@ -1704,7 +1732,7 @@
 
     function stopAdguardPolling() { clearInterval(adguardPollingTimer); adguardPollingTimer = undefined; }
     function startAdguardPolling() { stopAdguardPolling(); adguardPollingTimer = setInterval(() => { if (state.view === 'adguard') loadAdguardStatusOnly(); }, 15000); }
-    const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'], wireguard: ['WireGuard', 'Manage WireGuard VPN Interface and Peers'] };
+    const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage services'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'], wireguard: ['WireGuard', 'Manage WireGuard VPN Interface and Peers'] };
     const requestedTab = new URLSearchParams(location.search).get('tab');
     if (requestedTab && Object.prototype.hasOwnProperty.call(titles, requestedTab)) state.view = requestedTab;
     function esc(v = '') { return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
@@ -1937,8 +1965,32 @@
       } catch (e) { toast(e.message, true) }
     }
     function editCertificate(id) { const row = state.certs.find(x => x.spec.id === id), s = row ? row.spec : { name: '', domains: [], method: 'http', hook: '', hook_env: {}, staging: false, auto_renew: true }; openEditor(id ? 'Edit certificate' : 'Add certificate', `<form id="cert-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(s.name)}" required></div><div class="field full"><label>Domains, one per line</label><textarea class="input" name="domains">${esc(s.domains.join('\n'))}</textarea></div><div class="field"><label>Challenge</label><select class="input" name="method"><option value="http" ${s.method === 'http' ? 'selected' : ''}>HTTP-01</option><option value="dns" ${s.method === 'dns' ? 'selected' : ''}>DNS-01</option></select></div><div class="field"><label>Hook path</label><input class="input" name="hook" value="${esc(s.hook || '')}" placeholder="/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh"><span class="hint">Optional for HTTP-01. Leave blank for the default DNS hook in the dehydrated data directory.</span></div><div class="field full"><label>Hook environment, one KEY=value per line</label><textarea class="input" name="hook_env">${esc(Object.entries(s.hook_env || {}).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea><span class="hint">For example, DUCKDNS_TOKEN=... . Values are stored in the dehydrated config.</span></div><div class="field"><label><input type="checkbox" name="staging" ${s.staging ? 'checked' : ''}> Use Let's Encrypt staging</label></div><div class="field"><label><input type="checkbox" name="auto_renew" ${s.auto_renew ? 'checked' : ''}> Auto renew</label></div></div></form>`, async () => { try { const f = document.getElementById('cert-form'), v = formObject(f), payload = { ...s, name: v.name, domains: jsonLines(v.domains), method: v.method, hook: v.hook || null, hook_env: envObject(v.hook_env), staging: f.elements.staging.checked, auto_renew: f.elements.auto_renew.checked }; await api(id ? `/certificates/${id}` : '/certificates', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadCertificates() } catch (e) { toast(e.message, true) } }) }
-    async function certificateAction(id, action) { try { const p = api(`/certificates/${id}/${action}`, { method: 'POST' }); setTimeout(loadCertificateLock, 500); const r = await p; showOutput(`Certificate ${action}`, r); loadCertificatesWithLock() } catch (e) { toast(e.message, true) } }
-    async function updateDehydrated() { try { const r = await api('/certificates/dehydrated/update', { method: 'POST' }); showOutput('Dehydrated update', r) } catch (e) { toast(e.message, true) } }
+    function certificateErrorMessage(result) {
+      const output = (result.stderr || result.stdout || '').trim();
+      const detail = output.match(/\["error","detail"\]\s*("(?:[^"\\]|\\.)*")/);
+      if (detail) { try { return JSON.parse(detail[1]) } catch { } }
+      return output.split(' (result:')[0].trim() || `Command failed${result.code == null ? '' : ` (exit code ${result.code})`}`;
+    }
+    async function certificateAction(id, action) {
+      const certificate = state.certs.find(x => x.spec.id === id)?.spec.name || '';
+      state.dehydratedLock = {
+        ...state.dehydratedLock,
+        status: 'running',
+        operation: { certificate, action, status: 'running' }
+      };
+      applyCertificateLockUi();
+      try {
+        const p = api(`/certificates/${id}/${action}`, { method: 'POST' });
+        setTimeout(() => { if (state.view === 'certificates') loadCertificateLock().catch(e => toast(e.message, true)); }, 500);
+        const result = await p;
+        if (!result.success) alert(`Certificate ${action} failed: ${certificateErrorMessage(result)}`);
+      } catch (e) {
+        alert(`Certificate ${action} failed: ${e.message}`);
+      } finally {
+        await loadCertificatesWithLock();
+      }
+    }
+    async function updateDehydrated() { try { await api('/certificates/dehydrated/update', { method: 'POST' }); await loadCertificatesWithLock() } catch (e) { alert(`Dehydrated update failed: ${e.message}`) } }
     async function deleteCertificate(id) { if (!confirm('Delete only the Router Hub definition? Dehydrated config and certificate files remain.')) return; try { await api(`/certificates/${id}`, { method: 'DELETE' }); loadCertificates() } catch (e) { toast(e.message, true) } }
 
     function renderWol() { document.getElementById('wol-body').innerHTML = state.machines.length ? state.machines.map(m => { const s = state.machineStatuses[m.id]; const label = s?.status === 'up' ? 'Up' : s?.status === 'down' ? 'Down' : 'Unknown'; return `<tr><td><strong>${esc(m.name)}</strong></td><td><code>${esc(m.mac)}</code></td><td>${s?.ip ? `<code>${esc(s.ip)}</code>` : '<span class="muted">—</span>'}</td><td>${status(s?.status === 'up', label, label)}</td><td><div class="row-actions"><button class="btn small" onclick="wakeMachine('${m.id}')">Wake</button><button class="btn small" onclick="editMachine('${m.id}')">Edit</button><button class="btn small" onclick="showMachineNotes('${m.id}')">Notes</button><button class="btn small danger" onclick="deleteMachine('${m.id}')">Delete</button></div></td></tr>` }).join('') : emptyRow(5) }
@@ -2083,15 +2135,42 @@
     async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, launch_url: v.launch_url || '', username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
 
     function applyCertificateLockUi() {
-      const locked = !!state.dehydratedLock?.locked;
+      const lock = state.dehydratedLock || {};
+      const locked = !!lock.locked;
+      const activity = lock.status || (locked ? 'locked' : 'idle');
+      const operation = lock.operation;
+      const running = activity === 'running';
+      const certificate = operation?.certificate ? ` for ${operation.certificate}` : '';
+      const action = operation?.action === 'issue' ? 'issuance' : 'renewal';
       const notice = document.getElementById('certificate-lock-notice');
+      const message = document.getElementById('certificate-lock-message');
       const path = document.getElementById('certificate-lock-path');
-      if (notice) notice.hidden = !locked;
-      if (path) path.textContent = locked ? state.dehydratedLock.path : '';
+      const clear = document.getElementById('certificate-lock-clear');
+
+      if (notice) {
+        notice.hidden = activity === 'idle';
+        notice.className = 'notice' + (['failed', 'locked'].includes(activity) ? ' warn' : '');
+      }
+      if (message) {
+        message.textContent = activity === 'running'
+          ? `Dehydrated is running${certificate}. Certificate issue and renewal are temporarily unavailable.`
+          : activity === 'failed'
+            ? `Certificate ${action} failed${certificate}.${operation?.error ? ` ${operation.error}` : ''}${locked ? ' A lock file remains.' : ''}`
+            : activity === 'completed'
+              ? `Certificate ${action} completed${certificate}.`
+              : activity === 'locked'
+                ? 'A dehydrated lock file remains, but no active dehydrated process was detected. Clear it only after verifying that no certificate hook is running.'
+                : '';
+      }
+      if (path) {
+        path.hidden = !locked;
+        path.textContent = locked ? lock.path : '';
+      }
+      if (clear) clear.hidden = !(locked && !running);
       document.querySelectorAll('#certs-body .row-actions button').forEach(button => {
         const renewalAction = ['Renew', 'Issue'].includes(button.textContent.trim());
-        button.disabled = locked && renewalAction;
-        button.title = locked && renewalAction ? 'Clear the dehydrated lock before issuing or renewing' : '';
+        button.disabled = renewalAction && (locked || running);
+        button.title = renewalAction && (locked || running) ? 'A certificate operation or lock is active' : '';
       });
     }
     async function loadCertificateLock() {

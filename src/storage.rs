@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     command::CommandRunner,
-    config::{AdGuardConfig, AppConfig},
+    config::{AdGuardConfig, AppConfig, Platform},
     models::{CertificateMethod, CertificateSpec, FirewallPolicy, WolMachine},
     util::validate_simple_name,
 };
@@ -26,6 +26,7 @@ pub struct Stores {
     pub firewall_policy: Arc<RwLock<FirewallPolicy>>,
     pub adguard: Arc<RwLock<Option<AdGuardConfig>>>,
     data_dir: Arc<std::path::PathBuf>,
+    platform: Platform,
 }
 
 impl Stores {
@@ -50,22 +51,28 @@ impl Stores {
         if imported > 0 {
             save_json(&certificates_path, &certificates).await?;
         }
+        let firewall_policy_path = data_dir.join("firewall-policy.json");
+        let firewall_policy = if config.platform == Platform::Asuswrt {
+            load_json_with_fallback(
+                &firewall_policy_path,
+                Path::new("/opt/etc/router-hub/firewall-policy.json"),
+            )
+            .await?
+        } else {
+            // Linux integration must not read the host's Entware/router policy.
+            load_json(&firewall_policy_path).await?
+        };
         Ok(Self {
             certificates: Arc::new(RwLock::new(certificates)),
             wol_machines: Arc::new(RwLock::new(
                 load_json(&data_dir.join("wol-machines.json")).await?,
             )),
-            firewall_policy: Arc::new(RwLock::new(
-                load_json_with_fallback(
-                    &data_dir.join("firewall-policy.json"),
-                    Path::new("/opt/etc/router-hub/firewall-policy.json"),
-                )
-                .await?,
-            )),
+            firewall_policy: Arc::new(RwLock::new(firewall_policy)),
             adguard: Arc::new(RwLock::new(
                 load_json_optional(&data_dir.join("adguard.json")).await?,
             )),
             data_dir,
+            platform: config.platform,
         })
     }
 
@@ -89,7 +96,8 @@ impl Stores {
         let policy_data = &*self.firewall_policy.read().await;
         save_json(&self.data_dir.join("firewall-policy.json"), policy_data).await?;
         let config_dir_policy = Path::new("/opt/etc/router-hub/firewall-policy.json");
-        if config_dir_policy.exists()
+        if self.platform == Platform::Asuswrt
+            && config_dir_policy.exists()
             && config_dir_policy != self.data_dir.join("firewall-policy.json").as_path()
         {
             let _ = save_json(config_dir_policy, policy_data).await;
@@ -685,6 +693,21 @@ mod tests {
 
         let res: Result<Vec<WolMachine>> = load_json(&json_path).await;
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_linux_firewall_policy_uses_only_data_directory() {
+        let temp = tempdir().unwrap();
+        let mut config = AppConfig::default();
+        config.platform = Platform::Linux;
+        config.paths.data_dir = temp.path().join("data");
+        config.certificates.certs_dir = temp.path().join("certs");
+        config.nginx.root_dir = temp.path().join("nginx");
+
+        let stores = Stores::load(&config).await.unwrap();
+        assert!(!stores.firewall_policy.read().await.enabled);
+        stores.save_firewall_policy().await.unwrap();
+        assert!(config.paths.data_dir.join("firewall-policy.json").is_file());
     }
 
     #[tokio::test]

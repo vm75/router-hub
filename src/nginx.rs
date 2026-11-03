@@ -728,8 +728,41 @@ pub fn reconcile_http_forwarder(config: &AppConfig) -> Result<()> {
         )?);
     }
 
+    // HTTP-01 certificates need a hostname-matching HTTP server even before a
+    // reverse-proxy site exists. Read persisted definitions so startup and site
+    // reconciliation keep those challenge hosts routed to the shared ACME alias.
+    let certificates_path = config.paths.data_dir.join("certificates.json");
+    if let Ok(bytes) = fs::read(&certificates_path) {
+        let certificates: Vec<serde_json::Value> =
+            serde_json::from_slice(&bytes).with_context(|| {
+                format!(
+                    "invalid certificate definitions: {}",
+                    certificates_path.display()
+                )
+            })?;
+        for certificate in certificates {
+            if certificate
+                .get("method")
+                .and_then(serde_json::Value::as_str)
+                != Some("http")
+            {
+                continue;
+            }
+            if let Some(domains) = certificate
+                .get("domains")
+                .and_then(serde_json::Value::as_array)
+            {
+                for domain in domains.iter().filter_map(serde_json::Value::as_str) {
+                    if !domain.starts_with("*.") {
+                        names.insert(domain.to_string());
+                    }
+                }
+            }
+        }
+    }
+
     let mut content = String::from(
-        "# Managed by Router Hub. HTTP requests for enabled sites are redirected to HTTPS.\n",
+        "# Managed by Router Hub. HTTP requests for enabled sites and HTTP-01 certificate domains are handled here.\n",
     );
     if !names.is_empty() {
         let names = names.into_iter().collect::<Vec<_>>();
@@ -743,8 +776,17 @@ pub fn reconcile_http_forwarder(config: &AppConfig) -> Result<()> {
             content.push('\n');
         }
         content.push_str(
-            "\n    include snippets/listen-http.conf;\n\n    include snippets/server-guard.conf;\n    include snippets/acme-challenge.conf;\n    return 301 https://$host$request_uri;\n}\n",
+            "\n    include snippets/listen-http.conf;\n\n    include snippets/server-guard.conf;\n",
         );
+        content.push_str("    location ^~ /.well-known/acme-challenge/ {\n        alias ");
+        content.push_str(
+            &config
+                .certificates
+                .certs_dir
+                .join("acme-challenge")
+                .to_string_lossy(),
+        );
+        content.push_str("/;\n        default_type text/plain;\n    }\n\n    location / {\n        return 301 https://$host$request_uri;\n    }\n}\n");
     }
     write_managed_config_file(config, &config.nginx.http_forwarder_path, &content)
 }
@@ -1643,6 +1685,35 @@ mod tests {
     }
 
     #[test]
+    fn http_certificate_domain_gets_forwarder_without_site() {
+        let temp = tempdir().unwrap();
+        let mut config = test_config(temp.path());
+        config.paths.data_dir = temp.path().join("state");
+        fs::create_dir_all(&config.paths.data_dir).unwrap();
+        fs::write(
+            config.paths.data_dir.join("certificates.json"),
+            r#"[{"method":"http","domains":["eb5.newhopes.info"]},{"method":"dns","domains":["dns.example.test"]}]"#,
+        ).unwrap();
+        reconcile_http_forwarder(&config).unwrap();
+        let output = fs::read_to_string(&config.nginx.http_forwarder_path).unwrap();
+        assert!(output.contains("eb5.newhopes.info"));
+        assert!(!output.contains("dns.example.test"));
+        assert!(
+            output.contains(
+                &config
+                    .certificates
+                    .certs_dir
+                    .join("acme-challenge")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert!(output.contains("location ^~ /.well-known/acme-challenge/"));
+        assert!(output.contains("location / {\n        return 301 https://$host$request_uri;"));
+        assert!(!output.contains("snippets/acme-challenge.conf"));
+    }
+
+    #[test]
     fn migrates_legacy_known_subdomains_forwarder() {
         let temp = tempdir().unwrap();
         let config = test_config(temp.path());
@@ -1658,7 +1729,7 @@ mod tests {
         assert!(!legacy.exists());
         assert_eq!(
             fs::read_to_string(&config.nginx.http_forwarder_path).unwrap(),
-            "# Managed by Router Hub. HTTP requests for enabled sites are redirected to HTTPS.\n"
+            "# Managed by Router Hub. HTTP requests for enabled sites and HTTP-01 certificate domains are handled here.\n"
         );
     }
 

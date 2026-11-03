@@ -64,6 +64,33 @@
       margin-top: 2px;
     }
 
+    /* ── Mode pill (replaces plain rh-badge for the mode indicator) ── */
+    .rh-mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .03em;
+      background: linear-gradient(135deg, #1a3a4e 0%, #0d2230 100%);
+      border: 1px solid #2e6080;
+      color: #7ecfee;
+      box-shadow: 0 0 8px rgba(49,215,220,.15);
+      white-space: nowrap;
+    }
+
+    .rh-mode-pill::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #31d7dc;
+      box-shadow: 0 0 4px #31d7dc;
+    }
+
     .rh-shell,
     .rh-shell *,
     .rh-overlay,
@@ -152,6 +179,8 @@
     .rh-tab.tabClicked {
       background: #4D595D
     }
+
+
 
     /* ── ASUS form typography: exact matches from form_style.css ── */
     .rh-shell .formfonttitle {
@@ -356,6 +385,13 @@
       color: var(--asus-muted);
       font-size: 12px
     }
+
+    /* ── Sidebar and toggle: hidden everywhere except mobile standalone ── */
+    #rh-sidebar,
+    #rh-sidebar-toggle {
+      display: none
+    }
+
 
     /* ── Tables ── */
     .table-wrap {
@@ -952,9 +988,85 @@
       }
     }
 
+    /* ── Standalone mobile: sidebar + 2×2 metric grid ── */
     @media(max-width:760px) {
+      #rh-sidebar {
+        display: none;
+        width: 100%;
+        background: #1a2530;
+        border-bottom: 1px solid #2a3a4e;
+        margin-bottom: 8px;
+        overflow: hidden
+      }
+
+      #rh-sidebar.open {
+        display: block
+      }
+
+      #rh-sidebar .rh-tab {
+        float: none;
+        height: auto;
+        margin: 0;
+        border-radius: 0;
+        display: flex;
+        align-items: center;
+        padding: 10px 14px;
+        font-size: 12px;
+        line-height: 1.4;
+        border-bottom: 1px solid #243040;
+        text-align: left
+      }
+
+      #rh-sidebar .rh-tab:last-child {
+        border-bottom: 0
+      }
+
+      #rh-sidebar .rh-tab.tab {
+        background: transparent
+      }
+
+      #rh-sidebar .rh-tab.tab:hover {
+        background: #253545
+      }
+
+      #rh-sidebar .rh-tab.tabClicked {
+        background: #1e4060;
+        border-left: 3px solid #31d7dc;
+        color: #7ecfee
+      }
+
+      #rh-sidebar-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 10px 14px;
+        background: #1a2530;
+        border: none;
+        border-bottom: 1px solid #2a3a4e;
+        border-radius: 6px 6px 0 0;
+        color: #7ecfee;
+        font: 12px Verdana, sans-serif;
+        cursor: pointer;
+        text-align: left;
+        margin-bottom: 8px
+      }
+
+      #rh-sidebar-toggle svg {
+        flex-shrink: 0;
+        transition: transform .2s
+      }
+
+      #rh-sidebar-toggle.open svg:last-child {
+        transform: rotate(180deg)
+      }
+
+      .rh-tabs {
+        display: none
+      }
 
       .span-4,
+      .span-6,
       .span-8 {
         grid-column: span 12
       }
@@ -963,8 +1075,22 @@
         padding: 4px 2px 8px
       }
 
+      /* 2×2 metric grid on narrow screens */
       .metric {
-        grid-column: span 12
+        grid-column: span 6;
+        padding: 10px 12px
+      }
+
+      .metric .value {
+        font-size: 20px
+      }
+
+      .metric .label {
+        font-size: 10px
+      }
+
+      .metric .sub {
+        font-size: 11px
       }
 
       .form-grid {
@@ -1020,13 +1146,15 @@
 
     <div class="rh-hero-banner">
       <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiNmZmZmZmYiIC8+CgogIDxnIGZpbGw9IiMyODI4MjgiIHN0cm9rZT0iIzI4MjgyOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDwhLS0gV2ktRmkgU2lnbmFsIFdhdmVzIC0tPgogICAgPHBhdGggZD0iTSAxOTUsMTI4IEEgMTIwLDEyMCAwIDAsMSAzMDUsMTI4IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPHBhdGggZD0iTSAyMTUsMTQ4IEEgODUsODUgMCAwLDEgMjg1LDE0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIENvbm5lY3RpbmcgTmV0d29yayBMaW5lcyAtLT4KICAgIDxsaW5lIHgxPSIyNTAiIHkxPSIyMDUiIHgyPSIyNTAiIHkyPSIzMjUiIHN0cm9rZS13aWR0aD0iMjAiIC8+CiAgICA8bGluZSB4MT0iMTQwIiB5MT0iMjIyIiB4Mj0iMjUwIiB5Mj0iMjY1IiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPGxpbmUgeDE9IjM2MCIgeTE9IjIyMiIgeDI9IjI1MCIgeTI9IjI2NSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIE5ldHdvcmsgTm9kZXMgKENpcmNsZXMpIC0tPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMTgwIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMTMwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMzcwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMjc1IiByPSIyOCIgc3Ryb2tlPSJub25lIiAvPgoKICAgIDwhLS0gQW50ZW5uYXMgLS0+CiAgICA8cmVjdCB4PSIxNTYiIHk9IjI3NSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjU1IiByeD0iNyIgc3Ryb2tlPSJub25lIiAvPgogICAgPHJlY3QgeD0iMzMwIiB5PSIyNzUiIHdpZHRoPSIxNCIgaGVpZ2h0PSI1NSIgcng9IjciIHN0cm9rZT0ibm9uZSIgLz4KCiAgICA8IS0tIE1vZGVtIEJvZHkgLS0+CiAgICA8cmVjdCB4PSIxMzciIHk9IjMyNyIgd2lkdGg9IjIyNiIgaGVpZ2h0PSI2OCIgcng9IjIyIiBzdHJva2U9Im5vbmUiIC8+CgogICAgPCEtLSBMRUQgSW5kaWNhdG9yIExpZ2h0cyAtLT4KICAgIDxjaXJjbGUgY3g9IjE4MiIgY3k9IjM2MiIgcj0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjE3IiBjeT0iMzYyIiByPSI3IiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9Im5vbmUiIC8+CiAgICA8Y2lyY2xlIGN4PSIyNTIiIGN5PSIzNjIiIHI9IjciIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0ibm9uZSIgLz4KICA8L2c+Cjwvc3ZnPgo=" alt="Router Hub Logo" class="rh-hero-logo">
-      <div>
+      <div style="flex:1">
         <div class="rh-hero-title">Router Hub</div>
-        <div class="rh-hero-sub">Entware Services &middot; Nginx &middot; Certificates &middot; Firewall &middot; AdGuard Home</div>
+        <div class="rh-hero-sub">Router Admin</div>
       </div>
+      <div class="rh-mode-pill" id="rh-mode" style="display:none;"></div>
     </div>
 
     <!-- Fallback tab nav for standalone mode; tabs are moved to ASUS #tabMenu when embedded -->
+    <!-- On mobile the tab strip is hidden; a sidebar replaces it -->
     <div id="rh-nav" class="submenuBlock rh-tabs">
       <div class="tabClicked rh-tab" data-view="dashboard">Dashboard</div>
       <div class="tab rh-tab" data-view="services">Services</div>
@@ -1035,6 +1163,24 @@
       <div class="tab rh-tab" data-view="wol">Wake-on-LAN</div>
       <div class="tab rh-tab" data-view="firewall">Ban Shield</div>
       <div class="tab rh-tab" data-view="adguard">AdGuard</div>
+      <div class="tab rh-tab" data-view="wireguard">WireGuard</div>
+    </div>
+
+    <!-- Mobile sidebar (standalone only) -->
+    <button class="rh-sidebar-toggle" id="rh-sidebar-toggle" aria-expanded="false" aria-controls="rh-sidebar" onclick="rhToggleSidebar()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <span id="rh-sidebar-label">Dashboard</span>
+      <svg style="margin-left:auto" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div id="rh-sidebar" class="rh-sidebar" role="navigation" aria-label="Page navigation">
+      <div class="tabClicked rh-tab" data-view="dashboard" data-sidebar>Dashboard</div>
+      <div class="tab rh-tab" data-view="services" data-sidebar>Services</div>
+      <div class="tab rh-tab" data-view="nginx" data-sidebar>Nginx</div>
+      <div class="tab rh-tab" data-view="certificates" data-sidebar>Certificates</div>
+      <div class="tab rh-tab" data-view="wol" data-sidebar>Wake-on-LAN</div>
+      <div class="tab rh-tab" data-view="firewall" data-sidebar>Ban Shield</div>
+      <div class="tab rh-tab" data-view="adguard" data-sidebar>AdGuard</div>
+      <div class="tab rh-tab" data-view="wireguard" data-sidebar>WireGuard</div>
     </div>
 
     <!-- Header row: formfonttitle left, brand/status right (AdaptiveQoS_Bandwidth_Monitor pattern) -->
@@ -1044,6 +1190,9 @@
         <td class="title-cell formfonttitle">Router Hub &mdash; <span id="page-title">Dashboard</span></td>
         <td class="brand-cell">
           <div class="rh-brand-info">
+            <span class="rh-badge" style="padding:0 8px;">
+              <span class="rh-version" id="rh-version">v0.7.2</span>
+            </span>
             <span class="rh-badge">
               <span class="rh-logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiNmZmZmZmYiIC8+CgogIDxnIGZpbGw9IiMyODI4MjgiIHN0cm9rZT0iIzI4MjgyOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDwhLS0gV2ktRmkgU2lnbmFsIFdhdmVzIC0tPgogICAgPHBhdGggZD0iTSAxOTUsMTI4IEEgMTIwLDEyMCAwIDAsMSAzMDUsMTI4IiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPHBhdGggZD0iTSAyMTUsMTQ4IEEgODUsODUgMCAwLDEgMjg1LDE0OCIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIENvbm5lY3RpbmcgTmV0d29yayBMaW5lcyAtLT4KICAgIDxsaW5lIHgxPSIyNTAiIHkxPSIyMDUiIHgyPSIyNTAiIHkyPSIzMjUiIHN0cm9rZS13aWR0aD0iMjAiIC8+CiAgICA8bGluZSB4MT0iMTQwIiB5MT0iMjIyIiB4Mj0iMjUwIiB5Mj0iMjY1IiBzdHJva2Utd2lkdGg9IjIwIiAvPgogICAgPGxpbmUgeDE9IjM2MCIgeTE9IjIyMiIgeDI9IjI1MCIgeTI9IjI2NSIgc3Ryb2tlLXdpZHRoPSIyMCIgLz4KCiAgICA8IS0tIE5ldHdvcmsgTm9kZXMgKENpcmNsZXMpIC0tPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMTgwIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMTMwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMzcwIiBjeT0iMjIyIiByPSIyMyIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjUwIiBjeT0iMjc1IiByPSIyOCIgc3Ryb2tlPSJub25lIiAvPgoKICAgIDwhLS0gQW50ZW5uYXMgLS0+CiAgICA8cmVjdCB4PSIxNTYiIHk9IjI3NSIgd2lkdGg9IjE0IiBoZWlnaHQ9IjU1IiByeD0iNyIgc3Ryb2tlPSJub25lIiAvPgogICAgPHJlY3QgeD0iMzMwIiB5PSIyNzUiIHdpZHRoPSIxNCIgaGVpZ2h0PSI1NSIgcng9IjciIHN0cm9rZT0ibm9uZSIgLz4KCiAgICA8IS0tIE1vZGVtIEJvZHkgLS0+CiAgICA8cmVjdCB4PSIxMzciIHk9IjMyNyIgd2lkdGg9IjIyNiIgaGVpZ2h0PSI2OCIgcng9IjIyIiBzdHJva2U9Im5vbmUiIC8+CgogICAgPCEtLSBMRUQgSW5kaWNhdG9yIExpZ2h0cyAtLT4KICAgIDxjaXJjbGUgY3g9IjE4MiIgY3k9IjM2MiIgcj0iNyIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSJub25lIiAvPgogICAgPGNpcmNsZSBjeD0iMjE3IiBjeT0iMzYyIiByPSI3IiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9Im5vbmUiIC8+CiAgICA8Y2lyY2xlIGN4PSIyNTIiIGN5PSIzNjIiIHI9IjciIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0ibm9uZSIgLz4KICA8L2c+Cjwvc3ZnPgo=" alt="RH" style="width:22px;height:22px;object-fit:contain"></span>
               <span class="rh-badge-copy">
@@ -1052,8 +1201,7 @@
                     id="connection">Checking</span></span>
               </span>
             </span>
-            <span class="rh-version">v0.5.4</span>
-            <button class="btn" onclick="refreshCurrent()">Refresh</button>
+            <button class="btn" style="height:32px;" onclick="refreshCurrent()">Refresh</button>
           </div>
         </td>
       </tr>
@@ -1066,6 +1214,64 @@
 
       <section class="view active" id="view-dashboard">
         <div class="grid" id="dashboard-grid"></div>
+        <div class="grid" id="system-usage-grid" style="margin-top: 12px; display: none;">
+          <div class="card pad span-12" id="card-network">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="width:4px;height:14px;background:#31d7dc;"></div>
+              <strong style="font-size:14px;">Internet Traffic</strong>
+            </div>
+            <div style="display:flex;align-items:center;margin-bottom:8px;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-dl" style="width:0%;height:100%;background:#4cdb98;border-radius:6px;"></div>
+              </div>
+              <div style="width:120px;text-align:right;font-size:12px;display:flex;justify-content:space-between;padding-left:12px;"><span style="color:#b0bec5">DL</span><span id="txt-dl">0.00 KB/s</span></div>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-ul" style="width:0%;height:100%;background:#31d7dc;border-radius:6px;"></div>
+              </div>
+              <div style="width:120px;text-align:right;font-size:12px;display:flex;justify-content:space-between;padding-left:12px;"><span style="color:#b0bec5">UL</span><span id="txt-ul">0.00 KB/s</span></div>
+            </div>
+          </div>
+          <div class="card pad span-12" id="card-cpu">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="width:4px;height:14px;background:#31d7dc;"></div>
+              <strong style="font-size:14px;">CPU</strong>
+              <span id="txt-loadavg" style="margin-left:12px;color:#8b9bb0;font-size:12px;"></span>
+              <span id="txt-uptime" style="margin-left:auto;color:#b0bec5;font-size:11px;"></span>
+            </div>
+            <div id="cpu-cores" style="display:grid;gap:8px;margin-bottom:12px;"></div>
+            <canvas id="cpu-canvas" style="width:100%;height:100px;background:#050505;border:1px solid #334956;border-radius:2px;"></canvas>
+          </div>
+          <div class="card pad span-12" id="card-ram">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <div style="width:4px;height:14px;background:#31d7dc;"></div>
+              <strong style="font-size:14px;">RAM</strong>
+            </div>
+            <div style="display:flex;justify-content:space-around;text-align:center;margin-bottom:12px;font-size:13px;">
+              <div><div style="color:#fff;">Used</div><div id="txt-ram-used" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Free</div><div id="txt-ram-free" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Total</div><div id="txt-ram-total" style="color:#b0bec5;">0 MB</div></div>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-ram" style="width:0%;height:100%;background:#31d7dc;border-radius:6px;"></div>
+              </div>
+              <div style="width:60px;text-align:right;font-size:12px;" id="txt-ram-pct">0%</div>
+            </div>
+            <div style="display:flex;justify-content:space-around;text-align:center;margin-bottom:12px;font-size:13px;margin-top:16px;">
+              <div><div style="color:#fff;">Swap Used</div><div id="txt-swap-used" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Swap Free</div><div id="txt-swap-free" style="color:#b0bec5;">0 MB</div></div>
+              <div><div style="color:#fff;">Swap Total</div><div id="txt-swap-total" style="color:#b0bec5;">0 MB</div></div>
+            </div>
+            <div style="display:flex;align-items:center;">
+              <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                <div id="bar-swap" style="width:0%;height:100%;background:#ffcb66;border-radius:6px;"></div>
+              </div>
+              <div style="width:60px;text-align:right;font-size:12px;" id="txt-swap-pct">0%</div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="view-services">
@@ -1106,6 +1312,7 @@
                 <button class="btn" onclick="toggleAdguardFiltering(false,10)">10 min</button>
                 <button class="btn" onclick="toggleAdguardFiltering(false,30)">30 min</button>
                 <button class="btn" onclick="toggleAdguardFiltering(false,60)">60 min</button>
+                <button id="resume-filtering-btn" class="btn primary" style="display:none" onclick="toggleAdguardFiltering(true)">Resume</button>
               </div>
             </div>
             <div class="span-6">
@@ -1118,6 +1325,7 @@
                 <button class="btn" onclick="toggleAdguardProtection(false,10)">10 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,30)">30 min</button>
                 <button class="btn" onclick="toggleAdguardProtection(false,60)">60 min</button>
+                <button id="resume-protection-btn" class="btn primary" style="display:none" onclick="toggleAdguardProtection(true)">Resume</button>
               </div>
             </div>
           </div>
@@ -1159,6 +1367,71 @@
               <button type="submit" class="btn primary">Save Settings</button>
             </div>
           </form>
+        </div>
+      </section>
+
+      <section class="view" id="view-wireguard">
+        <div class="card-head">
+          <h2>WireGuard Interface</h2>
+          <div class="actions">
+            <span id="wireguard-status-badge"></span>
+            <button class="btn primary" onclick="toggleWireguard(true)">UP</button>
+            <button class="btn danger" onclick="toggleWireguard(false)">DOWN</button>
+          </div>
+        </div>
+        <div class="card">
+          <form id="wireguard-form" class="form" onsubmit="saveWireguardSettings(event)">
+            <div class="field-row">
+              <div class="field full">
+                <label>Private Key</label>
+                <input class="input" type="password" name="private_key">
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Address</label>
+                <input class="input" name="address" placeholder="10.0.0.1/24">
+              </div>
+              <div class="field">
+                <label>Listen Port</label>
+                <input class="input" name="listen_port" type="number" placeholder="51820">
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>PostUp</label>
+                <input class="input" name="post_up">
+              </div>
+              <div class="field">
+                <label>PostDown</label>
+                <input class="input" name="post_down">
+              </div>
+            </div>
+            <div style="margin-top:14px">
+              <button type="submit" class="btn primary">Save Interface</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card-head" style="margin-top:24px">
+          <h2>WireGuard Peers</h2>
+          <div class="actions">
+            <button class="btn" onclick="addWireguardPeer()">Add Peer</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Public Key</th>
+                <th>Allowed IPs</th>
+                <th>Endpoint</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="wireguard-peers-body">
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -1232,8 +1505,9 @@
           an installed hook (or the default data-directory hook) and its environment values. Existing matching
           <code>.cfg</code>/<code>.txt</code> pairs are imported when Router Hub starts.</div>
         <div class="notice warn" id="certificate-lock-notice" hidden>
-          Dehydrated is locked at <code id="certificate-lock-path"></code>. Certificate issue and renewal are disabled.
-          <button class="btn small danger" onclick="clearDehydratedLock()">Clear lock</button>
+          <span id="certificate-lock-message"></span>
+          <code id="certificate-lock-path" hidden></code>
+          <button class="btn small danger" id="certificate-lock-clear" onclick="clearDehydratedLock()" hidden>Clear lock</button>
         </div>
         <div class="card">
           <div class="card-head">
@@ -1281,7 +1555,10 @@
       </section>
 
       <section class="view" id="view-firewall">
-        <div class="notice" id="fw-health">Loading firewall health…</div>
+        <div class="card pad" id="fw-health" style="margin-bottom:12px">
+          <h2 style="margin-top:0;font-size:13px">Ban shield performance</h2>
+          <p>Loading firewall health…</p>
+        </div>
         <div class="grid">
           <div class="card pad span-4">
             <h2 style="margin-top:0;font-size:13px">Protection</h2>
@@ -1324,6 +1601,30 @@
               </table>
             </div>
           </div>
+        </div>
+        <div class="card pad">
+          <div class="toolbar">
+            <div><strong>Security tuning</strong><div class="hint">Saved in firewall-policy.json and applied live. Prefixes, backend commands, and resource caps remain in router-hub.toml.</div></div>
+            <div class="actions"><span class="muted" id="fw-tuning-source"></span><button type="button" class="btn" onclick="applyStrictFirewallPreset()">Load strict preset</button></div>
+          </div>
+          <div class="notice warn">Score retention and subnet promotion memory must outlast the minimum subnet ban; reputation retention must outlast the maximum ban. The strict preset is intentionally less forgiving and may block shared hosting or carrier networks when multiple clients share a subnet.</div>
+          <form id="firewall-settings-form" class="form" onsubmit="saveFirewallSettings(event)">
+            <div class="form-grid">
+              <div class="field"><label>IP failure threshold</label><input class="input" type="number" min="1" name="ip_failures" required></div>
+              <div class="field"><label>Subnet score threshold</label><input class="input" type="number" min="1" name="subnet_failures" required></div>
+              <div class="field"><label>Distinct IPs for subnet promotion</label><input class="input" type="number" min="2" name="promote_after_banned_ips" required></div>
+              <div class="field"><label>Prior subnet offenses before fast re-promotion</label><input class="input" type="number" min="1" name="reputation_repromote_after_offenses" required><span class="hint">1 means a previously promoted subnet is re-banned when one address reaches the IP threshold.</span></div>
+              <div class="field"><label>Score retention (days)</label><input class="input" type="number" min="1" name="score_retention_days" required></div>
+              <div class="field"><label>Subnet promotion memory (days)</label><input class="input" type="number" min="1" name="subnet_promotion_window_days" required></div>
+              <div class="field"><label>Reputation retention (days)</label><input class="input" type="number" min="1" name="reputation_retention_days" required></div>
+              <div class="field"><label>Minimum subnet ban (days)</label><input class="input" type="number" min="1" name="subnet_ban_days" required></div>
+              <div class="field"><label>First ban (days)</label><input class="input" type="number" min="1" name="first_ban_days" required></div>
+              <div class="field"><label>Second ban (days)</label><input class="input" type="number" min="1" name="second_ban_days" required></div>
+              <div class="field"><label>Third ban (days)</label><input class="input" type="number" min="1" name="third_ban_days" required></div>
+              <div class="field"><label>Maximum ban (days)</label><input class="input" type="number" min="1" name="max_ban_days" required></div>
+            </div>
+            <div class="actions" style="margin-top:12px"><button type="submit" class="btn primary">Save security tuning</button></div>
+          </form>
         </div>
       </section>
 
@@ -1418,10 +1719,10 @@
     const fragmentToken = new URLSearchParams(location.hash.replace(/^#/, '')).get('token');
     if (fragmentToken) { sessionStorage.setItem('router-hub-token', fragmentToken); history.replaceState(null, '', location.pathname + location.search); }
     const cookieToken = document.cookie.match(/(?:^|; )router-hub-token=([^;]*)/)?.[1];
-    const CONFIG = { version: "0.5.4", apiBase: "{PROTOCOL}//{HOST}:3030", token: "router-hub-test-token" || sessionStorage.getItem('router-hub-token') || cookieToken };
+    const CONFIG = { version: "0.7.2", apiBase: "{PROTOCOL}//{HOST}:3030", token: "router-hub-test-token" || sessionStorage.getItem('router-hub-token') || cookieToken };
     const apiBase = CONFIG.apiBase.replace('{PROTOCOL}', location.protocol).replace('{HOST}', location.hostname).replace(/\/$/, '');
-    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [] };
-    const tableSorts = { nginx: { key: 'site', dir: 1 }, bans: { key: 'network', dir: 1 }, rewrites: { key: 'domain', dir: 1 }, hosts: { key: 'ip', dir: 1 }, dnsmasq: { key: 'mac', dir: 1 } };
+    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [], wireguard: null };
+    const tableSorts = { nginx: { key: 'site', dir: 1 }, bans: { key: 'reason', dir: 1 }, rewrites: { key: 'domain', dir: 1 }, hosts: { key: 'ip', dir: 1 }, dnsmasq: { key: 'mac', dir: 1 } };
     let wolStatusTimer;
     let wolStatusRequest;
     let wolStatusGeneration = 0;
@@ -1433,7 +1734,7 @@
 
     function stopAdguardPolling() { clearInterval(adguardPollingTimer); adguardPollingTimer = undefined; }
     function startAdguardPolling() { stopAdguardPolling(); adguardPollingTimer = setInterval(() => { if (state.view === 'adguard') loadAdguardStatusOnly(); }, 15000); }
-    const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'] };
+    const titles = { dashboard: ['Dashboard', 'Router status at a glance'], services: ['Services', 'Manage /opt-style init scripts'], nginx: ['Nginx', 'Virtual hosts, subdomains and subfolders'], certificates: ['Certificates', "Let's Encrypt issuance and renewal"], wol: ['Wake-on-LAN', 'Maintain and wake LAN machines'], firewall: ['Ban Shield', 'Lightweight hybrid-DFA intrusion blocking'], adguard: ['AdGuard Home', 'Manage AdGuard Home integration'], wireguard: ['WireGuard', 'Manage WireGuard VPN Interface and Peers'] };
     const requestedTab = new URLSearchParams(location.search).get('tab');
     if (requestedTab && Object.prototype.hasOwnProperty.call(titles, requestedTab)) state.view = requestedTab;
     function esc(v = '') { return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
@@ -1443,7 +1744,7 @@
     function showOutput(title, value) { const output = document.getElementById('log-content'); document.getElementById('log-title').textContent = title; output.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); document.getElementById('log-modal').showModal(); requestAnimationFrame(() => { output.scrollTop = output.scrollHeight }) }
     function updateSortHeaders(table) { const sort = tableSorts[table]; document.querySelectorAll(`[data-sort-table="${table}"]`).forEach(button => { const active = button.dataset.sortKey === sort.key; button.setAttribute('aria-sort', active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'); button.querySelector('.table-sort-indicator').textContent = active ? (sort.dir === 1 ? '↑' : '↓') : '↕' }) }
     function sortValue(value) { return value == null ? '' : String(value) }
-    function compareTableValues(a, b, key) { if (key === 'expires') return (new Date(a.expires_at || 0) - new Date(b.expires_at || 0)); if (key === 'port') return (Number(a.port || 0) - Number(b.port || 0)); if (key === 'state') return sortValue(a.enabled ? (a.running ? 'live' : 'enabled') : 'disabled').localeCompare(sortValue(b.enabled ? (b.running ? 'live' : 'enabled') : 'disabled')); const av = key === 'site' ? (a.display_name || a.name) : key === 'hostnames' ? (a.hostnames || []).join(' ') : a[key]; return sortValue(av).localeCompare(sortValue(key === 'site' ? (b.display_name || b.name) : key === 'hostnames' ? (b.hostnames || []).join(' ') : b[key]), undefined, { numeric: true, sensitivity: 'base' }) }
+    function compareTableValues(a, b, key) { if (key === 'expires') return (new Date(a.expires_at || 0) - new Date(b.expires_at || 0)); if (key === 'port') return (Number(a.port || 0) - Number(b.port || 0)); if (key === 'state') return sortValue(a.state).localeCompare(sortValue(b.state)); const av = key === 'site' ? (a.display_name || a.name) : key === 'hostnames' ? (a.hostnames || []).join(' ') : a[key]; return sortValue(av).localeCompare(sortValue(key === 'site' ? (b.display_name || b.name) : key === 'hostnames' ? (b.hostnames || []).join(' ') : b[key]), undefined, { numeric: true, sensitivity: 'base' }) }
     function sortTable(table, key) { const sort = tableSorts[table]; if (sort.key === key) sort.dir *= -1; else { sort.key = key; sort.dir = 1 } if (table === 'nginx') loadNginxObjects(); else if (table === 'bans') showActiveBans(); else if (table === 'rewrites') { state.adguardRewrites.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderAdguardRewrites() } else if (table === 'hosts') { state.adguardHosts.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderAdguardHosts() } else if (table === 'dnsmasq') { state.dnsmasqHosts.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderDnsmasqHosts() } updateSortHeaders(table) }
     function emptyRow(cols, text = 'No items configured') { return `<tr><td colspan="${cols}" class="empty">${esc(text)}</td></tr>` }
     function status(ok, on = 'Running', off = 'Stopped') { return `<span class="status ${ok ? 'ok' : 'off'}">${ok ? on : off}</span>` }
@@ -1453,7 +1754,7 @@
     function jsonLines(value) { return (value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean) }
     function envObject(value) { const result = {}; for (const line of jsonLines(value)) { const split = line.indexOf('='); if (split <= 0) throw new Error('Hook environment entries must use KEY=value'); result[line.slice(0, split).trim()] = line.slice(split + 1) } return result }
     function prettyDate(value) { if (!value) return 'Unknown'; return new Date(value).toLocaleString() }
-    function refreshCurrent() { ({ dashboard: loadDashboard, services: loadServices, nginx: loadNginx, certificates: loadCertificatesWithLock, wol: loadWol, firewall: loadFirewall, adguard: loadAdguard }[state.view] || (() => { }))() }
+    function refreshCurrent() { ({ dashboard: loadDashboard, services: loadServices, nginx: loadNginx, certificates: loadCertificatesWithLock, wol: loadWol, firewall: loadFirewall, adguard: loadAdguard, wireguard: loadWireguard }[state.view] || (() => { }))() }
 
     // Tab navigation: hook into ASUS initial() when embedded, else run immediately.
     // ASUS renders the menu twice while its asynchronous menuTree module loads, so
@@ -1479,6 +1780,27 @@
         tab.classList.toggle('tab', !selected);
       });
     }
+    function rhToggleSidebar() {
+      const sidebar = document.getElementById('rh-sidebar');
+      const btn = document.getElementById('rh-sidebar-toggle');
+      if (!sidebar || !btn) return;
+      const open = sidebar.classList.toggle('open');
+      btn.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open);
+    }
+
+    function rhSyncSidebarActive(view) {
+      const sidebar = document.getElementById('rh-sidebar');
+      if (!sidebar) return;
+      sidebar.querySelectorAll('[data-view]').forEach(x => {
+        x.classList.toggle('tabClicked', x.dataset.view === view);
+        x.classList.toggle('tab', x.dataset.view !== view);
+      });
+      const label = document.getElementById('rh-sidebar-label');
+      const activeTab = sidebar.querySelector(`[data-view="${view}"]`);
+      if (label && activeTab) label.textContent = activeTab.textContent.trim();
+    }
+
     function rhSetupTabs() {
       const asusTabs = document.getElementById('tabMenu');
       const ownNav = document.getElementById('rh-nav');
@@ -1496,13 +1818,23 @@
       if (model && typeof based_modelid === 'string' && based_modelid.trim()) model.textContent = based_modelid;
       const navRoot = asusTabs || ownNav;
       if (!navRoot) return;
-      if (!navRoot.dataset.rhTabsBound) {
-        navRoot.dataset.rhTabsBound = 'true';
-        navRoot.addEventListener('click', event => {
+
+      // Wire sidebar nav (mobile only, standalone)
+      const sidebar = document.getElementById('rh-sidebar');
+      if (sidebar && !sidebar.dataset.rhTabsBound) {
+        sidebar.dataset.rhTabsBound = 'true';
+        sidebar.addEventListener('click', event => {
           const tab = event.target.closest('[data-view]'); if (!tab) return;
+          // Sync sidebar active state
+          rhSyncSidebarActive(tab.dataset.view);
+          // Close sidebar after selection
+          const btn = document.getElementById('rh-sidebar-toggle');
+          sidebar.classList.remove('open');
+          if (btn) { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+          // Sync horizontal nav active state too
           navRoot.querySelectorAll('[data-view]').forEach(x => {
-            x.classList.toggle('tabClicked', x === tab);
-            x.classList.toggle('tab', x !== tab);
+            x.classList.toggle('tabClicked', x.dataset.view === tab.dataset.view);
+            x.classList.toggle('tab', x.dataset.view !== tab.dataset.view);
           });
           document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
           const previousView = state.view;
@@ -1519,7 +1851,34 @@
           refreshCurrent();
         });
       }
+
+      if (!navRoot.dataset.rhTabsBound) {
+        navRoot.dataset.rhTabsBound = 'true';
+        navRoot.addEventListener('click', event => {
+          const tab = event.target.closest('[data-view]'); if (!tab) return;
+          navRoot.querySelectorAll('[data-view]').forEach(x => {
+            x.classList.toggle('tabClicked', x === tab);
+            x.classList.toggle('tab', x !== tab);
+          });
+          // Keep sidebar in sync when horizontal tabs are used
+          rhSyncSidebarActive(tab.dataset.view);
+          document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+          const previousView = state.view;
+          state.view = tab.dataset.view;
+          const url = new URL(location.href);
+          url.searchParams.set('tab', state.view);
+          history.replaceState(null, '', url);
+          if (previousView === 'wol' && state.view !== 'wol') stopWolStatusPolling();
+          if (previousView === 'certificates' && state.view !== 'certificates') stopCertificatePolling();
+          if (previousView === 'adguard' && state.view !== 'adguard') stopAdguardPolling();
+          document.getElementById('view-' + state.view).classList.add('active');
+          document.getElementById('page-title').textContent = titles[state.view][0];
+          document.getElementById('page-subtitle').textContent = titles[state.view][1];
+          refreshCurrent();
+        });
+      }
       rhApplyView();
+      rhSyncSidebarActive(state.view);
     }
     // Install before the ASUS window load handler so the observer sees both menu
     // renders. Keep the initial() hook as a fallback even if ASUS setup throws.
@@ -1537,23 +1896,25 @@
       try {
         const d = await api('/dashboard');
         const metrics = [['Services', `${d.services_running}/${d.services_total}`, 'running'], ['Nginx objects', d.nginx_objects, d.nginx_running ? 'nginx online' : 'nginx offline'], ['Certificates', d.certificates, d.certificates_due ? `${d.certificates_due} need attention` : 'renewals healthy'], ['Active bans', d.active_bans, `${d.active_subnet_bans} subnet · ${d.active_ip_bans} IP`]];
-        const h = d.firewall_health;
-        const utilization = h.set_capacity ? `${h.set_entries.toLocaleString()} / ${h.set_capacity.toLocaleString()} entries (${(h.set_entries / h.set_capacity * 100).toFixed(2)}%)` : 'Unavailable';
-        const healthSummary = h.dropped_line_count || h.command_timeout_count || h.error_count
-          ? `<span class="status warn">Needs attention</span><div class="muted">${h.dropped_line_count.toLocaleString()} dropped log lines · ${h.command_timeout_count.toLocaleString()} command timeouts · ${h.error_count.toLocaleString()} errors</div>`
-          : '<span class="status ok">Healthy</span><div class="muted">No dropped lines, timeouts, or errors reported</div>';
-        document.getElementById('dashboard-grid').innerHTML = metrics.map(x => `<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('') + `<div class="card pad span-8"><h2 style="margin-top:0;font-size:13px">Router Hub</h2><p class="muted">Version ${esc(d.version)} · ${d.test_mode ? 'x64 test mode' : 'Asuswrt-Merlin mode'}</p><p>Configuration is file-backed. Router Hub writes atomically, validates nginx before reload, and avoids shell interpolation for managed commands.</p></div><div class="card pad span-4"><h2 style="margin-top:0;font-size:13px">Security</h2><p>${status(d.firewall_enabled, 'Ban shield enabled', 'Ban shield disabled')}</p></div><div class="card pad span-12"><h2 style="margin-top:0;font-size:13px">Ban shield performance</h2><p><strong>Set usage:</strong> ${utilization}</p><p><strong>Engine:</strong> ${esc(h.state)} · ${healthSummary}</p><p class="muted">The summary is checked when this dashboard is loaded or refreshed. Active-ban capacity is 8,192; investigate if usage reaches the thousands or health counters increase.</p></div>`;
+        document.getElementById('dashboard-grid').innerHTML = metrics.map(x => `<div class="card metric"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('');
+        const versionEl = document.getElementById('rh-version');
+        if (versionEl) versionEl.textContent = `v${d.version}`;
+        const modeEl = document.getElementById('rh-mode');
+        if (modeEl) {
+          modeEl.textContent = d.test_mode ? 'x64 test mode' : 'Asuswrt-Merlin mode';
+          modeEl.style.display = 'inline-flex';
+        }
       } catch (e) { toast(e.message, true) }
     }
 
-    async function loadServices() { try { const rows = await api('/services'); document.getElementById('services-body').innerHTML = rows.length ? rows.map(s => { const name = s.name.replace(/^[SK]\d{2}/, ''); const serviceStatus = s.enabled ? status(s.running) : '<span class="status off">Disabled</span>'; const controls = s.enabled ? `<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','start')">Start</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','stop')">Stop</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','restart')">Restart</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','refresh')">Refresh</button>${s.name.endsWith('router-hub') ? '' : `<button class="btn small danger" onclick="serviceAction('${encodeURIComponent(s.name)}','disable')">Disable</button>`}` : `<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','enable')">Enable</button>`; return `<tr><td style="vertical-align:middle"><strong>${esc(name)}</strong></td><td style="vertical-align:middle">${serviceStatus}</td><td style="vertical-align:middle"><div class="row-actions">${controls}<button class="btn small" onclick="serviceLogs('${encodeURIComponent(s.name)}')">Logs</button></div></td></tr>` }).join('') : emptyRow(3) } catch (e) { toast(e.message, true) } }
+    async function loadServices() { try { const rows = await api('/services'); document.getElementById('services-body').innerHTML = rows.length ? rows.map(s => { const name = s.name.replace(/^[SK]\d{2}/, ''); const serviceStatus = s.enabled ? status(s.running) : '<span class="status off">Disabled</span>'; const isRouterHub = s.name.endsWith('router-hub'); const logs = `<button class="btn small action" onclick="serviceLogs('${encodeURIComponent(s.name)}')">Logs</button>`; const refresh = `<button class="btn small primary" onclick="serviceAction('${encodeURIComponent(s.name)}','refresh')">Refresh</button>`; const controls = isRouterHub ? `${logs}${refresh}` : s.enabled ? `${logs}${refresh}<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','${s.running ? 'stop' : 'start'}')">${s.running ? 'Stop' : 'Start'}</button><button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','restart')">Restart</button><button class="btn small danger" onclick="serviceAction('${encodeURIComponent(s.name)}','disable')">Disable</button>` : `${logs}<button class="btn small" onclick="serviceAction('${encodeURIComponent(s.name)}','enable')">Enable</button>`; return `<tr><td style="vertical-align:middle"><strong>${esc(name)}</strong></td><td style="vertical-align:middle">${serviceStatus}</td><td style="vertical-align:middle"><div class="row-actions">${controls}</div></td></tr>` }).join('') : emptyRow(3) } catch (e) { toast(e.message, true) } }
     async function serviceAction(name, action) { try { const r = await api(`/services/${name}/${action}`, { method: 'POST' }); toast(r.success ? `Service ${action} completed` : `Service ${action} failed`, !r.success); if (!r.success) showOutput('Service output', r); loadServices() } catch (e) { toast(e.message, true) } }
     async function serviceLogs(name) { try { const r = await api(`/services/${name}/logs`); showOutput('Service logs', r.message) } catch (e) { toast(e.message, true) } }
 
     function nginxPath(value) { return value.split('/').map(encodeURIComponent).join('/') }
     function nginxObjectUrl(o) { return `/nginx/objects/${o.kind}/${encodeURIComponent(o.domain)}/${encodeURIComponent(o.name)}` }
     async function loadNginx() { await Promise.all([loadNginxObjects(), loadNginxStatus(), loadNginxFiles(), loadNginxTemplates(), loadNginxLogs()]) }
-    function nginxObjectStatus(o) { const [kind, label] = !o.enabled ? ['off', 'Disabled'] : o.running ? ['ok', 'Live'] : ['warn', 'Enabled']; return `<span class="status ${kind}">${label}</span>` }
+    function nginxObjectStatus(o) { const state = o.state || (o.enabled ? (o.running ? 'live' : 'down') : 'disabled'); const kind = state === 'live' ? 'ok' : state === 'down' ? 'warn' : 'off'; return `<span class="status ${kind}">${esc(state)}</span>` }
     function launchNginxSite(kind, domain, name) { const o = state.nginxObjects.find(x => x.kind === kind && x.domain === domain && x.name === name); const target = o ? (o.display_name || o.name) : (kind === 'subdomain' ? `${name}.${domain}` : kind === 'subfolder' ? `${domain}/${name}` : domain); if (!target) return toast('Site launch URL unavailable', true); const url = /^https?:\/\//i.test(target) ? target : `${location.protocol === 'https:' ? 'https:' : 'http:'}//${target}`; window.open(url, '_blank', 'noopener,noreferrer') }
     function nginxObjectRow(o) { const child = o.kind !== 'domain', kind = esc(o.kind), domain = esc(o.domain), name = esc(o.name); return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${kind}</span></td><td>${o.port ?? '<span class="muted">—</span>'}</td><td>${o.template ? `<span class="tag">${esc(o.template)}</span>` : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${kind}','${domain}','${name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${kind}','${domain}','${name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${kind}','${domain}','${name}')">Delete</button><button class="btn small action" title="Launch site" aria-label="Launch site" onclick="launchNginxSite('${kind}','${domain}','${name}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Open URL"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg></button></div></td></tr>` }
     function nginxObjectRows(objects) { const sort = tableSorts.nginx, compare = (a, b) => sort.dir * compareTableValues(a, b, sort.key) || (a.kind || '').localeCompare(b.kind || '') || (a.display_name || a.name).localeCompare(b.display_name || b.name), domains = objects.filter(o => o.kind === 'domain').sort(compare), children = objects.filter(o => o.kind !== 'domain'), rows = []; domains.forEach(domain => { rows.push(domain); if (domain.enabled) rows.push(...children.filter(child => child.domain === domain.domain).sort(compare)) }); const knownDomains = new Set(domains.map(domain => domain.domain)); rows.push(...children.filter(child => !knownDomains.has(child.domain)).sort(compare)); return rows.map(nginxObjectRow).join('') }
@@ -1574,10 +1935,10 @@
       const nameField = kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" name="name" required placeholder="${kind === 'subdomain' ? 'app' : 'media'}"></div>`;
       const upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" placeholder="http://192.168.1.10:8080"><span class="hint">Optional. Router Hub adds this site to the hostname or subfolder upstream map.</span></div>`;
       const domainField = kind === 'domain' ? '<input class="input" name="domain" required placeholder="example.com">' : `<select class="input" name="domain" required>${nginxDomainOptions()}</select>`;
-      openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label>${domainField}</div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates)}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-custom-config><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: kind === 'domain' ? null : v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
+      openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label>${domainField}</div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates)}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-custom-config><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
       wireNginxObjectForm(document.getElementById('nginx-object-form'), kind)
     }
-    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates] = await Promise.all([api(url), api(`/nginx/templates/${kind}`)]), selected = row.object.template || '', nameField = kind === 'domain' ? '' : `<input type="hidden" name="name" value="${esc(name)}">`, upstreamField = kind === 'domain' ? '' : `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" value="${esc(row.upstream || '')}" placeholder="http://192.168.1.10:8080"><span class="hint">Leave blank to remove this site from the generated upstream map.</span></div>`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form"><input type="hidden" name="domain" value="${esc(domain)}">${nameField}<div class="field"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f), payload = { template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: kind === 'domain' ? null : v.upstream.trim() }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
+    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates] = await Promise.all([api(url), api(`/nginx/templates/${kind}`)]), selected = row.object.template || '', identityFields = `<div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label><input class="input" value="${esc(domain)}" readonly></div>${kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" value="${esc(name)}" readonly></div>`}`, serverNamesField = kind === 'subfolder' ? '' : `<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>`, upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" value="${esc(row.upstream || '')}" placeholder="http://192.168.1.10:8080"><span class="hint">Leave blank to remove this site from the generated upstream map.</span></div>`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form"><input type="hidden" name="domain" value="${esc(domain)}"><input type="hidden" name="name" value="${esc(name)}"><div class="form-grid">${identityFields}${serverNamesField}${upstreamField}<div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field full" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f), payload = { template: v.template || null, content: v.template ? null : v.content, server_names: kind === 'subfolder' ? undefined : nginxFormServerNames(f, kind), upstream: v.upstream.trim() }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
     async function nginxObjectAction(kind, domain, name, action) { try { await api(`${nginxObjectUrl({ kind, domain, name })}/${action}`, { method: 'POST' }); toast(`${name}: ${action} complete`); await Promise.all([loadNginxObjects(), loadNginxStatus()]) } catch (e) { toast(e.message, true) } }
     async function deleteNginxObject(kind, domain, name) { const detail = kind === 'domain' ? 'This also deletes all nested subdomain and subfolder definitions. ' : ''; if (!confirm(`${detail}Delete ${kind} ${name}?`)) return; try { await api(nginxObjectUrl({ kind, domain, name }), { method: 'DELETE' }); toast(`${kind} deleted`); loadNginxObjects() } catch (e) { toast(e.message, true) } }
     function nginxCommandResult(command, result) { const action = command === 'test' ? 'Nginx configuration test' : 'Nginx reload'; const detail = (result.stderr || result.stdout || '').trim(); const message = result.success ? `${action} successful` : `${action} failed${detail ? `: ${detail}` : result.code !== null && result.code !== undefined ? ` (exit code ${result.code})` : ': no failure reason returned'}`; showOutput(action, message) }
@@ -1606,7 +1967,25 @@
       } catch (e) { toast(e.message, true) }
     }
     function editCertificate(id) { const row = state.certs.find(x => x.spec.id === id), s = row ? row.spec : { name: '', domains: [], method: 'http', hook: '', hook_env: {}, staging: false, auto_renew: true }; openEditor(id ? 'Edit certificate' : 'Add certificate', `<form id="cert-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(s.name)}" required></div><div class="field full"><label>Domains, one per line</label><textarea class="input" name="domains">${esc(s.domains.join('\n'))}</textarea></div><div class="field"><label>Challenge</label><select class="input" name="method"><option value="http" ${s.method === 'http' ? 'selected' : ''}>HTTP-01</option><option value="dns" ${s.method === 'dns' ? 'selected' : ''}>DNS-01</option></select></div><div class="field"><label>Hook path</label><input class="input" name="hook" value="${esc(s.hook || '')}" placeholder="/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh"><span class="hint">Optional for HTTP-01. Leave blank for the default DNS hook in the dehydrated data directory.</span></div><div class="field full"><label>Hook environment, one KEY=value per line</label><textarea class="input" name="hook_env">${esc(Object.entries(s.hook_env || {}).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea><span class="hint">For example, DUCKDNS_TOKEN=... . Values are stored in the dehydrated config.</span></div><div class="field"><label><input type="checkbox" name="staging" ${s.staging ? 'checked' : ''}> Use Let's Encrypt staging</label></div><div class="field"><label><input type="checkbox" name="auto_renew" ${s.auto_renew ? 'checked' : ''}> Auto renew</label></div></div></form>`, async () => { try { const f = document.getElementById('cert-form'), v = formObject(f), payload = { ...s, name: v.name, domains: jsonLines(v.domains), method: v.method, hook: v.hook || null, hook_env: envObject(v.hook_env), staging: f.elements.staging.checked, auto_renew: f.elements.auto_renew.checked }; await api(id ? `/certificates/${id}` : '/certificates', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadCertificates() } catch (e) { toast(e.message, true) } }) }
-    async function certificateAction(id, action) { try { const p = api(`/certificates/${id}/${action}`, { method: 'POST' }); setTimeout(loadCertificateLock, 500); const r = await p; showOutput(`Certificate ${action}`, r); loadCertificatesWithLock() } catch (e) { toast(e.message, true) } }
+    async function certificateAction(id, action) {
+      const certificate = state.certs.find(x => x.spec.id === id)?.spec.name || '';
+      state.dehydratedLock = {
+        ...state.dehydratedLock,
+        status: 'running',
+        operation: { certificate, action, status: 'running' }
+      };
+      applyCertificateLockUi();
+      try {
+        const p = api(`/certificates/${id}/${action}`, { method: 'POST' });
+        setTimeout(() => { if (state.view === 'certificates') loadCertificateLock().catch(e => toast(e.message, true)); }, 500);
+        const result = await p;
+        showOutput(`Certificate ${action}`, result);
+      } catch (e) {
+        toast(e.message, true);
+      } finally {
+        await loadCertificatesWithLock();
+      }
+    }
     async function updateDehydrated() { try { const r = await api('/certificates/dehydrated/update', { method: 'POST' }); showOutput('Dehydrated update', r) } catch (e) { toast(e.message, true) } }
     async function deleteCertificate(id) { if (!confirm('Delete only the Router Hub definition? Dehydrated config and certificate files remain.')) return; try { await api(`/certificates/${id}`, { method: 'DELETE' }); loadCertificates() } catch (e) { toast(e.message, true) } }
 
@@ -1622,12 +2001,19 @@
     async function loadFirewall() {
       try {
         state.firewall = await api('/firewall?include_bans=false');
-        const p = state.firewall.policy, s = state.firewall.settings, h = state.firewall.health;
+        const p = state.firewall.policy, s = state.firewall.settings, t = state.firewall.tuning, h = state.firewall.health;
         document.getElementById('fw-enabled').value = String(p.enabled);
+        setFirewallTuningForm(t);
+        document.getElementById('fw-tuning-source').textContent = p.tuning ? 'Policy override active' : 'Using router-hub.toml defaults';
         document.getElementById('fw-ban-summary').textContent = `Active bans: ${state.firewall.snapshot.banned_subnets.length} subnet · ${state.firewall.snapshot.banned_ips.length} IP`;
         const health = document.getElementById('fw-health');
-        health.className = `notice ${h.state === 'degraded' ? 'warn' : ''}`;
-        health.textContent = `Engine ${h.state}. Threshold ${s.global_threshold}; scores retained ${s.score_retention_seconds}s.${h.last_error ? ' Last error: ' + h.last_error : ''}`;
+        const tuningNeedsHardening = t.score_retention_days <= t.subnet_ban_days || t.subnet_promotion_window_days <= t.subnet_ban_days || t.reputation_retention_days <= t.max_ban_days;
+        const utilization = h.set_capacity ? `${h.set_entries.toLocaleString()} / ${h.set_capacity.toLocaleString()} entries (${(h.set_entries / h.set_capacity * 100).toFixed(2)}%)` : 'Unavailable';
+        const healthSummary = h.dropped_line_count || h.command_timeout_count || h.error_count || tuningNeedsHardening || h.last_error
+          ? `<span class="status warn">Needs attention</span><div class="muted" style="margin-top:4px">${h.dropped_line_count.toLocaleString()} dropped log lines · ${h.command_timeout_count.toLocaleString()} command timeouts · ${h.error_count.toLocaleString()} errors${tuningNeedsHardening ? ' · Retention is not long enough to preserve hardening across configured bans; save updated tuning.' : ''}${h.last_error ? ' · Last error: ' + esc(h.last_error) : ''}</div>`
+          : '<span class="status ok">Healthy</span><div class="muted" style="margin-top:4px">No dropped lines, timeouts, or errors reported</div>';
+        health.style.borderColor = (h.state === 'degraded' || tuningNeedsHardening) ? '#7a6127' : '';
+        health.innerHTML = `<h2 style="margin-top:0;font-size:13px">Ban shield performance</h2><p><strong>Set usage:</strong> ${utilization}</p><p><strong>Engine:</strong> ${esc(h.state)} · ${healthSummary}</p><p class="muted">IP threshold ${t.ip_failures}; score memory ${t.score_retention_days}d; subnet ban minimum ${t.subnet_ban_days}d. Active-ban capacity is 8,192; investigate if usage reaches the thousands or health counters increase.</p>`;
         document.getElementById('allow-list').innerHTML = p.allowlist.length ? p.allowlist.map(n => `<span class="tag">${esc(n)} <button class="btn small" onclick="removeAllowlist('${encodeURIComponent(n)}')">×</button></span>`).join('') : '<span class="muted">No allowlist entries</span>';
         document.getElementById('rules-body').innerHTML = p.rules.length ? p.rules.map(r => { const rs = (state.firewall.snapshot.rule_stats || []).find(([name]) => name === r.name); const matchCount = rs ? rs[1].match_count : null; const banCount = rs ? rs[1].ban_count : null; const statsHtml = matchCount !== null ? `${matchCount.toLocaleString()} hit(s) · ${banCount.toLocaleString()} ban(s)` : '<span class="muted">—</span>'; return `<tr><td><strong>${esc(r.name)}</strong> ${status(r.enabled, 'Enabled', 'Disabled')}</td><td>weight ${r.weight}<br><span class="muted">${Math.ceil(s.global_threshold / r.weight)} hit(s) from zero</span></td><td>${statsHtml}</td><td><div class="row-actions"><button class="btn small" onclick="editRule('${r.id}')">Edit</button><button class="btn small danger" onclick="deleteRule('${r.id}')">Delete</button></div></td></tr>`; }).join('') : emptyRow(4);
       } catch (e) { toast(e.message, true) }
@@ -1636,6 +2022,12 @@
     async function showActiveBans() { const modal = document.getElementById('bans-modal'); document.getElementById('bans-body').innerHTML = emptyRow(4, 'Loading active bans…'); if (!modal.open) modal.showModal(); try { renderBans(await api('/firewall/bans')) } catch (e) { modal.close(); toast(e.message, true) } }
     function closeActiveBans() { document.getElementById('bans-modal').close() }
     async function saveFirewallToggle() { try { const p = { ...state.firewall.policy, enabled: document.getElementById('fw-enabled').value === 'true' }; await api('/firewall', { method: 'PUT', body: JSON.stringify(p) }); toast('Firewall policy saved'); loadFirewall() } catch (e) { toast(e.message, true) } }
+    const strictFirewallTuning = { ip_failures: 3, subnet_failures: 6, promote_after_banned_ips: 2, reputation_repromote_after_offenses: 1, score_retention_days: 60, reputation_retention_days: 365, subnet_promotion_window_days: 60, subnet_ban_days: 30, first_ban_days: 1, second_ban_days: 7, third_ban_days: 30, max_ban_days: 180 };
+    const firewallTuningFields = Object.keys(strictFirewallTuning);
+    function setFirewallTuningForm(tuning) { const form = document.getElementById('firewall-settings-form'); if (!form || !tuning) return; firewallTuningFields.forEach(name => { if (form.elements[name]) form.elements[name].value = tuning[name] }) }
+    function applyStrictFirewallPreset() { setFirewallTuningForm(strictFirewallTuning); toast('Strict preset loaded. Save security tuning to apply it.') }
+    function firewallTuningFromForm() { const form = document.getElementById('firewall-settings-form'), values = formObject(form), tuning = {}; firewallTuningFields.forEach(name => { const value = Number(values[name]); if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer`); tuning[name] = value }); if (tuning.promote_after_banned_ips < 2) throw new Error('Distinct IPs for subnet promotion must be at least 2'); if (tuning.score_retention_days <= tuning.subnet_ban_days) throw new Error('Score retention must be longer than the subnet ban'); if (tuning.subnet_promotion_window_days <= tuning.subnet_ban_days) throw new Error('Subnet promotion memory must be longer than the subnet ban'); if (tuning.reputation_retention_days <= tuning.max_ban_days) throw new Error('Reputation retention must be longer than the maximum ban'); if (tuning.first_ban_days > tuning.second_ban_days || tuning.second_ban_days > tuning.third_ban_days || tuning.third_ban_days > tuning.max_ban_days) throw new Error('Ban durations must increase from first through maximum'); if (tuning.subnet_ban_days > tuning.max_ban_days) throw new Error('Minimum subnet ban cannot exceed maximum ban'); return tuning }
+    async function saveFirewallSettings(event) { if (event) event.preventDefault(); try { const tuning = firewallTuningFromForm(), policy = { ...state.firewall.policy, tuning }; await api('/firewall', { method: 'PUT', body: JSON.stringify(policy) }); toast('Firewall security tuning saved and applied live'); await loadFirewall() } catch (e) { toast(e.message, true) } }
     async function addAllowlist() { let network = document.getElementById('allow-network').value.trim(); if (!network) return; if (!network.includes('/')) network += network.includes(':') ? '/128' : '/32'; try { await api('/firewall/allowlist', { method: 'POST', body: JSON.stringify({ network }) }); document.getElementById('allow-network').value = ''; loadFirewall() } catch (e) { toast(e.message, true) } }
     async function removeAllowlist(network) { try { await api(`/firewall/allowlist/${network}`, { method: 'DELETE' }); loadFirewall() } catch (e) { toast(e.message, true) } }
     function editRule(id) { const r = state.firewall?.policy.rules.find(x => x.id === id) || { name: 'Nginx authentication failure', enabled: true, log_paths: ['/opt/var/log/nginx/error.log'], pattern: 'client: (?P<ip>[0-9a-fA-F:.]+).*(?:authentication|password)', ip_group: 'ip', group_values: {}, weight: 1 }; openEditor(id ? 'Edit detection rule' : 'Add detection rule', `<form id="rule-form" class="form"><div class="form-grid"><div class="field"><label>Name</label><input class="input" name="name" value="${esc(r.name)}"></div><div class="field"><label><input type="checkbox" name="enabled" ${r.enabled ? 'checked' : ''}> Enabled</label></div><div class="field full"><label>Log paths, one per line</label><textarea class="input" name="log_paths">${esc(r.log_paths.join('\n'))}</textarea></div><div class="field full"><label>Hybrid-DFA regex</label><textarea class="input" name="pattern">${esc(r.pattern)}</textarea><span class="hint">Regex must provide the configured named IP capture.</span></div><div class="field"><label>Weight</label><input class="input" type="number" min="1" name="weight" value="${r.weight}"></div></div></form>`, async () => { try { const f = document.getElementById('rule-form'), v = formObject(f), payload = { ...r, name: v.name, enabled: f.elements.enabled.checked, log_paths: jsonLines(v.log_paths), pattern: v.pattern, weight: Number(v.weight) }; await api(id ? `/firewall/rules/${id}` : '/firewall/rules', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); closeEditor(); loadFirewall() } catch (e) { toast(e.message, true) } }) }
@@ -1645,7 +2037,64 @@
 
     async function loadAdguardStatusOnly() { if (!state.adguard?.enabled) return; try { const st = await api('/adguard/status'); state.adguardStatus = st; renderAdguardStatus(st) } catch (e) { document.getElementById('adguard-status').innerHTML = status(true, 'Enabled', 'Disabled') } }
     async function loadAdguard() { try { const cfg = await api('/adguard/config'); state.adguard = cfg; const f = document.getElementById('adguard-form'); if (f) { f.elements.enabled.checked = !!cfg.enabled; f.elements.api_endpoint.value = cfg.api_endpoint || ''; f.elements.launch_url.value = cfg.launch_url || ''; f.elements.username.value = cfg.username || ''; f.elements.password.value = ''; f.elements.lan_ip.value = cfg.lan_ip || '' } if (cfg.enabled) { await loadAdguardStatusOnly() } else { document.getElementById('adguard-status').innerHTML = status(false, 'Enabled', 'Disabled'); renderAdguardStatus(null) } if (state.view === 'adguard') startAdguardPolling(); } catch (e) { document.getElementById('adguard-status').textContent = 'API Error'; toast(e.message, true) } }
-    function renderAdguardStatus(st) { const statusEl = document.getElementById('adguard-status'), filtStatusEl = document.getElementById('filtering-status'), protStatusEl = document.getElementById('protection-status'); if (!st || !st.enabled) { if (statusEl) statusEl.innerHTML = status(false, 'Enabled', 'Disabled'); if (filtStatusEl) filtStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; if (protStatusEl) protStatusEl.innerHTML = '<span class="badge gray">Disabled</span>'; return } let filtText = ''; if (!st.filtering_enabled && st.filtering_remaining_seconds) { const m = Math.ceil(st.filtering_remaining_seconds / 60); filtText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.filtering_enabled) { filtText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { filtText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (filtStatusEl) filtStatusEl.innerHTML = filtText; let protText = ''; if (!st.protection_enabled && st.protection_remaining_seconds) { const m = Math.ceil(st.protection_remaining_seconds / 60); protText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>` } else if (!st.protection_enabled) { protText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>` } else { protText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>` } if (protStatusEl) protStatusEl.innerHTML = protText; if (statusEl) { let summary = status(true, 'Enabled', 'Disabled'); if (!st.filtering_enabled && st.filtering_remaining_seconds) { summary += ` &middot; Filtering Paused (${Math.ceil(st.filtering_remaining_seconds / 60)}m)` } else if (!st.filtering_enabled) { summary += ` &middot; Filtering Disabled` } if (!st.protection_enabled && st.protection_remaining_seconds) { summary += ` &middot; Protection Paused (${Math.ceil(st.protection_remaining_seconds / 60)}m)` } else if (!st.protection_enabled) { summary += ` &middot; Protection Disabled` } statusEl.innerHTML = summary } }
+    function renderAdguardStatus(st) {
+      const statusEl = document.getElementById('adguard-status'),
+        filtStatusEl = document.getElementById('filtering-status'),
+        protStatusEl = document.getElementById('protection-status'),
+        resumeFiltBtn = document.getElementById('resume-filtering-btn'),
+        resumeProtBtn = document.getElementById('resume-protection-btn');
+
+      if (!st || !st.enabled) {
+        if (statusEl) statusEl.innerHTML = status(false, 'Enabled', 'Disabled');
+        if (filtStatusEl) filtStatusEl.innerHTML = '<span class="badge gray">Disabled</span>';
+        if (protStatusEl) protStatusEl.innerHTML = '<span class="badge gray">Disabled</span>';
+        if (resumeFiltBtn) resumeFiltBtn.style.display = 'none';
+        if (resumeProtBtn) resumeProtBtn.style.display = 'none';
+        return;
+      }
+      let filtText = '';
+      if (!st.filtering_enabled && st.filtering_remaining_seconds) {
+        const m = Math.ceil(st.filtering_remaining_seconds / 60);
+        filtText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>`;
+        if (resumeFiltBtn) resumeFiltBtn.style.display = '';
+      } else if (!st.filtering_enabled) {
+        filtText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>`;
+        if (resumeFiltBtn) resumeFiltBtn.style.display = '';
+      } else {
+        filtText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>`;
+        if (resumeFiltBtn) resumeFiltBtn.style.display = 'none';
+      }
+      if (filtStatusEl) filtStatusEl.innerHTML = filtText;
+      
+      let protText = '';
+      if (!st.protection_enabled && st.protection_remaining_seconds) {
+        const m = Math.ceil(st.protection_remaining_seconds / 60);
+        protText = `<span class="badge warning" style="background:#8a6d3b;color:#fff;padding:2px 6px;border-radius:4px">Paused (${m} min left)</span>`;
+        if (resumeProtBtn) resumeProtBtn.style.display = '';
+      } else if (!st.protection_enabled) {
+        protText = `<span class="badge danger" style="background:#a94442;color:#fff;padding:2px 6px;border-radius:4px">Disabled</span>`;
+        if (resumeProtBtn) resumeProtBtn.style.display = '';
+      } else {
+        protText = `<span class="badge success" style="background:#3c763d;color:#fff;padding:2px 6px;border-radius:4px">Active</span>`;
+        if (resumeProtBtn) resumeProtBtn.style.display = 'none';
+      }
+      if (protStatusEl) protStatusEl.innerHTML = protText;
+      
+      if (statusEl) {
+        let summary = status(true, 'Enabled', 'Disabled');
+        if (!st.filtering_enabled && st.filtering_remaining_seconds) {
+          summary += ` &middot; Filtering Paused (${Math.ceil(st.filtering_remaining_seconds / 60)}m)`;
+        } else if (!st.filtering_enabled) {
+          summary += ` &middot; Filtering Disabled`;
+        }
+        if (!st.protection_enabled && st.protection_remaining_seconds) {
+          summary += ` &middot; Protection Paused (${Math.ceil(st.protection_remaining_seconds / 60)}m)`;
+        } else if (!st.protection_enabled) {
+          summary += ` &middot; Protection Disabled`;
+        }
+        statusEl.innerHTML = summary;
+      }
+    }
     function renderAdguardRewrites() { const body = document.getElementById('adguard-rewrites-body'); body.innerHTML = state.adguardRewrites.length ? state.adguardRewrites.map((rewrite, index) => `<tr><td><input class="input" value="${esc(rewrite.domain)}" aria-label="Rewrite domain" oninput="adguardRewriteChanged(${index},'domain',this.value)"></td><td><input class="input" value="${esc(rewrite.answer)}" aria-label="Rewrite answer" oninput="adguardRewriteChanged(${index},'answer',this.value)"></td><td><button class="btn small danger" onclick="removeAdguardRewrite(${index})">Delete</button></td></tr>`).join('') : emptyRow(3, 'No custom DNS rewrites'); updateSortHeaders('rewrites') }
     function adguardRewriteChanged(index, key, value) { if (state.adguardRewrites[index]) state.adguardRewrites[index][key] = value }
     function addAdguardRewrite() { state.adguardRewrites.push({ domain: '', answer: '' }); renderAdguardRewrites(); const inputs = document.querySelectorAll('#adguard-rewrites-body input'); inputs[inputs.length - 2]?.focus() }
@@ -1666,6 +2115,15 @@
     function removeDnsmasqHost(index) { state.dnsmasqHosts.splice(index, 1); renderDnsmasqHosts() }
     async function openDnsmasqHosts() { const modal = document.getElementById('dnsmasq-hosts-modal'); try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts'); renderDnsmasqHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
     function closeDnsmasqHosts() { document.getElementById('dnsmasq-hosts-modal').close() }
+
+    async function loadWireguardStatus() { try { const st = await api('/wireguard/status'); const badge = document.getElementById('wireguard-status-badge'); if (badge) { badge.innerHTML = st.is_running ? `<span class="badge success" style="background:#3c763d;color:#fff;padding:4px 8px;border-radius:4px">Running</span>` : `<span class="badge danger" style="background:#a94442;color:#fff;padding:4px 8px;border-radius:4px">Stopped</span>`; } } catch(e) {} }
+    async function loadWireguard() { try { const cfg = await api('/wireguard/config'); state.wireguard = cfg; const f = document.getElementById('wireguard-form'); if (f) { f.elements.private_key.value = cfg.interface.private_key || ''; f.elements.address.value = cfg.interface.address || ''; f.elements.listen_port.value = cfg.interface.listen_port || ''; f.elements.post_up.value = cfg.interface.post_up || ''; f.elements.post_down.value = cfg.interface.post_down || ''; } renderWireguardPeers(); await loadWireguardStatus(); } catch (e) { toast(e.message, true); } }
+    async function saveWireguardSettings(e) { e.preventDefault(); const f = e.target; const cfg = state.wireguard || { interface: {}, peers: [] }; cfg.interface = { private_key: f.elements.private_key.value, address: f.elements.address.value, listen_port: f.elements.listen_port.value ? parseInt(f.elements.listen_port.value, 10) : null, post_up: f.elements.post_up.value || null, post_down: f.elements.post_down.value || null }; try { state.wireguard = await api('/wireguard/config', { method: 'PUT', body: JSON.stringify(cfg) }); toast('WireGuard settings saved'); renderWireguardPeers(); } catch (err) { toast(err.message, true); } }
+    async function toggleWireguard(enable) { try { const res = await api('/wireguard/toggle', { method: 'POST', body: JSON.stringify({ enable }) }); toast(res.message); loadWireguardStatus(); } catch(e) { toast(e.message, true); } }
+    function renderWireguardPeers() { const body = document.getElementById('wireguard-peers-body'); const peers = state.wireguard?.peers || []; body.innerHTML = peers.length ? peers.map((p, i) => `<tr><td><input class="input" value="${esc(p.public_key)}" placeholder="Public Key" oninput="wgPeerChange(${i},'public_key',this.value)"></td><td><input class="input" value="${esc(p.allowed_ips)}" placeholder="Allowed IPs" oninput="wgPeerChange(${i},'allowed_ips',this.value)"></td><td><input class="input" value="${esc(p.endpoint||'')}" placeholder="Endpoint" oninput="wgPeerChange(${i},'endpoint',this.value)"></td><td><button class="btn small danger" onclick="removeWireguardPeer(${i})">Delete</button></td></tr>`).join('') : emptyRow(4, 'No peers configured'); }
+    function wgPeerChange(i, k, v) { if(state.wireguard.peers[i]) state.wireguard.peers[i][k] = v; }
+    function addWireguardPeer() { if(!state.wireguard) state.wireguard = { interface: {}, peers: [] }; state.wireguard.peers.push({ public_key: '', allowed_ips: '', endpoint: null, preshared_key: null, persistent_keepalive: null }); renderWireguardPeers(); const inputs = document.querySelectorAll('#wireguard-peers-body input'); inputs[inputs.length - 3]?.focus(); }
+    function removeWireguardPeer(i) { state.wireguard.peers.splice(i, 1); renderWireguardPeers(); }
     async function saveDnsmasqHosts() { try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts', { method: 'PUT', body: JSON.stringify(state.dnsmasqHosts) }); closeDnsmasqHosts(); toast('dnsmasq.conf.add saved; dnsmasq restarted') } catch (e) { toast(e.message, true) } }
     function launchAdGuard() { if (state.adguard?.launch_url) window.open(state.adguard.launch_url, '_blank'); else if (state.adguard?.api_endpoint) window.open(state.adguard.api_endpoint, '_blank'); else toast('API endpoint not configured', true) }
     async function toggleAdguardFiltering(enabled, duration_minutes) { try { const p = { enabled, duration_minutes: duration_minutes || null }; await api('/adguard/filtering', { method: 'POST', body: JSON.stringify(p) }); toast(`AdGuard filtering ${enabled ? 'enabled' : `paused for ${duration_minutes} min`}`); loadAdguardStatusOnly() } catch (e) { toast(e.message, true) } }
@@ -1673,15 +2131,42 @@
     async function saveAdGuardSettings(e) { if (e) e.preventDefault(); try { const f = document.getElementById('adguard-form'), v = formObject(f), payload = { enabled: f.elements.enabled.checked, api_endpoint: v.api_endpoint, launch_url: v.launch_url || '', username: v.username, password: v.password || undefined, lan_ip: v.lan_ip }; await api('/adguard/config', { method: 'PUT', body: JSON.stringify(payload) }); toast('AdGuard settings saved'); loadAdguard() } catch (err) { toast(err.message, true) } }
 
     function applyCertificateLockUi() {
-      const locked = !!state.dehydratedLock?.locked;
+      const lock = state.dehydratedLock || {};
+      const locked = !!lock.locked;
+      const activity = lock.status || (locked ? 'locked' : 'idle');
+      const operation = lock.operation;
+      const running = activity === 'running';
+      const certificate = operation?.certificate ? ` for ${operation.certificate}` : '';
+      const action = operation?.action === 'issue' ? 'issuance' : 'renewal';
       const notice = document.getElementById('certificate-lock-notice');
+      const message = document.getElementById('certificate-lock-message');
       const path = document.getElementById('certificate-lock-path');
-      if (notice) notice.hidden = !locked;
-      if (path) path.textContent = locked ? state.dehydratedLock.path : '';
+      const clear = document.getElementById('certificate-lock-clear');
+
+      if (notice) {
+        notice.hidden = activity === 'idle';
+        notice.className = 'notice' + (['failed', 'locked'].includes(activity) ? ' warn' : '');
+      }
+      if (message) {
+        message.textContent = activity === 'running'
+          ? `Dehydrated is running${certificate}. Certificate issue and renewal are temporarily unavailable.`
+          : activity === 'failed'
+            ? `Certificate ${action} failed${certificate}.${operation?.error ? ` ${operation.error}` : ''}${locked ? ' A lock file remains.' : ''}`
+            : activity === 'completed'
+              ? `Certificate ${action} completed${certificate}.`
+              : activity === 'locked'
+                ? 'A dehydrated lock file remains, but no active dehydrated process was detected. Clear it only after verifying that no certificate hook is running.'
+                : '';
+      }
+      if (path) {
+        path.hidden = !locked;
+        path.textContent = locked ? lock.path : '';
+      }
+      if (clear) clear.hidden = !(locked && !running);
       document.querySelectorAll('#certs-body .row-actions button').forEach(button => {
         const renewalAction = ['Renew', 'Issue'].includes(button.textContent.trim());
-        button.disabled = locked && renewalAction;
-        button.title = locked && renewalAction ? 'Clear the dehydrated lock before issuing or renewing' : '';
+        button.disabled = renewalAction && (locked || running);
+        button.title = renewalAction && (locked || running) ? 'A certificate operation or lock is active' : '';
       });
     }
     async function loadCertificateLock() {
@@ -1703,6 +2188,225 @@
       } catch (e) { toast(e.message, true) }
     }
     new MutationObserver(applyCertificateLockUi).observe(document.getElementById('certs-body'), { childList: true });
+
+    let lastUsage = null;
+    let loadHistory1 = [];
+    let loadHistory5 = [];
+    let loadHistory15 = [];
+    let netHistory = [];
+    const MAX_HISTORY = 60;
+    
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      const k = bytes / 1024;
+      if (k < 1024) return k.toFixed(2) + ' KB';
+      const m = k / 1024;
+      if (m < 1024) return m.toFixed(2) + ' MB';
+      return (m / 1024).toFixed(2) + ' GB';
+    }
+    
+    function formatUptime(secs) {
+      const d = Math.floor(secs / 86400);
+      const h = Math.floor((secs % 86400) / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = Math.floor(secs % 60);
+      if (d > 0) return `${d} days, ${h}h ${m}m ${s}s`;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      return `${m}m ${s}s`;
+    }
+
+    async function pollSystemUsage() {
+      if (state.view !== 'dashboard') return;
+      try {
+        const usage = await api('/system/usage');
+        document.getElementById('system-usage-grid').style.display = 'grid';
+        
+        // RAM
+        const mem = usage.memory;
+        const ramUsed = mem.total_kb - (mem.available_kb || mem.free_kb);
+        const ramPct = mem.total_kb > 0 ? (ramUsed / mem.total_kb * 100).toFixed(0) : 0;
+        document.getElementById('txt-ram-used').textContent = (ramUsed / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-ram-free').textContent = ((mem.available_kb || mem.free_kb) / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-ram-total').textContent = (mem.total_kb / 1024).toFixed(0) + ' MB';
+        document.getElementById('bar-ram').style.width = ramPct + '%';
+        document.getElementById('txt-ram-pct').textContent = ramPct + '%';
+        
+        // Swap
+        const swapUsed = mem.swap_total_kb - mem.swap_free_kb;
+        const swapPct = mem.swap_total_kb > 0 ? (swapUsed / mem.swap_total_kb * 100).toFixed(0) : 0;
+        document.getElementById('txt-swap-used').textContent = (swapUsed / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-swap-free').textContent = (mem.swap_free_kb / 1024).toFixed(0) + ' MB';
+        document.getElementById('txt-swap-total').textContent = (mem.swap_total_kb / 1024).toFixed(0) + ' MB';
+        document.getElementById('bar-swap').style.width = swapPct + '%';
+        document.getElementById('txt-swap-pct').textContent = swapPct + '%';
+        
+        // Uptime & Load Avg
+        document.getElementById('txt-uptime').textContent = formatUptime(usage.uptime_seconds);
+        if (usage.load_average) {
+          document.getElementById('txt-loadavg').textContent = `Load Average: ${usage.load_average.map(n => n.toFixed(2)).join(', ')}`;
+        }
+
+        if (lastUsage) {
+          // Network
+          const dlBytes = usage.network.rx_bytes - lastUsage.network.rx_bytes;
+          const ulBytes = usage.network.tx_bytes - lastUsage.network.tx_bytes;
+          const dlSpeed = dlBytes > 0 ? dlBytes : 0;
+          const ulSpeed = ulBytes > 0 ? ulBytes : 0;
+          document.getElementById('txt-dl').textContent = formatBytes(dlSpeed) + '/s';
+          document.getElementById('txt-ul').textContent = formatBytes(ulSpeed) + '/s';
+          
+          // Network Bars (relative to 10MB/s for visual scaling, cap at 100%)
+          const maxSpeed = 10 * 1024 * 1024;
+          document.getElementById('bar-dl').style.width = Math.min(100, (dlSpeed / maxSpeed) * 100) + '%';
+          document.getElementById('bar-ul').style.width = Math.min(100, (ulSpeed / maxSpeed) * 100) + '%';
+          
+          // CPU Cores
+          let overallCpuPct = 0;
+          let coreHtml = '';
+          const currentCpus = usage.cpu;
+          const prevCpus = lastUsage.cpu;
+          let maxCorePct = 0;
+          
+          for (let i = 0; i < currentCpus.length; i++) {
+            const curr = currentCpus[i];
+            const prev = prevCpus.find(p => p.name === curr.name);
+            if (prev) {
+              const currTotal = curr.user + curr.nice + curr.system + curr.idle + curr.iowait + curr.irq + curr.softirq + curr.steal;
+              const prevTotal = prev.user + prev.nice + prev.system + prev.idle + prev.iowait + prev.irq + prev.softirq + prev.steal;
+              const totalDiff = currTotal - prevTotal;
+              const currIdle = curr.idle + curr.iowait;
+              const prevIdle = prev.idle + prev.iowait;
+              const idleDiff = currIdle - prevIdle;
+              
+              const pct = totalDiff > 0 ? ((totalDiff - idleDiff) / totalDiff) * 100 : 0;
+              
+              if (curr.name === 'cpu') {
+                overallCpuPct = pct;
+              } else {
+                maxCorePct = Math.max(maxCorePct, pct);
+                const colors = ['#ffcb66', '#31d7dc', '#ff6b76', '#4cdb98'];
+                const color = colors[(i - 1) % colors.length];
+                coreHtml += `<div style="display:flex;align-items:center;">
+                  <div style="flex:1;background:#101112;height:12px;border-radius:6px;overflow:hidden;position:relative;">
+                    <div style="width:${pct}%;height:100%;background:${color};border-radius:6px;"></div>
+                  </div>
+                  <div style="width:120px;text-align:right;font-size:12px;display:flex;justify-content:space-between;padding-left:12px;"><span style="color:#b0bec5">${curr.name.toUpperCase()}</span><span>${pct.toFixed(0)}%</span></div>
+                </div>`;
+              }
+            }
+          }
+          document.getElementById('cpu-cores').innerHTML = coreHtml;
+          
+          // History
+          const load1 = usage.load_average ? usage.load_average[0] : 0;
+          const load5 = usage.load_average ? usage.load_average[1] : 0;
+          const load15 = usage.load_average ? usage.load_average[2] : 0;
+          
+          loadHistory1.push(load1);
+          loadHistory5.push(load5);
+          loadHistory15.push(load15);
+          if (loadHistory1.length > MAX_HISTORY) loadHistory1.shift();
+          if (loadHistory5.length > MAX_HISTORY) loadHistory5.shift();
+          if (loadHistory15.length > MAX_HISTORY) loadHistory15.shift();
+          
+          // Draw Canvas
+          const canvas = document.getElementById('cpu-canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Handle High DPI displays
+          const rect = canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          ctx.scale(dpr, dpr);
+          
+          const cssWidth = rect.width;
+          const cssHeight = rect.height;
+
+          // Grid
+          ctx.strokeStyle = '#22323a';
+          ctx.lineWidth = 1;
+          for(let i=1; i<4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(0, cssHeight * i / 4);
+            ctx.lineTo(cssWidth, cssHeight * i / 4);
+            ctx.stroke();
+          }
+          for(let i=1; i<10; i++) {
+            ctx.beginPath();
+            ctx.moveTo(cssWidth * i / 10, 0);
+            ctx.lineTo(cssWidth * i / 10, cssHeight);
+            ctx.stroke();
+          }
+          
+          // Scale max to num cores or highest load
+          const numCores = Math.max(1, currentCpus.length - 1);
+          const maxLoad = Math.max(numCores, ...loadHistory1, ...loadHistory5, ...loadHistory15);
+          
+          // Draw Line function
+          const drawLine = (history, color, width) => {
+            if (history.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            const step = cssWidth / (MAX_HISTORY - 1);
+            for (let i = 0; i < history.length; i++) {
+              const x = i * step;
+              const y = cssHeight - (history[i] / maxLoad * cssHeight);
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+          };
+
+          // Draw load lines (15m, 5m, 1m)
+          drawLine(loadHistory15, 'rgba(255, 203, 102, 0.4)', 2);
+          drawLine(loadHistory5, 'rgba(255, 107, 118, 0.6)', 2);
+          drawLine(loadHistory1, '#31d7dc', 2);
+          
+          // Fill under 1m
+          if (loadHistory1.length > 1) {
+            const step = cssWidth / (MAX_HISTORY - 1);
+            ctx.lineTo((loadHistory1.length - 1) * step, cssHeight);
+            ctx.lineTo(0, cssHeight);
+            ctx.fillStyle = 'rgba(49, 215, 220, 0.1)';
+            ctx.fill();
+          }
+          
+          // Text overlays
+          ctx.fillStyle = '#b0bec5';
+          ctx.font = '10px Arial';
+          ctx.fillText(maxLoad.toFixed(1), 2, 10);
+          ctx.fillText((maxLoad / 2).toFixed(1), 2, cssHeight / 2 + 4);
+          ctx.fillText('0.0', 2, cssHeight - 2);
+          
+          // Legend
+          const legend = [
+            { label: '1m', color: '#31d7dc' },
+            { label: '5m', color: '#ff6b76' },
+            { label: '15m', color: '#ffcb66' }
+          ];
+          let legendX = cssWidth - 10;
+          ctx.textAlign = 'right';
+          for (let i = legend.length - 1; i >= 0; i--) {
+            ctx.fillStyle = '#b0bec5';
+            ctx.fillText(legend[i].label, legendX, 10);
+            legendX -= ctx.measureText(legend[i].label).width + 4;
+            
+            ctx.fillStyle = legend[i].color;
+            ctx.fillRect(legendX - 8, 4, 6, 6);
+            legendX -= 14;
+          }
+          ctx.textAlign = 'left'; // reset
+        }
+        
+        lastUsage = usage;
+      } catch (e) {
+        console.error('Failed to poll system usage:', e);
+      }
+    }
+    
+    setInterval(pollSystemUsage, 1000);
 
     refreshCurrent();
   </script>

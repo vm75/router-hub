@@ -1,0 +1,22 @@
+worker_processes 2;
+error_log {{error_log_path}};
+pid {{pid_path}};
+
+events {
+    worker_connections 64;
+}
+
+http {
+    include mime.types;
+    default_type application/octet-stream;
+    client_body_temp_path client-body;
+    proxy_temp_path proxy;
+    fastcgi_temp_path fastcgi;
+    uwsgi_temp_path uwsgi;
+    scgi_temp_path scgi;
+    access_log logs/access.log;
+
+    include conf.d/*.conf;
+    include domains-enabled/*/root.conf;
+    include domains-enabled/*/subdomains-enabled/*.conf;
+}

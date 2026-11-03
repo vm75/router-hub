@@ -1,4 +1,6 @@
 test_mode = false
+# Set to "linux" for native real-service Linux integration; default: "asuswrt".
+platform = "asuswrt"
 
 [server]
 bind = "192.168.192.168"
@@ -53,6 +55,8 @@ log_tail_lines = 300
 [nginx]
 root_dir = "/opt/etc/nginx"
 config_path = "/opt/etc/nginx/nginx.conf"
+# Optional isolated nginx -p prefix for native Linux integration.
+# prefix_path = "/tmp/router-hub-linux/nginx"
 pid_path = "/opt/var/run/nginx.pid"
 domains_available_dir = "/opt/etc/nginx/domains-available"
 domains_enabled_dir = "/opt/etc/nginx/domains-enabled"
@@ -70,7 +74,8 @@ reload_timeout_seconds = 15
 certs_dir = "/opt/var/lib/router-hub/dehydrated/certs"
 renew_interval_hours = 12
 renew_before_days = 30
-command_timeout_seconds = 300
+# Allow for DNS provider propagation delays (NameSilo hook defaults to 600 seconds).
+command_timeout_seconds = 3600
 
 [firewall]
 poll_interval_ms = 1000

@@ -290,7 +290,10 @@ pub async fn get_effective_config(state: &AppState) -> AdGuardConfig {
         state.config.adguard.clone()
     };
 
-    if config.lan_ip.is_empty() || config.lan_ip == "192.168.1.1" {
+    // Native Linux has no Asuswrt NVRAM; its LAN IP must be configured explicitly.
+    if state.config.platform == crate::config::Platform::Asuswrt
+        && (config.lan_ip.is_empty() || config.lan_ip == "192.168.1.1")
+    {
         let fetched_ip = get_lan_ip(&state.runner, &state.config.commands.nvram).await;
         if config.lan_ip.is_empty()
             || (fetched_ip != "192.168.1.1" && config.lan_ip == "192.168.1.1")

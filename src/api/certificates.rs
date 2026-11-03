@@ -6,14 +6,28 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::{
-    api::ApiError,
+    api::{self, ApiError},
     models::{
-        ApiMessage, CertificateSpec, CertificateStatus, CommandResult, DehydratedLockStatus,
-        DehydratedUpdate,
+        ApiMessage, CertificateSpec, CertificateStatus, CommandResult, DehydratedActivity,
+        DehydratedLockStatus, DehydratedUpdate,
     },
     state::AppState,
     util::validate_simple_name,
 };
+
+async fn reconcile_http_challenges(state: &AppState) -> Result<(), ApiError> {
+    crate::nginx::reconcile_http_forwarder(&state.config).map_err(ApiError::internal)?;
+    if api::nginx::is_running(state).await {
+        let result = api::nginx::reload(State(state.clone())).await?.0;
+        if !result.success {
+            return Err(ApiError::conflict(format!(
+                "nginx reload failed after updating certificate routes: {}",
+                result.stderr
+            )));
+        }
+    }
+    Ok(())
+}
 
 pub async fn list(State(state): State<AppState>) -> Json<Vec<CertificateStatus>> {
     let specs = state.stores.certificates.read().await.clone();
@@ -43,6 +57,7 @@ pub async fn create(
     spec.updated_at = Utc::now();
     state.stores.certificates.write().await.push(spec.clone());
     state.stores.save_certificates().await?;
+    reconcile_http_challenges(&state).await?;
     Ok(Json(spec))
 }
 
@@ -72,6 +87,7 @@ pub async fn update(
     *existing = spec.clone();
     drop(specs);
     state.stores.save_certificates().await?;
+    reconcile_http_challenges(&state).await?;
     Ok(Json(spec))
 }
 
@@ -87,6 +103,7 @@ pub async fn delete(
     }
     drop(specs);
     state.stores.save_certificates().await?;
+    reconcile_http_challenges(&state).await?;
     Ok(Json(ApiMessage::new(
         "certificate definition deleted; dehydrated config and certificate files were left intact",
     )))
@@ -127,9 +144,15 @@ pub async fn update_dehydrated(
 }
 
 async fn ensure_dehydrated_unlocked(state: &AppState) -> Result<(), ApiError> {
-    if state.dehydrated_lock_status().await?.locked {
+    let lock = state.dehydrated_lock_status().await?;
+    if lock.status == DehydratedActivity::Running {
         return Err(ApiError::conflict(
-            "dehydrated lock file is present; clear it before issuing or renewing certificates",
+            "dehydrated is already running; wait for the current certificate operation",
+        ));
+    }
+    if lock.locked {
+        return Err(ApiError::conflict(
+            "dehydrated lock file is present; clear it only after confirming no process is running",
         ));
     }
     Ok(())

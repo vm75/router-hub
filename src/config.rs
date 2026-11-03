@@ -8,10 +8,19 @@ use anyhow::{Context, Result, bail};
 use axum::http::HeaderValue;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Platform {
+    #[default]
+    Asuswrt,
+    Linux,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
     pub test_mode: bool,
+    pub platform: Platform,
     pub server: ServerConfig,
     pub paths: PathsConfig,
     pub commands: CommandsConfig,
@@ -29,6 +38,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             test_mode: false,
+            platform: Platform::Asuswrt,
             server: ServerConfig::default(),
             paths: PathsConfig::default(),
             commands: CommandsConfig::default(),
@@ -96,7 +106,8 @@ impl AppConfig {
         self.nginx.pid_path = fixture_root.join("var/run/nginx.pid");
         self.nginx.domains_available_dir = fixture_root.join("etc/nginx/domains-available");
         self.nginx.domains_enabled_dir = fixture_root.join("etc/nginx/domains-enabled");
-        self.nginx.templates_dir = fixture_root.join("etc/nginx/templates");
+        self.nginx.templates_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/nginx/templates");
         self.nginx.subdomain_upstream_map_path =
             fixture_root.join("etc/nginx/conf.d/03_subdomain_upstream_map.conf");
         self.nginx.domain_upstream_map_path =
@@ -178,6 +189,9 @@ impl AppConfig {
         ] {
             resolve(path);
         }
+        if let Some(prefix) = &mut self.nginx.prefix_path {
+            resolve(prefix);
+        }
         for path in self.services.log_dirs.iter_mut() {
             resolve(path);
         }
@@ -187,6 +201,9 @@ impl AppConfig {
     }
 
     pub fn validate(&self) -> Result<()> {
+        if self.test_mode && self.platform == Platform::Linux {
+            bail!("Linux integration mode cannot be combined with simulated test mode");
+        }
         if self.server.port == 0 {
             bail!("server.port must be greater than zero");
         }
@@ -318,8 +335,10 @@ impl AppConfig {
             fs::create_dir_all(path)
                 .with_context(|| format!("failed to create {}", path.display()))?;
         }
-        if let Some(parent) = self.asus_ui.rendered_page.parent() {
-            fs::create_dir_all(parent)?;
+        if self.platform == Platform::Asuswrt && self.asus_ui.enabled {
+            if let Some(parent) = self.asus_ui.rendered_page.parent() {
+                fs::create_dir_all(parent)?;
+            }
         }
         Ok(())
     }
@@ -493,6 +512,8 @@ impl Default for ServicesConfig {
 pub struct NginxConfig {
     pub root_dir: PathBuf,
     pub config_path: PathBuf,
+    /// Optional nginx -p prefix, useful for an isolated native Linux instance.
+    pub prefix_path: Option<PathBuf>,
     pub pid_path: PathBuf,
     pub domains_available_dir: PathBuf,
     pub domains_enabled_dir: PathBuf,
@@ -515,6 +536,7 @@ impl Default for NginxConfig {
         Self {
             root_dir: "/opt/etc/nginx".into(),
             config_path: "/opt/etc/nginx/nginx.conf".into(),
+            prefix_path: None,
             pid_path: "/opt/var/run/nginx.pid".into(),
             domains_available_dir: "/opt/etc/nginx/domains-available".into(),
             domains_enabled_dir: "/opt/etc/nginx/domains-enabled".into(),
@@ -680,6 +702,7 @@ mod tests {
     fn test_default_config() {
         let config = AppConfig::default();
         assert!(!config.test_mode);
+        assert_eq!(config.platform, Platform::Asuswrt);
         assert_eq!(config.server.bind, "0.0.0.0");
         assert_eq!(config.server.port, 3030);
         assert_eq!(config.firewall.subnet_prefix_v4, 24);
@@ -687,6 +710,18 @@ mod tests {
         assert_eq!(config.firewall.reputation_repromote_after_offenses, 1);
         assert_eq!(config.firewall.score_retention_days, 14);
         assert_eq!(config.firewall.subnet_promotion_window_days, 14);
+    }
+
+    #[test]
+    fn test_linux_platform_config() {
+        let mut config = AppConfig::default();
+        config.platform = Platform::Linux;
+        let decoded: AppConfig = toml::from_str("platform = \"linux\"").unwrap();
+        assert_eq!(decoded.platform, Platform::Linux);
+        config.server.auth_token = "long-test-token-for-linux-integration".into();
+        assert!(config.validate().is_ok());
+        config.test_mode = true;
+        assert!(config.validate().is_err());
     }
 
     #[test]
@@ -721,6 +756,7 @@ mod tests {
                 [nginx]
                 root_dir = "../nginx"
                 config_path = "/absolute/nginx.conf"
+                prefix_path = "../nginx-prefix"
             "#,
         )
         .unwrap();
@@ -740,6 +776,10 @@ mod tests {
         assert_eq!(
             config.nginx.config_path,
             PathBuf::from("/absolute/nginx.conf")
+        );
+        assert_eq!(
+            config.nginx.prefix_path,
+            Some(temp.path().join("etc/nginx-prefix"))
         );
     }
 

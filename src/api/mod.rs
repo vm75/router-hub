@@ -215,6 +215,7 @@ pub async fn runtime(State(state): State<AppState>) -> Json<RuntimeInfo> {
     let token = &state.config.server.auth_token;
     Json(RuntimeInfo {
         version: env!("CARGO_PKG_VERSION").into(),
+        platform: state.config.platform,
         api_base_url: state.config.asus_ui.api_base_url.clone(),
         token_hint: {
             let mut suffix = token.chars().rev().take(4).collect::<String>();
