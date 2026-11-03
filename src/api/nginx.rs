@@ -195,6 +195,13 @@ pub async fn get_object(
     }))
 }
 
+/// Return catalog metadata for type-driven UI controls.
+pub async fn composer_catalog(
+    State(state): State<AppState>,
+) -> Result<Json<nginx_compose::OptionCatalog>, ApiError> {
+    Ok(Json(nginx_compose::load_catalog(&state.config)?))
+}
+
 #[derive(Deserialize)]
 pub struct ComposePreview {
     kind: NginxObjectKind,
@@ -213,6 +220,7 @@ pub struct PreviewContent {
 
 /// Preview without touching the deployed configuration or upstream maps.
 pub async fn preview_composed(
+    State(state): State<AppState>,
     Json(request): Json<ComposePreview>,
 ) -> Result<Json<PreviewContent>, ApiError> {
     let server_names = nginx_core::normalize_server_names(
@@ -234,7 +242,9 @@ pub async fn preview_composed(
         request.compose,
     );
     Ok(Json(PreviewContent {
-        content: definition.render().map_err(ApiError::bad_request)?,
+        content: definition
+            .render(&nginx_compose::load_catalog(&state.config)?)
+            .map_err(ApiError::bad_request)?,
     }))
 }
 
@@ -284,7 +294,8 @@ pub async fn create_object(
         )
     });
     let content = if let Some(definition) = &definition {
-        definition.render().map_err(ApiError::bad_request)?
+        definition.render(&nginx_compose::load_catalog(&state.config)?)
+            .map_err(ApiError::bad_request)?
     } else {
         render_object_content(
             &state,
@@ -447,7 +458,8 @@ pub async fn update_object(
         nginx_compose::SiteDefinition::new(kind, &domain, &name, &server_names, upstream, options)
     });
     let content = if let Some(definition) = &definition {
-        definition.render().map_err(ApiError::bad_request)?
+        definition.render(&nginx_compose::load_catalog(&state.config)?)
+            .map_err(ApiError::bad_request)?
     } else {
         render_object_content(
             &state,
