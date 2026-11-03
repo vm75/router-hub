@@ -1,0 +1,326 @@
+# Router Hub Nginx composer catalog. Version-controlled and locally editable.
+# Only add effects that are valid Nginx directives in their declared slot.
+# Editing this file changes generated sites after an explicit render/apply.
+schema_version = 1
+
+# Structural defaults are declared here, not compiled into Rust.
+[[base]]
+kind = "domain"
+[[base.effects]]
+slot = "server"
+directive = "include"
+value = "snippets/ssl.conf"
+[[base.effects]]
+slot = "server"
+directive = "include"
+value = "snippets/acme-challenge.conf"
+[[base.effects]]
+slot = "server"
+directive = "include"
+value = "snippets/security-headers.conf"
+
+[[base]]
+kind = "subdomain"
+[[base.effects]]
+slot = "server"
+directive = "include"
+value = "snippets/ssl.conf"
+[[base.effects]]
+slot = "server"
+directive = "include"
+value = "snippets/security-headers.conf"
+[[base.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-common.conf"
+[[base.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/subdomain-proxy-pass.conf"
+
+[[base]]
+kind = "subfolder"
+[[base.effects]]
+slot = "location"
+directive = "rewrite"
+value = "^/{{regex_name}}/(.*)$ /$1 break"
+[[base.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/subfolder-proxy-pass.conf"
+
+# Choice: access policy. "site" is server for domain/subdomain and location for subfolder.
+[[options]]
+id = "access"
+type = "choice"
+label = "Access policy"
+description = "Use the deployment's snippets/restrict.conf for LAN/restricted access."
+kinds = ["domain", "subdomain", "subfolder"]
+default = "public"
+priority = 10
+[[options.choices]]
+value = "public"
+label = "Public"
+[[options.choices]]
+value = "lan"
+label = "LAN / restricted"
+[[options.choices.effects]]
+slot = "site"
+directive = "include"
+value = "snippets/restrict.conf"
+
+# Choice: domain root routing.
+[[options]]
+id = "root"
+type = "choice"
+label = "Domain root routing"
+kinds = ["domain"]
+default = "subfolders"
+priority = 10
+[[options.choices]]
+value = "subfolders"
+label = "Subfolders (root returns 404)"
+[[options.choices.effects]]
+slot = "server"
+directive = "client_max_body_size"
+value = "100M"
+[[options.choices.effects]]
+slot = "server"
+directive = "include"
+value = "domains-enabled/{{domain}}/subfolders-enabled/*.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "return"
+value = "404"
+[[options.choices]]
+value = "proxy"
+label = "Reverse proxy"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-common.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "proxy_pass"
+value = "$domain_upstream"
+[[options.choices]]
+value = "proxy_and_subfolders"
+label = "Reverse proxy with subfolders"
+[[options.choices.effects]]
+slot = "server"
+directive = "client_max_body_size"
+value = "100M"
+[[options.choices.effects]]
+slot = "server"
+directive = "include"
+value = "domains-enabled/{{domain}}/subfolders-enabled/*.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-common.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "proxy_pass"
+value = "$domain_upstream"
+
+# Choice: mounted subfolder behavior.
+[[options]]
+id = "subfolder"
+type = "choice"
+label = "Subfolder proxy behavior"
+kinds = ["subfolder"]
+default = "standard"
+priority = 20
+[[options.choices]]
+value = "standard"
+label = "Standard"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-params.conf"
+[[options.choices]]
+value = "pwa"
+label = "PWA / media"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-pwa.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-websocket.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/proxy-byte-ranges.conf"
+[[options.choices.effects]]
+slot = "location"
+directive = "include"
+value = "snippets/pwa-no-cache.conf"
+
+# Optional: request body streaming and size.
+[[options]]
+id = "large_upload"
+type = "optional"
+label = "Large uploads"
+description = "5G limit and unbuffered request bodies."
+kinds = ["subdomain"]
+priority = 40
+[[options.effects]]
+slot = "location"
+directive = "client_max_body_size"
+value = "5G"
+[[options.effects]]
+slot = "location"
+directive = "proxy_request_buffering"
+value = "off"
+[[options.effects]]
+slot = "location"
+directive = "proxy_read_timeout"
+value = "3600s"
+[[options.effects]]
+slot = "location"
+directive = "proxy_send_timeout"
+value = "3600s"
+
+[[options]]
+id = "long_lived"
+type = "optional"
+label = "Long-lived sessions"
+kinds = ["domain", "subdomain"]
+priority = 40
+[[options.requirements]]
+kind = "domain"
+condition = "root!=subfolders"
+[[options.effects]]
+slot = "location"
+directive = "proxy_read_timeout"
+value = "3600s"
+[[options.effects]]
+slot = "location"
+directive = "proxy_send_timeout"
+value = "3600s"
+
+[[options]]
+id = "streaming"
+type = "optional"
+label = "Media streaming"
+kinds = ["subdomain"]
+priority = 20
+[[options.effects]]
+slot = "location"
+directive = "proxy_buffering"
+value = "off"
+
+[[options]]
+id = "websocket"
+type = "optional"
+label = "WebSocket timeouts"
+description = "Upgrade headers already come from proxy-common.conf."
+kinds = ["subdomain"]
+priority = 20
+[[options.effects]]
+slot = "location"
+directive = "proxy_read_timeout"
+value = "60s"
+[[options.effects]]
+slot = "location"
+directive = "proxy_send_timeout"
+value = "60s"
+
+[[options]]
+id = "pwa"
+type = "optional"
+label = "PWA static-asset locations"
+kinds = ["subdomain"]
+priority = 20
+requires = ["access=lan"]
+[[options.effects]]
+slot = "server"
+directive = "include"
+value = "snippets/pwa.conf"
+
+[[options]]
+id = "sessions_lan_only"
+type = "optional"
+label = "Restrict /Sessions to LAN"
+kinds = ["subdomain"]
+priority = 20
+requires = ["streaming"]
+[[options.effects]]
+slot = "location:/Sessions"
+directive = "access_log"
+value = "off"
+[[options.effects]]
+slot = "location:/Sessions"
+directive = "include"
+value = "snippets/restrict.conf"
+[[options.effects]]
+slot = "location:/Sessions"
+directive = "include"
+value = "snippets/proxy-common.conf"
+[[options.effects]]
+slot = "location:/Sessions"
+directive = "include"
+value = "snippets/subdomain-proxy-pass.conf"
+
+[[options]]
+id = "strip_origin"
+type = "optional"
+label = "Remove Origin request header"
+kinds = ["subdomain"]
+priority = 20
+[[options.effects]]
+slot = "location"
+directive = "proxy_set_header"
+value = "Origin \"\""
+
+# Parameterized: explicitly provided values beat feature defaults.
+[[options]]
+id = "body_size"
+type = "parameterized"
+label = "Maximum body size"
+description = "Examples: 100M, 5G. Overrides large-upload defaults."
+kinds = ["domain", "subdomain"]
+pattern = "[1-9][0-9]*[kKmMgG]"
+priority = 100
+[[options.effects]]
+slot = "server"
+kinds = ["domain"]
+directive = "client_max_body_size"
+value = "{{value}}"
+[[options.effects]]
+slot = "location"
+kinds = ["subdomain"]
+directive = "client_max_body_size"
+value = "{{value}}"
+
+[[options]]
+id = "read_timeout"
+type = "parameterized"
+label = "Read timeout"
+kinds = ["domain", "subdomain"]
+pattern = "[1-9][0-9]*[smhd]"
+priority = 100
+[[options.requirements]]
+kind = "domain"
+condition = "root!=subfolders"
+[[options.effects]]
+slot = "location"
+directive = "proxy_read_timeout"
+value = "{{value}}"
+
+[[options]]
+id = "send_timeout"
+type = "parameterized"
+label = "Send timeout"
+kinds = ["domain", "subdomain"]
+pattern = "[1-9][0-9]*[smhd]"
+priority = 100
+[[options.requirements]]
+kind = "domain"
+condition = "root!=subfolders"
+[[options.effects]]
+slot = "location"
+directive = "proxy_send_timeout"
+value = "{{value}}"
