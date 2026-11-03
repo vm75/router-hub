@@ -1959,7 +1959,7 @@
       const name = kind === 'domain' ? domain : form.elements.name.value.trim();
       try {
         const preview = await api('/nginx/compose/preview', { method: 'POST', body: JSON.stringify({
-          kind, domain, name, server_names: nginxFormServerNames(form, kind),
+          kind, domain, name, server_names: kind === 'subfolder' ? [domain] : nginxFormServerNames(form, kind),
           upstream: form.elements.upstream.value.trim() || null,
           compose: nginxComposerOptions(form, kind)
         }) });
