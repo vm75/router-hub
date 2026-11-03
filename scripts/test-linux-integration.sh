@@ -53,6 +53,7 @@ mkdir -p "$lab/nginx"/{client-body,proxy,fastcgi,uwsgi,scgi,logs}
 cp -a "$repo_root/config/nginx/templates/." "$lab/nginx/templates/"
 cp -a "$repo_root/config/nginx/snippets/." "$lab/nginx/snippets/"
 cp -a "$repo_root/config/nginx/conf.d/." "$lab/nginx/conf.d/"
+cp -a "$repo_root/config/nginx/composer.toml" "$lab/nginx/composer.toml"
 cp -a "$repo_root/config/nginx/mime.types" "$lab/nginx/mime.types"
 
 # No automatic bans or external firewall writes in this unprivileged suite.
