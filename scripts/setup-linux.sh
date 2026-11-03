@@ -31,6 +31,9 @@ mkdir -p "$lab/nginx"/{client-body,proxy,fastcgi,uwsgi,scgi,logs}
 cp -an "$repo_root/config/nginx/templates/." "$lab/nginx/templates/"
 cp -an "$repo_root/config/nginx/snippets/." "$lab/nginx/snippets/"
 cp -an "$repo_root/config/nginx/conf.d/." "$lab/nginx/conf.d/"
+if [[ ! -e "$lab/nginx/composer.toml" && ! -L "$lab/nginx/composer.toml" ]]; then
+    cp "$repo_root/config/nginx/composer.toml" "$lab/nginx/composer.toml"
+fi
 if [[ ! -e "$lab/nginx/mime.types" && ! -L "$lab/nginx/mime.types" ]]; then
     install -m 644 "$repo_root/config/nginx/mime.types" "$lab/nginx/mime.types"
 fi
