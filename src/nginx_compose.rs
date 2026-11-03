@@ -137,6 +137,7 @@ impl SiteDefinition {
             bail!("the deployed subdomain PWA profile requires LAN access");
         }
         if self.kind == NginxObjectKind::Subdomain
+            || self.kind == NginxObjectKind::Subfolder
             || (self.kind == NginxObjectKind::Domain && o.root != RootMode::Subfolders) {
             if self.upstream.as_deref().is_none_or(str::is_empty) {
                 bail!("a proxied composed site requires an upstream URL");
@@ -297,41 +298,94 @@ pub fn remove(config: &AppConfig, kind: NginxObjectKind,
 /// generated tree before accepting it, and restores every changed .conf on failure.
 /// Does not reload a running nginx; callers control the deployment window.
 pub fn apply_all(config: &AppConfig) -> Result<usize> {
-    let objects = nginx::list_objects(config, false)?;
-    let mut changes = Vec::new();
-    for object in objects {
+    let mut specs = Vec::new();
+    for object in nginx::list_objects(config, false)? {
         if let Some(spec) = read(config, object.kind, &object.domain, &object.name)? {
             let path = nginx::available_path(config, object.kind, &object.domain, &object.name)?;
-            let before = fs::read_to_string(&path)?;
-            let after = spec.render()?;
-            if before != after { changes.push((path, before, after)); }
+            let old = fs::read_to_string(&path)?;
+            let new = spec.render()?;
+            specs.push((spec, path, old, new));
         }
     }
-    if changes.is_empty() { return Ok(0); }
-    let mut written = Vec::new();
-    for (path, before, after) in &changes {
-        if let Err(error) = nginx::atomic_write(path, after.as_bytes()) {
-            for (old_path, old_content) in written.iter().rev() {
-                let _ = nginx::atomic_write(old_path, old_content);
+    if specs.is_empty() { return Ok(0); }
+
+    // All generated config and auxiliary maps form one transaction. A Git edit
+    // can change server aliases or an upstream even if the proxy body is unchanged.
+    let auxiliary_paths = [
+        &config.nginx.domain_upstream_map_path,
+        &config.nginx.subdomain_upstream_map_path,
+        &config.nginx.subfolder_upstream_map_path,
+        &config.nginx.http_forwarder_path,
+    ];
+    let backups = auxiliary_paths.iter().map(|path| {
+        match fs::read(path) {
+            Ok(content) => Ok(Some(content)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }).collect::<std::io::Result<Vec<_>>>()?;
+
+    let apply = (|| -> Result<()> {
+        for (_, path, old, new) in &specs {
+            if old != new { nginx::atomic_write(path, new.as_bytes())?; }
+        }
+        for (spec, _, old, new) in &specs {
+            let old_names = nginx::normalize_server_names(
+                spec.kind, &spec.domain, &spec.name, &nginx::extract_server_names(old))?;
+            let new_names = nginx::normalize_server_names(
+                spec.kind, &spec.domain, &spec.name, &spec.server_names)?;
+            let old_key = if spec.kind == NginxObjectKind::Subfolder {
+                Some(nginx::subfolder_map_key(old, &spec.name)?)
+            } else { None };
+            let new_key = if spec.kind == NginxObjectKind::Subfolder {
+                Some(nginx::subfolder_map_key(new, &spec.name)?)
+            } else { None };
+            nginx::sync_site_upstream(
+                config, spec.kind, &spec.domain, &spec.name,
+                old_key.as_deref(), new_key.as_deref(),
+                &old_names, &new_names, spec.upstream.as_deref())?;
+        }
+        nginx::reconcile_http_forwarder(config)?;
+        let mut command = Command::new(&config.commands.nginx);
+        if let Some(prefix) = &config.nginx.prefix_path {
+            command.arg("-p").arg(prefix);
+        }
+        let output = command.arg("-t").arg("-c").arg(&config.nginx.config_path).output()
+            .context("unable to run nginx -t")?;
+        if !output.status.success() {
+            bail!("nginx -t rejected composed sites: {}", String::from_utf8_lossy(&output.stderr));
+        }
+        Ok(())
+    })();
+
+    if let Err(error) = apply {
+        let mut failed_restore = Vec::new();
+        for (_, path, old, new) in specs.iter().rev() {
+            if old != new {
+                if let Err(restore_error) = nginx::atomic_write(path, old.as_bytes()) {
+                    failed_restore.push(format!("{}: {restore_error}", path.display()));
+                }
             }
-            return Err(error);
         }
-        written.push((path.as_path(), before.as_bytes()));
+        for (path, old) in auxiliary_paths.iter().zip(backups.iter()) {
+            let restored = match old {
+                Some(content) => nginx::atomic_write(path, content),
+                None => match fs::remove_file(path) {
+                    Ok(()) => Ok(()),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    Err(e) => Err(e.into()),
+                },
+            };
+            if let Err(restore_error) = restored {
+                failed_restore.push(format!("{}: {restore_error}", path.display()));
+            }
+        }
+        if failed_restore.is_empty() {
+            bail!("composed site apply failed; previous configuration restored: {error}");
+        }
+        bail!("composed site apply failed: {error}; incomplete rollback: {}", failed_restore.join(", "));
     }
-    let mut command = Command::new(&config.commands.nginx);
-    if let Some(prefix) = &config.nginx.prefix_path {
-        command.arg("-p").arg(prefix);
-    }
-    let output = command.arg("-t").arg("-c").arg(&config.nginx.config_path).output();
-    let failure = match output {
-        Ok(result) if result.status.success() => return Ok(changes.len()),
-        Ok(result) => String::from_utf8_lossy(&result.stderr).to_string(),
-        Err(error) => error.to_string(),
-    };
-    for (path, before, _) in changes.iter().rev() {
-        let _ = nginx::atomic_write(path, before.as_bytes());
-    }
-    bail!("nginx validation failed; composed files were restored: {failure}");
+    Ok(specs.len())
 }
 
 #[cfg(test)]
