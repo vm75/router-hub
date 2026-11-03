@@ -218,7 +218,7 @@ fn validate_parameter(option: &OptionDefinition, input: &str) -> Result<()> {
 
 fn validate_effect(effect: &Effect) -> Result<()> {
     if !valid_identifier(&effect.directive) || effect.value.len() > 4096
-        || effect.value.contains(['\r', '\n', ';', '{', '}', '#']) {
+        || effect.value.contains(['\r', '\n', ';', '#']) {
         bail!("invalid nginx directive or value: {}", effect.directive);
     }
     match effect.slot.as_str() {
