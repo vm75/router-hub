@@ -32,6 +32,7 @@ second nginx, DNS server, or certificate authority.
 
 - Create, edit, enable, disable, validate, and reload nginx domains,
   subdomains, and subfolders.
+- Create composable sites from version-controlled TOML options (access, routing, uploads, timeouts, streaming, WebSocket/PWA), while retaining legacy templates and custom Nginx. See [Nginx composition](docs/NGINX_COMPOSITION.md).
 - Manage templates, upstream maps, aliases, root files, symlinks, and bounded
   log views while keeping nginx’s filesystem configuration authoritative.
 - Generate the configured HTTP-to-HTTPS forwarder for enabled sites.
