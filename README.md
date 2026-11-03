@@ -32,7 +32,7 @@ second nginx, DNS server, or certificate authority.
 
 - Create, edit, enable, disable, validate, and reload nginx domains,
   subdomains, and subfolders.
-- Create composable sites from version-controlled TOML options (access, routing, uploads, timeouts, streaming, WebSocket/PWA), while retaining legacy templates and custom Nginx. See [Nginx composition](docs/NGINX_COMPOSITION.md).
+- Configure composable sites using a **versioned TOML option catalog** (`config/nginx/composer.toml`) with optional, choice and parameterized features; the Rust renderer and UI load it dynamically. Legacy templates and custom Nginx remain available. See [Nginx composition](docs/NGINX_COMPOSITION.md).
 - Manage templates, upstream maps, aliases, root files, symlinks, and bounded
   log views while keeping nginx’s filesystem configuration authoritative.
 - Generate the configured HTTP-to-HTTPS forwarder for enabled sites.
