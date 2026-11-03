@@ -1,4 +1,5 @@
 /target
+/dist/
 /data/
 *.swp
 .DS_Store

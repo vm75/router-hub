@@ -1,0 +1,111 @@
+name: Release
+
+# No releases from branch pushes or pull requests: only explicit version tags.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Verify, cross-build, and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Rust 1.85
+        run: rustup toolchain install 1.85.0 --profile minimal --component rustfmt,clippy
+
+      - name: Validate SemVer tag, Cargo version, and main ancestry
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Expected a Semantic Version tag such as v0.7.2 or v0.8.0-rc.1." >&2
+            exit 1
+          fi
+
+          version=$(cargo +1.85.0 metadata --no-deps --locked --format-version 1 |
+            jq -r '.packages[] | select(.name == "router-hub") | .version')
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "Tag $RELEASE_TAG does not match Cargo.toml version $version." >&2
+            exit 1
+          fi
+
+          git fetch origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "Release tags must reference a commit already merged into main." >&2
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: cargo +1.85.0 fmt --all -- --check
+
+      - name: Run tests
+        run: cargo +1.85.0 test --locked
+
+      - name: Run Clippy
+        run: cargo +1.85.0 clippy --all-targets --locked -- -D warnings
+
+      - name: Check stable compatibility
+        run: |
+          rustup toolchain install stable --profile minimal
+          cargo +stable check --locked --all-targets
+
+      - name: Install cross compiler
+        run: cargo +1.85.0 install cross --version 0.2.5 --locked
+
+      - name: Build AArch64 musl release
+        run: |
+          RUSTUP_TOOLCHAIN=1.85.0 cross build --release --locked \
+            --target aarch64-unknown-linux-musl
+
+      - name: Create and verify installer package
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          bash scripts/package-release.sh "$RELEASE_TAG" aarch64-unknown-linux-musl
+          package="router-hub-$RELEASE_TAG-aarch64-unknown-linux-musl"
+          (
+            cd dist
+            sha256sum -c "$package.tar.gz.sha256"
+          )
+          tar -tzf "dist/$package.tar.gz" | grep -Fx "$package/router-hub"
+          tar -tzf "dist/$package.tar.gz" | grep -Fx "$package/scripts/install-merlin.sh"
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          options=(--verify-tag --generate-notes --title "$RELEASE_TAG")
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            options+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" \
+            dist/*.tar.gz dist/*.sha256 "${options[@]}"
