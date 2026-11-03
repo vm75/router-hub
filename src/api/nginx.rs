@@ -92,6 +92,10 @@ pub async fn status(State(state): State<AppState>) -> Json<NginxStatus> {
     })
 }
 
+pub async fn is_running(state: &AppState) -> bool {
+    status(State(state.clone())).await.running
+}
+
 pub async fn nginx_running(state: &AppState) -> bool {
     if state.config.test_mode {
         return true;

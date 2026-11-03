@@ -134,9 +134,10 @@ impl AppState {
         }
         let status = if running {
             DehydratedActivity::Running
-        } else if locked && operation
-            .as_ref()
-            .is_some_and(|op| op.status == DehydratedActivity::Failed)
+        } else if locked
+            && operation
+                .as_ref()
+                .is_some_and(|op| op.status == DehydratedActivity::Failed)
         {
             DehydratedActivity::Failed
         } else if locked {
@@ -147,12 +148,18 @@ impl AppState {
                 .as_ref()
                 .map_or(DehydratedActivity::Idle, |op| op.status)
         };
-        Ok(DehydratedLockStatus { locked, path, status, operation })
+        Ok(DehydratedLockStatus {
+            locked,
+            path,
+            status,
+            operation,
+        })
     }
 
     pub async fn clear_dehydrated_lock(&self) -> Result<DehydratedLockStatus> {
         // Serialize with issue/renew so a concurrent request cannot remove its lock.
-        let _guard = self.certificate_operation_lock
+        let _guard = self
+            .certificate_operation_lock
             .try_lock()
             .context("cannot clear lock while a certificate operation is running")?;
         if self.dehydrated_lock_status().await?.status == DehydratedActivity::Running {
@@ -180,7 +187,12 @@ impl AppState {
                 return true;
             };
             for entry in entries.flatten() {
-                if !entry.file_name().to_string_lossy().bytes().all(|b| b.is_ascii_digit()) {
+                if !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .bytes()
+                    .all(|b| b.is_ascii_digit())
+                {
                     continue;
                 }
                 let Ok(cmdline) = std::fs::read(entry.path().join("cmdline")) else {
@@ -230,7 +242,8 @@ impl AppState {
 
     pub async fn issue_certificate(&self, id: Uuid, renew: bool) -> Result<CommandResult> {
         // Both the periodic loop and manual API actions must share this guard.
-        let _guard = self.certificate_operation_lock
+        let _guard = self
+            .certificate_operation_lock
             .try_lock()
             .context("another certificate operation is already running")?;
         let spec = self
@@ -302,7 +315,9 @@ impl AppState {
             "--cron".to_string(),
             "--accept-terms".to_string(),
             "--config".to_string(),
-            self.certificate_config_path(spec).to_string_lossy().to_string(),
+            self.certificate_config_path(spec)
+                .to_string_lossy()
+                .to_string(),
         ];
         if renew {
             args.push("--force".to_string());

@@ -12,7 +12,11 @@ for tool in cargo nginx openssl curl python3; do
 done
 
 nginx_bin=$(command -v nginx)
-lab=$(mktemp -d "${TMPDIR:-/tmp}/router-hub-linux.XXXXXX")
+lab_root="$repo_root/data/linux"
+lab="$lab_root/lab"
+mkdir -p "$lab_root"
+rm -rf -- "$lab"
+mkdir -p "$lab"
 hub_pid=
 keep_lab=${ROUTER_HUB_KEEP_LINUX_LAB:-0}
 
@@ -42,24 +46,26 @@ api_port=$(port)
 nginx_port=$(port)
 while [[ "$nginx_port" == "$api_port" ]]; do nginx_port=$(port); done
 token=$(openssl rand -hex 24)
-mkdir -p "$lab"/{data,run,logs/nginx,nginx/conf.d,nginx/domains-available,nginx/domains-enabled,nginx/templates,init.d,wireguard}
+mkdir -p "$lab"/{data,run,logs/nginx,nginx/conf.d,nginx/domains-available,nginx/domains-enabled,nginx/templates,nginx/snippets,init.d,wireguard}
+mkdir -p "$lab/nginx"/{client-body,proxy,fastcgi,uwsgi,scgi,logs}
+
+# Use the same generic nginx templates as Linux setup and router config.
+cp -a "$repo_root/config/nginx/templates/." "$lab/nginx/templates/"
+cp -a "$repo_root/config/nginx/snippets/." "$lab/nginx/snippets/"
+cp -a "$repo_root/config/nginx/conf.d/." "$lab/nginx/conf.d/"
+cp -a "$repo_root/config/nginx/mime.types" "$lab/nginx/mime.types"
 
 # No automatic bans or external firewall writes in this unprivileged suite.
 printf '%s\n' '{"enabled":false,"observe_only":false,"rules":[],"allowlist":[]}' > "$lab/data/firewall-policy.json"
 
-cat > "$lab/nginx/nginx.conf" <<EOF
-worker_processes 1;
-pid $lab/run/nginx.pid;
-error_log $lab/logs/nginx/error.log;
-events { worker_connections 128; }
-http {
-    access_log $lab/logs/nginx/access.log;
-    include $lab/nginx/conf.d/*.conf;
-    include $lab/nginx/domains-enabled/*/root.conf;
-    server {
-        listen 127.0.0.1:$nginx_port;
-        location / { return 200 'router-hub linux nginx'; }
-    }
+python3 "$repo_root/scripts/render-nginx-config.py" \
+    "$repo_root/config/nginx/nginx.conf.template" \
+    "$lab/nginx/nginx.conf" "$lab/run/nginx.pid" "$lab/logs/nginx/error.log"
+mkdir -p "$lab/nginx"/{client-body,proxy,fastcgi,uwsgi,scgi}
+cat > "$lab/nginx/conf.d/00-linux-default.conf" <<EOF
+server {
+    listen 127.0.0.1:$nginx_port;
+    location / { return 200 'router-hub linux nginx'; }
 }
 EOF
 

@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Router Hub: Linux mode",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": ["build", "--bin", "router-hub"],
+                "filter": {
+                    "name": "router-hub",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--config",
+                "${workspaceFolder}/data/linux/router-hub.toml",
+                "--linux-mode",
+                "serve"
+            ],
+            "cwd": "${workspaceFolder}",
+            "terminal": "integrated"
+        }
+    ]
+}

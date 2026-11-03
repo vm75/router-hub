@@ -4,6 +4,8 @@ Router Hub follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.7.2
+
 ### Fixed
 
 - Distinguish active dehydrated certificate renewals from leftover lock files in the Certificates UI, and prevent clearing a lock while the renewal or a known DNS hook is running.

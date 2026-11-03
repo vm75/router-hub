@@ -106,7 +106,8 @@ impl AppConfig {
         self.nginx.pid_path = fixture_root.join("var/run/nginx.pid");
         self.nginx.domains_available_dir = fixture_root.join("etc/nginx/domains-available");
         self.nginx.domains_enabled_dir = fixture_root.join("etc/nginx/domains-enabled");
-        self.nginx.templates_dir = fixture_root.join("etc/nginx/templates");
+        self.nginx.templates_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/nginx/templates");
         self.nginx.subdomain_upstream_map_path =
             fixture_root.join("etc/nginx/conf.d/03_subdomain_upstream_map.conf");
         self.nginx.domain_upstream_map_path =
