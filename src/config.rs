@@ -714,8 +714,10 @@ mod tests {
 
     #[test]
     fn test_linux_platform_config() {
-        let mut config = AppConfig::default();
-        config.platform = Platform::Linux;
+        let mut config = AppConfig {
+            platform: Platform::Linux,
+            ..AppConfig::default()
+        };
         let decoded: AppConfig = toml::from_str("platform = \"linux\"").unwrap();
         assert_eq!(decoded.platform, Platform::Linux);
         config.server.auth_token = "long-test-token-for-linux-integration".into();

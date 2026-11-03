@@ -698,8 +698,10 @@ mod tests {
     #[tokio::test]
     async fn test_linux_firewall_policy_uses_only_data_directory() {
         let temp = tempdir().unwrap();
-        let mut config = AppConfig::default();
-        config.platform = Platform::Linux;
+        let mut config = AppConfig {
+            platform: Platform::Linux,
+            ..AppConfig::default()
+        };
         config.paths.data_dir = temp.path().join("data");
         config.certificates.certs_dir = temp.path().join("certs");
         config.nginx.root_dir = temp.path().join("nginx");
