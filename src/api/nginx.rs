@@ -294,7 +294,8 @@ pub async fn create_object(
         )
     });
     let content = if let Some(definition) = &definition {
-        definition.render(&nginx_compose::load_catalog(&state.config)?)
+        definition
+            .render(&nginx_compose::load_catalog(&state.config)?)
             .map_err(ApiError::bad_request)?
     } else {
         render_object_content(
@@ -458,7 +459,8 @@ pub async fn update_object(
         nginx_compose::SiteDefinition::new(kind, &domain, &name, &server_names, upstream, options)
     });
     let content = if let Some(definition) = &definition {
-        definition.render(&nginx_compose::load_catalog(&state.config)?)
+        definition
+            .render(&nginx_compose::load_catalog(&state.config)?)
             .map_err(ApiError::bad_request)?
     } else {
         render_object_content(
