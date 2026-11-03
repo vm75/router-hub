@@ -87,6 +87,7 @@ pub fn router() -> Router<AppState> {
         .route("/nginx/reload", post(nginx::reload))
         .route("/nginx/start", post(nginx::start))
         .route("/nginx/stop", post(nginx::stop))
+        .route("/nginx/compose/preview", post(nginx::preview_composed))
         .route("/nginx/objects", get(nginx::list_objects))
         .route("/nginx/objects/{kind}", post(nginx::create_object))
         .route(
