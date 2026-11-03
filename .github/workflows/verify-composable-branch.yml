@@ -30,7 +30,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
-            git add src
+            git add src tests
             git commit -m "style: format composable nginx Rust implementation"
             git push origin HEAD:feature/composable-nginx-sites
           fi
