@@ -1,123 +1,163 @@
-# Composable Nginx sites (schema v1)
+# Nginx composition: version-controlled TOML catalog (schema v1)
 
-Router Hub supports three Nginx site modes:
+Nginx Compose is **data-driven**. The supported options, allowed site kinds, defaults, dependencies, parameters, and Nginx directives are read at runtime from [`config/nginx/composer.toml`](../config/nginx/composer.toml). There are no per-feature Rust enums or JavaScript conditionals. Add or change a supported option by editing this catalog and deploying it; no change to `src/nginx_compose.rs` or `web/index.html` is needed.
 
-* **Composed:** an adjacent `.toml` file is the source of truth. Router Hub generates the matching `.conf`.
-* **Template:** the existing named template expands to a `.conf`, as before.
-* **Custom:** a hand-written `.conf` remains authoritative; Router Hub does not rewrite it.
+Router Hub keeps three site modes:
 
-Existing sites are **not migrated automatically**. This is intentional: some deployed template-backed files contain manual modifications. Convert one site at a time using the editor's **Composed (TOML)** mode, checking the rendered configuration before saving. Custom files remain supported indefinitely.
+- **Composed**: an adjacent TOML site file is authoritative; a `.conf` file is generated.
+- **Template**: the existing named template continues to work.
+- **Custom**: a hand-written Nginx `.conf` remains authoritative. Complex WordPress rules, token endpoints, authentication, and custom rewrites stay in this mode.
 
-## Site definitions and generated files
+No existing site is converted automatically. Switching a legacy site to composed mode replaces its rendered Nginx content; **preview and compare before converting**.
 
-Definitions live beside the corresponding Nginx site, within the existing `domains-available` tree:
+## Files and schema versions
 
-| Site type | Authoritative definition | Generated configuration |
+There are two versioned TOML file types:
+
+| File | Schema | Purpose |
 |---|---|---|
-| Domain | `domains-available/example.test/root.toml` | `root.conf` |
-| Subdomain | `domains-available/example.test/subdomains-available/media.toml` | `media.conf` |
-| Subfolder | `domains-available/example.test/subfolders-available/app.toml` | `app.conf` |
+| `/opt/etc/nginx/composer.toml` | `schema_version = 1` | Reusable option catalog, edited and tracked in Git |
+| `domains-available/.../*.toml` | `schema_version = 1` | Site identity, upstream and selected option values |
 
-The normal `domains-enabled` and `subdomains-enabled`/`subfolders-enabled` symlinks continue to control enablement. Upstream maps, aliases, certificate configuration, HTTP redirects, and the Nginx test/reload lifecycle remain managed by Router Hub. **Do not edit generated `.conf` files directly.**
+You can override the deployment catalog location using `[nginx].composer_path` in `router-hub.toml`. The router installer and Linux setup seed the default catalog without replacing an existing local copy. Git remains the owner of its committed source file; Router Hub reads it but does **not** rewrite it.
 
-### Example: LAN-only streaming subdomain with large uploads
+For example:
 
 ```toml
 schema_version = 1
 kind = "subdomain"
 domain = "example.test"
 name = "media"
-server_names = ["media.example.test", "video.example.test"]
+server_names = ["media.example.test"]
 upstream = "http://127.0.0.1:8096"
 
 [options]
 access = "lan"
 streaming = true
-long_lived = true
 large_upload = true
+long_lived = true
 body_size = "5G"
-read_timeout = "3600s"
-send_timeout = "3600s"
+read_timeout = "1200s"
 ```
 
-`access = "lan"` uses the deployed `snippets/restrict.conf`; configure trusted `allow` networks there. The repository's default file is deny-all until it is customized. It does **not** automatically discover LAN CIDRs.
+Site paths are unchanged: `domains-available/example.test/root.toml` for domain roots, `subdomains-available/media.toml` for subdomains, and `subfolders-available/app.toml` for subfolders, each next to its generated `.conf`. Enabled symlinks continue to govern activation.
 
-### Example: root domain that hosts subfolders
+## Catalog option types
+
+Each `[[options]]` entry has an `id`, `type`, `label`, `kinds`, and zero or more directive `effects`. Types are:
+
+### 1. Optional (Boolean)
 
 ```toml
-schema_version = 1
+[[options]]
+id = "streaming"
+type = "optional"
+label = "Media streaming"
+kinds = ["subdomain"]
+priority = 20
+[[options.effects]]
+slot = "location"
+directive = "proxy_buffering"
+value = "off"
+```
+
+A site selects it with `streaming = true`. Omitted optional options are false unless the catalog has `default = "true"`.
+
+### 2. Choice (A, B, or C)
+
+```toml
+[[options]]
+id = "access"
+type = "choice"
+label = "Access policy"
+kinds = ["domain", "subdomain", "subfolder"]
+default = "public"
+priority = 10
+
+[[options.choices]]
+value = "public"
+label = "Public"
+
+[[options.choices]]
+value = "lan"
+label = "LAN / restricted"
+[[options.choices.effects]]
+slot = "site"
+directive = "include"
+value = "snippets/restrict.conf"
+```
+
+Site setting: `access = "lan"`. The root routing choice (`subfolders`, `proxy`, or `proxy_and_subfolders`) and subfolder choice (`standard` or `pwa`) work the same way. Their structural effects are catalog entries rather than code branches.
+
+### 3. Parameterized (value with validation)
+
+```toml
+[[options]]
+id = "read_timeout"
+type = "parameterized"
+label = "Read timeout"
+kinds = ["domain", "subdomain"]
+pattern = "[1-9][0-9]*[smhd]"
+priority = 100
+[[options.effects]]
+slot = "location"
+directive = "proxy_read_timeout"
+value = "{{value}}"
+```
+
+Site setting: `read_timeout = "3600s"`. Values must pass the catalog's **full-match regex** and cannot contain Nginx syntax delimiters. All parameters are strings.
+
+## Directive slots and conflicts
+
+Supported `slot` values:
+
+| Slot | Rendered location |
+|---|---|
+| `server` | Nginx server block (domain/subdomain) |
+| `location` | Root proxy location; for subfolders, their mounted location |
+| `site` | Server for domain/subdomain; mounted location for subfolder |
+| `location:/Sessions` | Additional named location in the server block |
+
+The composer generates only the surrounding `server`/`location` structure, `server_name`, and subfolder mount path. Shared defaults (`[[base]]`), feature effects and options live in the catalog.
+
+Effects use `directive = "proxy_read_timeout"` and `value = "3600s"` rather than arbitrary config text. The engine validates slot names, directive tokens, placeholders and values. Supported placeholders: `{{domain}}`, `{{name}}`, `{{regex_name}}`, `{{server_name}}`, and `{{value}}`.
+
+**Conflict resolution:** within a slot, single-valued directives are merged by name, with higher `priority` taking precedence. Repeated `include` directives are preserved if they refer to different files; repeated `proxy_set_header` or `add_header` directives are keyed by header name. Conflicting equal-priority values fail validation. As a result, enabling both `websocket` and `long_lived` produces a single effective timeout. Explicit parameters in the shipped catalog have priority 100 and override feature defaults.
+
+For dependencies, add `requires = ["streaming"]` or `requires = ["access=lan"]`. To constrain a particular site kind, add:
+
+```toml
+[[options.requirements]]
 kind = "domain"
-domain = "example.test"
-name = "example.test"
-server_names = ["example.test"]
-
-[options]
-root = "subfolders"
-body_size = "100M"
+condition = "root!=subfolders"
 ```
 
-`root` choices are `subfolders` (root returns 404), `proxy`, or `proxy_and_subfolders`. Proxy roots require an `upstream` URL; these use the **domain upstream map**.
+Unknown option names, disallowed site kinds, invalid parameters, unmet dependencies, malformed catalog entries or unsupported schema versions are rejected.
 
-### Example: standard or PWA subfolder
+### Extending the catalog
 
-```toml
-schema_version = 1
-kind = "subfolder"
-domain = "example.test"
-name = "app"
-server_names = ["example.test"]
-upstream = "http://127.0.0.1:3000"
+To add a feature, append another `[[options]]` block with its type, kinds and effects; then add the corresponding Boolean, string choice or parameter value under a site's `[options]` table. The UI fetches the catalog through `GET /api/nginx/compose/catalog` and automatically renders the appropriate checkbox, select, or text field.
 
-[options]
-access = "lan"
-subfolder = "pwa"
-```
+The only capability intentionally fixed in Rust is *structural* Nginx syntax and safe composition mechanics. A new directive inside an existing supported slot requires no Rust changes. Adding a new kind of structural construct (a custom `map`, `upstream` block, or unusual nested `location` scheme) is not supported by the catalog's v1 schema; use Custom Nginx until the schema is extended.
 
-`subfolder` choices are `standard` and `pwa`. Additional subfolder rewrites, overlapping regex locations, SSE routes, or application-specific authorization should continue to use custom Nginx.
+## Applying Git-managed changes
 
-## Supported options (v1)
+The catalog is loaded when previewing, creating, editing or rendering composed sites. A malformed catalog causes these operations to fail rather than silently use stale definitions. Ordinary legacy and custom sites are unaffected.
 
-Only options from the existing templates/deployment are implemented. Unsupported fields cause validation errors rather than being ignored.
-
-| Option | Applies to | Behavior |
-|---|---|---|
-| `access = "public" / "lan"` | all | Include `restrict.conf` for LAN/restricted mode |
-| `root = "subfolders" / "proxy" / "proxy_and_subfolders"` | domain | Choose domain root routing |
-| `subfolder = "standard" / "pwa"` | subfolder | Choose mounted proxy behavior |
-| `large_upload = true` | subdomain, proxying domain | Request streaming and default max body 5G |
-| `long_lived = true` | subdomain, proxying domain | Default read/send timeouts of 3600s |
-| `streaming = true` | subdomain | Turn off response buffering |
-| `websocket = true` | subdomain | Default read/send timeouts of 60s (the common proxy snippet already handles upgrades) |
-| `pwa = true` | LAN-only subdomain | Include the existing PWA static-asset locations |
-| `sessions_lan_only = true` | streaming subdomain | Restrict and bypass logging for `/Sessions` |
-| `strip_origin = true` | subdomain | Suppress the request Origin header upstream |
-| `body_size = "5G"` | domain or subdomain | Override request body size |
-| `read_timeout = "3600s"`, `send_timeout = "3600s"` | domain proxy or subdomain | Override proxy timeouts |
-
-Timeouts accept positive integer `s`, `m`, `h`, or `d` units. Body sizes accept positive integer `k`, `m`, or `g` units. Features are merged **before** rendering to avoid duplicate Nginx directives. See the unit tests in `src/nginx_compose.rs`.
-
-A composed proxy site requires an upstream URL. Subfolder definitions currently permit only access policy and standard/PWA behavior; more complex applications remain custom. The schema is intentionally strict and small.
-
-## Version control and applying external changes
-
-You can commit the `.toml` definitions to Git alongside custom site files. **The source-of-truth for a composed site is its TOML**, not the generated Nginx file. If TOML is edited outside the UI, run:
+For site TOML files edited through Git, explicitly regenerate and validate:
 
 ```sh
 router-hub --config /opt/etc/router-hub/router-hub.toml render-sites
 ```
 
-This command reads the adjacent TOML definitions, regenerates their `.conf` files, synchronizes all site upstream maps/aliases and the HTTP forwarder, runs `nginx -t`, and restores the previous files and maps on a failure. **It does not reload Nginx**; use Router Hub's Nginx reload action after checking the result.
+The command renders the existing composed site files, updates managed upstream mappings and the generated HTTP forwarder, runs `nginx -t` and restores the previous configuration on failure. It **does not reload Nginx**; reload through Router Hub after reviewing the result. For a brand-new site, use the UI/API to create its hierarchy before editing its TOML directly.
 
-UI edits of composed sites write both the generated configuration and the TOML definition. The normal existing validation and rollback behavior applies to enabled-site changes. Non-composed sites follow the unchanged template/custom logic.
+The site editor's **Composed (TOML)** mode uses the same catalog for its control labels, choices and options. The **Preview generated Nginx** button renders without modifying files.
 
-The CLI processes definitions only for sites that already have a `.conf` file. For a brand-new site, use the UI/API to create it before editing its TOML directly. Enablement remains a symlink operation, not a TOML field.
+## Migration and operational precautions
 
-## Conversion notes and limitations
+The initial deployment has template-backed sites with manual changes. Compare each current `.conf` with its preview before switching to composed mode; the earlier template comment does not guarantee equivalence. Custom sites are never converted automatically.
 
-1. First compare the existing `.conf` with its deployed template; template markers alone do not prove that the file is unchanged. The deployment used for this work contains hand-edited template instances.
-2. Select **Composed (TOML)** in the site editor, set the appropriate capabilities, and explicitly review the generated `.conf` before enabling/reloading. Existing custom sites should not be converted automatically.
-3. Validate on the target Nginx build. File inclusion, HTTP header inheritance, URI rewriting, and overlapping locations can be application-specific.
-4. Treat `snippets/restrict.conf`, TLS/certificate assets, and any custom include files as deployment-owned. Installers intentionally preserve local modifications to these files.
-5. Avoid placing secrets in version-controlled TOML. Use appropriate access controls and a private repository where needed.
+Older composed TOML files written by the first feature-branch prototype contained default values for unrelated site kinds. The new loader discards only inapplicable *default-valued* fields; it rejects inapplicable non-default values. Saving a composed site writes the normalized definition.
 
-The composer deliberately does **not** implement arbitrary additional locations, WordPress rules, request authentication, unusual aliases/fallbacks, custom SSE rules, or arbitrary Nginx directives. Those configurations continue to use **Custom**.
+The installed `snippets/restrict.conf` defaults to `deny all;`, so configure deployment-specific allow-lists before enabling LAN-only sites. Keep the catalogue, deployed snippets and certificates versioned or managed appropriately; do not commit secrets. Nginx source-file syntax validation does not guarantee correct application rewrites or HTTP behavior, so test important routes on the target Nginx build.
