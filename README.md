@@ -188,6 +188,76 @@ Those still need router validation. Linux keeps its firewall policy within
 `[paths].data_dir` instead of reading or mirroring the router's
 `/opt/etc/router-hub/firewall-policy.json`.
 
+## Versioned releases and installation packages
+
+Router Hub follows [Semantic Versioning](https://semver.org/). Set the version
+in `Cargo.toml` and commit the matching `Cargo.lock`; Git tags use the
+`vMAJOR.MINOR.PATCH` convention (or a prerelease such as `v0.8.0-rc.1`).
+The [GitHub Releases page](https://github.com/vm75/router-hub/releases) offers
+versioned AArch64 musl installation archives and SHA-256 checksums.
+
+Automatic CI runs **only after a pull request is merged into `main`**.
+Ordinary branch pushes, direct pushes to `main`, and PR updates do not trigger
+CI. To check an **open PR manually**, after this workflow has been merged into
+`main`, select **Actions → CI → Run workflow**, select `main`, and enter
+the PR number. It checks GitHub's proposed merge result against `main`.
+Alternatively, run `gh workflow run ci.yml --ref main -f pr_number=123`.
+The manual check is not a required pre-merge check; enable a separate
+pre-merge workflow if your branch protection needs one.
+
+Pushing a version tag starts a separate full release: version and ancestry
+validation, Rust formatting, tests, Clippy, stable toolchain compatibility,
+AArch64 musl cross-compilation, packaging, checksum verification, and GitHub
+Release publication. Tags must match Cargo's version and point to commits
+already merged into `main`. A prerelease tag publishes a GitHub prerelease.
+No release workflow installs anything onto a router automatically.
+
+### Install a published version
+
+On the router, ensure `curl`, `tar`, and `sha256sum` are available. You can
+instead download and verify on another Linux machine, then transfer the
+extracted directory to the router. For example, **after** `v0.7.2` has been
+published:
+
+```sh
+VERSION=v0.7.2
+TARGET=aarch64-unknown-linux-musl
+PACKAGE="router-hub-${VERSION}-${TARGET}"
+URL="https://github.com/vm75/router-hub/releases/download/${VERSION}"
+
+curl -fLO "${URL}/${PACKAGE}.tar.gz"
+curl -fLO "${URL}/${PACKAGE}.tar.gz.sha256"
+sha256sum -c "${PACKAGE}.tar.gz.sha256"
+tar -xzf "${PACKAGE}.tar.gz"
+cd "${PACKAGE}"
+# Run as root on the router:
+./scripts/install-merlin.sh ./router-hub
+```
+
+The package includes the executable, `config/`, `scripts/`, and release
+documentation. Back up the router's configuration and persistent data before
+upgrading; the installer preserves existing `router-hub.toml` and should be
+reviewed for your environment. AArch64 musl compatibility requires validation
+on your router CPU and firmware.
+
+### Publish the next release
+
+1. Update `Cargo.toml` using Semantic Versioning, refresh `Cargo.lock`,
+   and update `CHANGELOG.md`. Run local checks and the release build.
+2. Merge the version changes into `main` by PR and verify the merged-PR CI.
+3. From the updated `main`, create and push an annotated tag:
+
+```sh
+git switch main
+git pull --ff-only
+git tag -a v0.7.2 -m "Router Hub v0.7.2"
+git push origin v0.7.2
+```
+
+Replace `v0.7.2` with the actual new version. Never reuse or move a published
+tag; issue a new patch version for corrections. GitHub Actions performs the
+release build when the tag is pushed.
+
 ## Build and install on a router
 
 Build the release artifact for the target CPU. The helper also writes a SHA-256

@@ -46,6 +46,17 @@ The repository contains a helper default for `aarch64-unknown-linux-musl`,
 but a target is supported only after testing it on the matching router CPU and
 firmware. Legacy MIPS support is not promised.
 
+## Release workflow
+
+CI runs automatically only after a PR is merged into main. CI can also be
+started manually for an open PR by number via workflow_dispatch (against the
+proposed merge ref). No CI is triggered by PR updates or branch pushes.
+Publishing is separate: push an annotated `vX.Y.Z` tag from main, matching
+`Cargo.toml` and `Cargo.lock`, to run full release checks and publish a
+versioned AArch64 musl installation archive plus SHA-256 checksum.
+Do not commit `dist/` output or retag published versions; never deploy to
+production routers automatically.
+
 ## Engineering constraints
 
 - Follow KISS and YAGNI. Make the smallest change that satisfies the concrete request.

@@ -1,33 +1,89 @@
 name: CI
 
+# CI runs automatically only for merged PRs into main.
+# Open PRs can be tested explicitly through Run workflow with a PR number.
 on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - main
+    types:
+      - closed
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Open pull request number targeting main"
+        required: true
+        type: number
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  source:
+    name: Select PR merge revision
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-24.04
+    outputs:
+      ref: ${{ steps.select.outputs.ref }}
+    steps:
+      - name: Resolve checkout reference
+        id: select
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          MERGED_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$RUN_EVENT" == "workflow_dispatch" ]]; then
+            if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Provide a valid PR number." >&2
+              exit 1
+            fi
+
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+            base=$(jq -r '.base.ref' <<<"$pr")
+            state=$(jq -r '.state' <<<"$pr")
+            if [[ "$base" != "main" || "$state" != "open" ]]; then
+              echo "PR #$PR_NUMBER must be open and target main." >&2
+              exit 1
+            fi
+
+            # Test the proposed merge result, including changes from main.
+            ref="refs/pull/$PR_NUMBER/merge"
+            echo "Checking proposed merge of PR #$PR_NUMBER into main"
+          else
+            ref="$MERGED_SHA"
+            if [[ -z "$ref" ]]; then
+              echo "Merged PR has no merge commit SHA." >&2
+              exit 1
+            fi
+          fi
+
+          printf 'ref=%s\n' "$ref" >> "$GITHUB_OUTPUT"
+
   full:
     name: Full CI (Rust 1.85)
+    needs: source
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - name: Check out repository
+      - name: Check out PR merge revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.source.outputs.ref }}
           persist-credentials: false
 
       - name: Install baseline Rust
@@ -47,12 +103,14 @@ jobs:
 
   stable:
     name: Stable compatibility
+    needs: source
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Check out repository
+      - name: Check out PR merge revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ needs.source.outputs.ref }}
           persist-credentials: false
 
       - name: Install stable Rust

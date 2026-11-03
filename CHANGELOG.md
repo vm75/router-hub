@@ -6,6 +6,12 @@ Router Hub follows [Semantic Versioning](https://semver.org/).
 
 ## 0.7.2
 
+### Changed
+
+- Adopted SemVer Git tags, tag-triggered verified AArch64 musl release packages and GitHub Releases.
+- Restricted automatic CI to merged pull requests into main, with optional manual CI for open pull requests.
+
+
 ### Fixed
 
 - Distinguish active dehydrated certificate renewals from leftover lock files in the Certificates UI, and prevent clearing a lock while the renewal or a known DNS hook is running.
