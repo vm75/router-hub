@@ -122,12 +122,11 @@ impl SiteDefinition {
             if o.streaming || o.websocket || o.pwa || o.sessions_lan_only || o.strip_origin {
                 bail!("these proxy capabilities are supported only on subdomains");
             }
-            if o.large_upload || o.long_lived || o.body_size.is_some()
-                || o.read_timeout.is_some() || o.send_timeout.is_some() {
-                if o.root == RootMode::Subfolders && (o.large_upload || o.long_lived
-                    || o.read_timeout.is_some() || o.send_timeout.is_some()) {
-                    bail!("proxy capabilities require a domain proxy root");
-                }
+            if o.root == RootMode::Subfolders
+                && (o.large_upload || o.long_lived || o.read_timeout.is_some()
+                    || o.send_timeout.is_some())
+            {
+                bail!("proxy capabilities require a domain proxy root");
             }
         }
         if o.sessions_lan_only && !o.streaming {
@@ -136,12 +135,12 @@ impl SiteDefinition {
         if o.pwa && o.access != Access::Lan {
             bail!("the deployed subdomain PWA profile requires LAN access");
         }
-        if self.kind == NginxObjectKind::Subdomain
+        if (self.kind == NginxObjectKind::Subdomain
             || self.kind == NginxObjectKind::Subfolder
-            || (self.kind == NginxObjectKind::Domain && o.root != RootMode::Subfolders) {
-            if self.upstream.as_deref().is_none_or(str::is_empty) {
-                bail!("a proxied composed site requires an upstream URL");
-            }
+            || (self.kind == NginxObjectKind::Domain && o.root != RootMode::Subfolders))
+            && self.upstream.as_deref().is_none_or(str::is_empty)
+        {
+            bail!("a proxied composed site requires an upstream URL");
         }
         Ok(())
     }
