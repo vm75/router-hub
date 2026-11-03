@@ -1922,36 +1922,55 @@
     function nginxDefaultServerNames(kind, domain, name) { return [kind === 'subdomain' ? `${name}.${domain}` : domain].filter(Boolean) }
     function nginxFormServerNames(form, kind) { const names = jsonLines(form.elements.server_names.value); return names.length ? names : nginxDefaultServerNames(kind, form.elements.domain.value.trim(), kind === 'domain' ? form.elements.domain.value.trim() : form.elements.name.value.trim()) }
 
-    // The source definition is stored beside its generated .conf file as .toml.
-    function nginxComposerFields(kind, options = {}) {
-      const checked = key => options[key] ? 'checked' : '';
-      const value = key => esc(options[key] || '');
-      const access = `<div class="field"><label>Access</label><select class="input" name="compose_access"><option value="public" ${options.access !== 'lan' ? 'selected' : ''}>Public</option><option value="lan" ${options.access === 'lan' ? 'selected' : ''}>LAN / allowed networks</option></select></div>`;
-      const root = kind === 'domain' ? `<div class="field"><label>Root routing</label><select class="input" name="compose_root">${[['subfolders','Subfolders only (404 at root)'],['proxy','Proxy at root'],['proxy_and_subfolders','Proxy and subfolders']].map(([id,label]) => `<option value="${id}" ${(options.root || 'subfolders') === id ? 'selected' : ''}>${label}</option>`).join('')}</select></div>` : '';
-      const subfolder = kind === 'subfolder' ? `<div class="field"><label>Subfolder behavior</label><select class="input" name="compose_subfolder"><option value="standard" ${options.subfolder !== 'pwa' ? 'selected' : ''}>Standard proxy</option><option value="pwa" ${options.subfolder === 'pwa' ? 'selected' : ''}>PWA proxy</option></select></div>` : '';
-      const capabilities = kind === 'subfolder' ? '' : `<div class="field full"><label>Capabilities</label><div class="actions" style="flex-wrap:wrap">${[
-        ['large_upload','Large uploads'], ['long_lived','Long-lived sessions'],
-        ...(kind === 'subdomain' ? [['streaming','Media streaming'],['websocket','WebSocket timeouts'],['pwa','PWA routes'],['sessions_lan_only','LAN-only /Sessions'],['strip_origin','Strip Origin header']] : [])
-      ].map(([key, label]) => `<label><input type="checkbox" name="compose_${key}" ${checked(key)}> ${label}</label>`).join('')}</div></div>
-      <div class="field"><label>Maximum request body (optional)</label><input class="input" name="compose_body_size" value="${value('body_size')}" placeholder="e.g. 5G"></div>
-      <div class="field"><label>Read timeout (optional)</label><input class="input" name="compose_read_timeout" value="${value('read_timeout')}" placeholder="e.g. 3600s"></div>
-      <div class="field"><label>Send timeout (optional)</label><input class="input" name="compose_send_timeout" value="${value('send_timeout')}" placeholder="e.g. 3600s"></div>`;
-      return `<div class="form-grid">${access}${root}${subfolder}${capabilities}<div class="field full"><span class="hint">Generated Nginx is derived from a version-controlled TOML file. To change advanced behavior, keep a Custom configuration.</span></div><div class="field full"><button type="button" class="btn small" onclick="nginxPreviewComposed(this)">Preview generated Nginx</button></div></div>`;
+    // The catalog comes from config/nginx/composer.toml, not a JavaScript feature list.
+    function nginxComposerFields(kind, selected = {}, catalog) {
+      const options = catalog.options.filter(option => option.kinds.includes(kind));
+      const fields = options.map(option => {
+        const id = esc(option.id), label = esc(option.label);
+        const hint = option.description
+          ? '<span class="hint">' + esc(option.description) + '</span>' : '';
+        const name = 'compose_' + id;
+        if (option.option_type === 'optional') {
+          const on = selected[option.id] === undefined
+            ? option.default === 'true' : selected[option.id] === true;
+          return '<div class="field"><label><input type="checkbox" name="' + name
+            + '" ' + (on ? 'checked' : '') + '> ' + label + '</label>' + hint + '</div>';
+        }
+        if (option.option_type === 'choice') {
+          const value = selected[option.id] ?? option.default;
+          return '<div class="field"><label>' + label + '</label><select class="input" name="'
+            + name + '">' + option.choices.map(choice =>
+              '<option value="' + esc(choice.value) + '" '
+              + (value === choice.value ? 'selected' : '') + '>' + esc(choice.label)
+              + '</option>').join('') + '</select>' + hint + '</div>';
+        }
+        const value = selected[option.id] ?? '';
+        return '<div class="field"><label>' + label + '</label><input class="input" name="'
+          + name + '" value="' + esc(value) + '" placeholder="' + esc(option.pattern || '')
+          + '">' + hint + '</div>';
+      }).join('');
+      return '<div class="form-grid">' + fields
+        + '<div class="field full"><span class="hint">Options and validation are loaded from the version-controlled Nginx composer TOML catalog (v'
+        + esc(catalog.schema_version) + '). Advanced routes can remain Custom.</span></div>'
+        + '<div class="field full"><button type="button" class="btn small" onclick="nginxPreviewComposed(this)">Preview generated Nginx</button></div></div>';
     }
     function nginxComposerOptions(form, kind) {
-      const get = key => form.elements['compose_' + key];
-      const text = key => get(key)?.value.trim() || null;
-      const checked = key => !!get(key)?.checked;
-      return {
-        access: text('access') || 'public',
-        root: kind === 'domain' ? text('root') : 'subfolders',
-        subfolder: kind === 'subfolder' ? text('subfolder') : 'standard',
-        large_upload: checked('large_upload'), long_lived: checked('long_lived'),
-        streaming: checked('streaming'), websocket: checked('websocket'),
-        pwa: checked('pwa'), sessions_lan_only: checked('sessions_lan_only'),
-        strip_origin: checked('strip_origin'), body_size: text('body_size'),
-        read_timeout: text('read_timeout'), send_timeout: text('send_timeout')
-      };
+      const catalog = form._composerCatalog;
+      if (!catalog) throw new Error('Nginx option catalog is not loaded');
+      const options = {};
+      for (const option of catalog.options.filter(option => option.kinds.includes(kind))) {
+        const field = form.elements['compose_' + option.id];
+        if (!field) throw new Error('Missing Nginx option: ' + option.id);
+        if (option.option_type === 'optional') {
+          if (field.checked) options[option.id] = true;
+          else if (option.default === 'true') options[option.id] = false;
+        } else if (option.option_type === 'choice') {
+          options[option.id] = field.value;
+        } else if (field.value.trim()) {
+          options[option.id] = field.value.trim();
+        }
+      }
+      return options;
     }
     async function nginxPreviewComposed(button) {
       const form = button.closest('form'), kind = form.dataset.kind;
@@ -1973,15 +1992,15 @@
     async function nginxTemplateChanged(form, kind) { const custom = form.querySelector('[data-custom-config]'), composed = form.querySelector('[data-composed-config]'), template = form.elements.template.value; custom.hidden = !!template; composed.hidden = template !== '__composed'; if (!template || template === '__composed') return; try { form._nginxTemplateSource = (await api(`/nginx/templates/${kind}/${encodeURIComponent(template)}`)).content; previewNginxTemplate(form, kind) } catch (e) { toast(e.message, true) } }
     function wireNginxObjectForm(form, kind) { form.elements.template.addEventListener('change', () => nginxTemplateChanged(form, kind));['domain', 'name', 'server_names'].forEach(name => form.elements[name]?.addEventListener('input', () => previewNginxTemplate(form, kind))); form.elements.domain.addEventListener('change', () => previewNginxTemplate(form, kind)) }
     async function newNginxObject(kind) {
-      let templates = [];
-      try { templates = await api(`/nginx/templates/${kind}`) } catch (e) { return toast(e.message, true) }
+      let templates = [], catalog;
+      try { [templates, catalog] = await Promise.all([api(`/nginx/templates/${kind}`), api('/nginx/compose/catalog')]) } catch (e) { return toast(e.message, true) }
       const nameField = kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" name="name" required placeholder="${kind === 'subdomain' ? 'app' : 'media'}"></div>`;
       const upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" placeholder="http://192.168.1.10:8080"><span class="hint">Optional. Router Hub adds this site to the hostname or subfolder upstream map.</span></div>`;
       const domainField = kind === 'domain' ? '<input class="input" name="domain" required placeholder="example.com">' : `<select class="input" name="domain" required>${nginxDomainOptions()}</select>`;
-      openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form" data-kind="${kind}"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label>${domainField}</div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, '__composed')}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-composed-config>${nginxComposerFields(kind)}</div><div class="field full" data-custom-config hidden><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template && v.template !== '__composed' ? v.template : null, compose: v.template === '__composed' ? nginxComposerOptions(f, kind) : null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
-      wireNginxObjectForm(document.getElementById('nginx-object-form'), kind); nginxTemplateChanged(document.getElementById('nginx-object-form'), kind)
+      openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form" data-kind="${kind}"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label>${domainField}</div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, '__composed')}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-composed-config>${nginxComposerFields(kind, {}, catalog)}</div><div class="field full" data-custom-config hidden><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template && v.template !== '__composed' ? v.template : null, compose: v.template === '__composed' ? nginxComposerOptions(f, kind) : null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
+      const form = document.getElementById('nginx-object-form'); form._composerCatalog = catalog; wireNginxObjectForm(form, kind); nginxTemplateChanged(form, kind)
     }
-    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates] = await Promise.all([api(url), api(`/nginx/templates/${kind}`)]), selected = row.object.composed ? '__composed' : row.object.template || '', identityFields = `<div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label><input class="input" value="${esc(domain)}" readonly></div>${kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" value="${esc(name)}" readonly></div>`}`, serverNamesField = kind === 'subfolder' ? '' : `<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>`, upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" value="${esc(row.upstream || '')}" placeholder="http://192.168.1.10:8080"><span class="hint">Leave blank to remove this site from the generated upstream map.</span></div>`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form" data-kind="${kind}"><input type="hidden" name="domain" value="${esc(domain)}"><input type="hidden" name="name" value="${esc(name)}"><div class="form-grid">${identityFields}${serverNamesField}${upstreamField}<div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field full" data-composed-config ${selected === '__composed' ? '' : 'hidden'}>${nginxComposerFields(kind, row.definition?.options || {})}</div><div class="field full" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f); if (selected !== '__composed' && v.template === '__composed' && !confirm('This replaces the existing nginx configuration with generated output. Preview it first and verify any previous manual overrides. Continue?')) return; const payload = { template: v.template && v.template !== '__composed' ? v.template : null, compose: v.template === '__composed' ? nginxComposerOptions(f, kind) : null, content: v.template ? null : v.content, server_names: kind === 'subfolder' ? undefined : nginxFormServerNames(f, kind), upstream: v.upstream.trim() }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
+    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates, catalog] = await Promise.all([api(url), api(`/nginx/templates/${kind}`), api('/nginx/compose/catalog')]), selected = row.object.composed ? '__composed' : row.object.template || '', identityFields = `<div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label><input class="input" value="${esc(domain)}" readonly></div>${kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" value="${esc(name)}" readonly></div>`}`, serverNamesField = kind === 'subfolder' ? '' : `<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>`, upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" value="${esc(row.upstream || '')}" placeholder="http://192.168.1.10:8080"><span class="hint">Leave blank to remove this site from the generated upstream map.</span></div>`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form" data-kind="${kind}"><input type="hidden" name="domain" value="${esc(domain)}"><input type="hidden" name="name" value="${esc(name)}"><div class="form-grid">${identityFields}${serverNamesField}${upstreamField}<div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field full" data-composed-config ${selected === '__composed' ? '' : 'hidden'}>${nginxComposerFields(kind, row.definition?.options || {}, catalog)}</div><div class="field full" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f); if (selected !== '__composed' && v.template === '__composed' && !confirm('This replaces the existing nginx configuration with generated output. Preview it first and verify any previous manual overrides. Continue?')) return; const payload = { template: v.template && v.template !== '__composed' ? v.template : null, compose: v.template === '__composed' ? nginxComposerOptions(f, kind) : null, content: v.template ? null : v.content, server_names: kind === 'subfolder' ? undefined : nginxFormServerNames(f, kind), upstream: v.upstream.trim() }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); form._composerCatalog = catalog; wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
     async function nginxObjectAction(kind, domain, name, action) { try { await api(`${nginxObjectUrl({ kind, domain, name })}/${action}`, { method: 'POST' }); toast(`${name}: ${action} complete`); await Promise.all([loadNginxObjects(), loadNginxStatus()]) } catch (e) { toast(e.message, true) } }
     async function deleteNginxObject(kind, domain, name) { const detail = kind === 'domain' ? 'This also deletes all nested subdomain and subfolder definitions. ' : ''; if (!confirm(`${detail}Delete ${kind} ${name}?`)) return; try { await api(nginxObjectUrl({ kind, domain, name }), { method: 'DELETE' }); toast(`${kind} deleted`); loadNginxObjects() } catch (e) { toast(e.message, true) } }
     function nginxCommandResult(command, result) { const action = command === 'test' ? 'Nginx configuration test' : 'Nginx reload'; const detail = (result.stderr || result.stdout || '').trim(); const message = result.success ? `${action} successful` : `${action} failed${detail ? `: ${detail}` : result.code !== null && result.code !== undefined ? ` (exit code ${result.code})` : ': no failure reason returned'}`; showOutput(action, message) }
