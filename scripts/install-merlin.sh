@@ -83,6 +83,10 @@ if [ -d "$REPO_DIR/config/nginx" ]; then
     if [ ! -e /opt/etc/nginx/mime.types ] && [ ! -L /opt/etc/nginx/mime.types ]; then
         install -m 0644 "$REPO_DIR/config/nginx/mime.types" /opt/etc/nginx/mime.types
     fi
+    # Seed the editable catalog once; upgrades never overwrite local edits.
+    if [ ! -e /opt/etc/nginx/composer.toml ] && [ ! -L /opt/etc/nginx/composer.toml ]; then
+        install -m 0644 "$REPO_DIR/config/nginx/composer.toml" /opt/etc/nginx/composer.toml
+    fi
 fi
 if [ ! -f "$CONFIG_DIR/router-hub.toml" ]; then
     cp "$REPO_DIR/config/router-hub.example.toml" "$CONFIG_DIR/router-hub.toml"
