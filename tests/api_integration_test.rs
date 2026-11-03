@@ -1350,7 +1350,7 @@ async fn test_nginx_composed_preview_and_lifecycle() {
     let data: serde_json::Value = serde_json::from_slice(
         &axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
     assert!(data["content"].as_str().unwrap().contains("proxy_read_timeout 1200s;"));
-    assert!(!state.nginx.domains_available_dir.join("example.test").exists());
+    assert!(!state.config.nginx.domains_available_dir.join("example.test").exists());
 
     // The existing domain and subdomain lifecycle keeps working for composed sites.
     let domain = serde_json::json!({
@@ -1370,7 +1370,7 @@ async fn test_nginx_composed_preview_and_lifecycle() {
     });
     let response = app.clone().oneshot(send("POST", "/api/nginx/objects/subdomain", subdomain)).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let definition_path = state.nginx.domains_available_dir
+    let definition_path = state.config.nginx.domains_available_dir
         .join("example.test/subdomains-available/media.toml");
     assert!(definition_path.is_file());
     let generated_path = definition_path.with_extension("conf");
