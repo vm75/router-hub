@@ -2,6 +2,18 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.8.1
+
+### Fixed
+
+- Compact the nginx site editors with a responsive settings grid, a separate route policy modal with examples, and setting help popups.
+
+- Align WireGuard interface and peer panes with the shared card, form, and status styles.
+
+- Preserve managed subdomain and subfolder identities when toggling enablement
+  for entries without explicit names. Keep distinct site types from overwriting
+  each other's settings when they share a hostname, and reject conflicting keys.
+
 ## 0.8.0
 
 ### Changed

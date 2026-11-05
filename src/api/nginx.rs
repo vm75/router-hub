@@ -719,6 +719,12 @@ pub async fn object_action(
     }
     let inputs = if let Some(mut site) = nginx_sites::find(&state.config, kind, &domain, &name)? {
         site.enabled = enabled;
+        if site.name.is_none() && kind == NginxObjectKind::Subdomain {
+            site.name = Some(name.clone());
+        }
+        if site.subfolder.is_none() && kind == NginxObjectKind::Subfolder {
+            site.subfolder = Some(name.clone());
+        }
         Some(nginx_sites::save(
             &state.config,
             kind,

@@ -1430,3 +1430,79 @@ async fn emulated_fixture_sites_survive_shared_settings_regeneration() {
         );
     }
 }
+
+#[tokio::test]
+async fn test_disable_managed_subdomain_without_explicit_name() {
+    use router_hub::{models::NginxObjectKind, nginx, nginx_sites};
+    use serde_json::json;
+    let (app, state, _temp) = setup_test_app().await;
+
+    // Create parent domain
+    let (status, _) = nginx_request(
+        &app,
+        "POST",
+        "/objects/domain",
+        json!({"domain":"example.test","name":"example.test","settings":{},"upstream":"http://127.0.0.1:8080","enabled":true}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Create subdomain files
+    let sub_avail = nginx::available_path(
+        &state.config,
+        NginxObjectKind::Subdomain,
+        "example.test",
+        "api",
+    )
+    .unwrap();
+    std::fs::create_dir_all(sub_avail.parent().unwrap()).unwrap();
+    std::fs::write(&sub_avail, "server { server_name api.example.test; }\n").unwrap();
+    nginx::set_enabled(
+        &state.config,
+        NginxObjectKind::Subdomain,
+        "example.test",
+        "api",
+        true,
+    )
+    .unwrap();
+
+    // In sites.toml, add the subdomain WITHOUT name = "api" (typical user format)
+    let sites_path = nginx_sites::path(&state.config);
+    let mut sites_content = std::fs::read_to_string(&sites_path).unwrap_or_default();
+    sites_content.push_str("\n[sites.\"api.example.test\"]\nkind = \"subdomain\"\ndomain = \"example.test\"\nserver_name = \"api.example.test\"\nupstream = \"http://127.0.0.1:8085\"\nenabled = true\n");
+    std::fs::write(&sites_path, sites_content).unwrap();
+
+    // Disabling subdomain must succeed with 200 OK (not 500)
+    let (status, result) = nginx_request(
+        &app,
+        "POST",
+        "/objects/subdomain/example.test/api/disable",
+        json!(null),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["enabled"], false);
+
+    // Verify sites.toml still loads and reflects enabled = false
+    let site = nginx_sites::find(
+        &state.config,
+        NginxObjectKind::Subdomain,
+        "example.test",
+        "api",
+    )
+    .unwrap()
+    .expect("site must exist in sites.toml");
+    assert!(!site.enabled);
+    assert_eq!(site.name.as_deref(), Some("api"));
+
+    // Enabling it again also works
+    let (status, result) = nginx_request(
+        &app,
+        "POST",
+        "/objects/subdomain/example.test/api/enable",
+        json!(null),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["enabled"], true);
+}

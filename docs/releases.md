@@ -35,10 +35,10 @@ No release workflow installs anything onto a router automatically.
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.8.0 -m "Router Hub v0.8.0"
-git push origin v0.8.0
+git tag -a v0.8.1 -m "Router Hub v0.8.1"
+git push origin v0.8.1
 ```
 
-Replace `v0.8.0` with the actual new version. Never reuse or move a published
+Replace `v0.8.1` with the actual new version. Never reuse or move a published
 tag; issue a new patch version for corrections. GitHub Actions performs the
 release build when the tag is pushed.

@@ -22,11 +22,11 @@ For older installations, read the [migration guide](migration.md) before upgradi
 
 On the router, ensure `curl`, `tar`, and `sha256sum` are available. You can
 instead download and verify on another Linux machine, then transfer the
-extracted directory to the router. For example, **after** `v0.8.0` has been
+extracted directory to the router. For example, **after** `v0.8.1` has been
 published:
 
 ```sh
-VERSION=v0.8.0
+VERSION=v0.8.1
 TARGET=aarch64-unknown-linux-musl
 PACKAGE="router-hub-${VERSION}-${TARGET}"
 URL="https://github.com/vm75/router-hub/releases/download/${VERSION}"

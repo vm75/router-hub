@@ -617,12 +617,6 @@
       gap: 10px
     }
 
-    #wireguard-form .field-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px
-    }
-
     #wireguard-form {
       padding: 14px;
       box-sizing: border-box
@@ -636,12 +630,6 @@
       box-sizing: border-box;
       width: 100%;
       min-width: 0
-    }
-
-    @media (max-width: 560px) {
-      #wireguard-form .field-row {
-        grid-template-columns: minmax(0, 1fr)
-      }
     }
 
     .form-grid {
@@ -829,6 +817,43 @@
     .nginx-field-help {
       flex-basis: 100%;
       line-height: 1.5
+    }
+
+    .nginx-site-editor { width: min(980px, calc(100vw - 20px)) }
+    .nginx-site-editor .modal-body { padding: 12px }
+    .nginx-site-editor .form { gap: 12px }
+    .nginx-site-editor .form-grid { gap: 8px 12px }
+    .nginx-site-editor .field { min-width: 0; gap: 3px }
+    .nginx-site-editor .input { width: 100%; box-sizing: border-box; min-width: 0 }
+    .nginx-site-editor .nginx-field-heading { gap: 5px; min-height: 20px }
+    .nginx-site-editor .nginx-help-toggle { width: 18px; height: 18px; font-size: 10px; flex-shrink: 0 }
+    .nginx-site-editor textarea[name="server_names"] { min-height: 48px; height: 48px }
+    .nginx-site-editor .site-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px }
+    .site-options { border-top: 1px solid #2a4050; padding-top: 10px }
+    .site-options h4 { margin: 0 0 8px; font-size: 12px; color: var(--asus-muted) }
+    .nginx-site-editor .site-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+    .site-routes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px }
+    .route-policy-modal { width: min(980px, calc(100vw - 20px)) }
+    .route-policy-modal .modal-body { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; height: min(65vh, 560px); max-height: none }
+    .route-policy-draft { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0 }
+    .route-policy-draft textarea { flex: 1; min-height: 200px; resize: none; tab-size: 2; line-height: 1.5 }
+    .route-policy-guide { overflow: auto; min-width: 0; color: #c3d5e3; font-size: 12px; line-height: 1.6 }
+    .route-policy-guide h4 { margin: 0 0 6px; color: #fff; font-size: 12px }
+    .route-policy-guide p { margin: 0 0 12px }
+    .route-policy-guide pre { overflow: auto; padding: 10px; background: #15232c; border: 1px solid #2a4050; border-radius: 4px; font-size: 11px; line-height: 1.5 }
+    .route-policy-error { color: #ffabb2; margin: 0; font-size: 12px }
+    @media (max-width: 640px) {
+      .route-policy-modal .modal-body { grid-template-columns: minmax(0, 1fr); overflow: auto }
+      .route-policy-draft { min-height: 280px }
+      .route-policy-guide { overflow: visible }
+    }
+    .nginx-help-modal { width: min(420px, calc(100vw - 32px)) }
+    .nginx-help-modal .modal-body { line-height: 1.6; color: #c3d5e3 }
+    @media (max-width: 760px) {
+      .nginx-site-editor .site-policy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+    }
+    @media (max-width: 480px) {
+      .nginx-site-editor .site-policy-grid { grid-template-columns: minmax(0, 1fr) }
     }
 
     .nginx-reference-modal {
@@ -1368,23 +1393,21 @@
       </section>
 
       <section class="view" id="view-wireguard">
-        <div class="card-head">
-          <h2>WireGuard Interface</h2>
-          <div class="actions">
-            <span id="wireguard-status-badge"></span>
-            <button class="btn primary" onclick="toggleWireguard(true)">UP</button>
-            <button class="btn danger" onclick="toggleWireguard(false)">DOWN</button>
-          </div>
-        </div>
         <div class="card">
+          <div class="card-head">
+            <h2>WireGuard Interface</h2>
+            <div class="actions">
+              <span id="wireguard-status-badge"></span>
+              <button class="btn primary" onclick="toggleWireguard(true)">UP</button>
+              <button class="btn danger" onclick="toggleWireguard(false)">DOWN</button>
+            </div>
+          </div>
           <form id="wireguard-form" class="form" onsubmit="saveWireguardSettings(event)">
-            <div class="field-row">
+            <div class="form-grid">
               <div class="field full">
                 <label>Private Key</label>
                 <input class="input" type="password" name="private_key">
               </div>
-            </div>
-            <div class="field-row">
               <div class="field">
                 <label>Address</label>
                 <input class="input" name="address" placeholder="10.0.0.1/24">
@@ -1393,8 +1416,6 @@
                 <label>Listen Port</label>
                 <input class="input" name="listen_port" type="number" placeholder="51820">
               </div>
-            </div>
-            <div class="field-row">
               <div class="field">
                 <label>PostUp</label>
                 <input class="input" name="post_up">
@@ -1410,25 +1431,27 @@
           </form>
         </div>
 
-        <div class="card-head" style="margin-top:24px">
-          <h2>WireGuard Peers</h2>
-          <div class="actions">
-            <button class="btn" onclick="addWireguardPeer()">Add Peer</button>
+        <div class="card">
+          <div class="card-head">
+            <h2>WireGuard Peers</h2>
+            <div class="actions">
+              <button class="btn" onclick="addWireguardPeer()">Add Peer</button>
+            </div>
           </div>
-        </div>
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Public Key</th>
-                <th>Allowed IPs</th>
-                <th>Endpoint</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="wireguard-peers-body">
-            </tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Public Key</th>
+                  <th>Allowed IPs</th>
+                  <th>Endpoint</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="wireguard-peers-body">
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -1617,6 +1640,54 @@
       <div class="modal-foot"><button class="btn" onclick="closeEditor()">Cancel</button><button class="btn primary"
           id="editor-save">Save</button></div>
     </dialog>
+    <dialog class="modal route-policy-modal" id="nginx-routes-modal" aria-labelledby="nginx-routes-title">
+      <form onsubmit="applyNginxRoutes(event)">
+        <div class="modal-head"><h3 id="nginx-routes-title">Route policies</h3><button type="button" class="btn small" aria-label="Close route policies" onclick="document.getElementById('nginx-routes-modal').close()">✕</button></div>
+        <div class="modal-body">
+          <div class="route-policy-draft">
+            <label for="nginx-route-draft">Policies (JSON array)</label>
+            <textarea class="input" id="nginx-route-draft" spellcheck="false" aria-describedby="nginx-route-inheritance nginx-route-error" placeholder='[{"path":"/admin","enable_lanonly":true}]'></textarea>
+            <p class="hint" id="nginx-route-inheritance"></p>
+            <p class="route-policy-error" id="nginx-route-error" role="alert" hidden></p>
+          </div>
+          <aside class="route-policy-guide" aria-label="Route policy help and examples">
+            <h4>Override settings for part of an app</h4>
+            <p>Each object selects a path and overrides only the settings you provide. Other values inherit the site's effective settings. For a subfolder mounted at <code>/music/</code>, a policy for <code>/api</code> applies to <code>/music/api</code>.</p>
+            <h4>Choose how a path matches</h4>
+            <p><code>match</code> defaults to <code>"prefix"</code> and covers paths starting with the supplied path. Use <code>"exact"</code> for one URL, <code>"regex"</code> for a case-sensitive pattern, or <code>"regex_i"</code> for a case-insensitive pattern. Query strings are not part of the path match.</p>
+            <h4>Keep administration on the LAN</h4>
+            <p>Allow only clients in your global IP/CIDR allowlist. An empty allowlist denies everyone.</p>
+            <pre>[{
+  "path": "/admin/",
+  "enable_lanonly": true,
+  "spa_fallback": ""
+}]</pre>
+            <h4>Keep API errors out of the SPA shell</h4>
+            <p>Return the backend's API responses instead of serving the SPA fallback. Disable caching for these responses.</p>
+            <pre>[{
+  "path": "/api/",
+  "cache_policy": "no_cache",
+  "spa_fallback": ""
+}]</pre>
+            <h4>Stream server-sent events</h4>
+            <p>Use SSE transport for an event endpoint. This streams responses without buffering and uses extended connection timeouts.</p>
+            <pre>[{
+  "path": "/events",
+  "match": "exact",
+  "proxy_transport": "sse",
+  "cache_policy": "no_cache"
+}]</pre>
+            <p>Combine these objects in one array to use several policies. Explicit <code>false</code> and <code>0</code> override inherited values. Nested <code>children</code> inherit their parent policy; their paths are still relative to the app mount.</p>
+          </aside>
+        </div>
+        <div class="modal-foot"><button type="button" class="btn" onclick="document.getElementById('nginx-routes-modal').close()">Cancel</button><button type="submit" class="btn primary">Use policies</button></div>
+      </form>
+    </dialog>
+    <dialog class="modal nginx-help-modal" id="nginx-help-modal" aria-labelledby="nginx-help-title">
+      <div class="modal-head"><h3 id="nginx-help-title">Setting help</h3><button type="button" class="btn small" aria-label="Close setting help" onclick="document.getElementById('nginx-help-modal').close()">✕</button></div>
+      <div class="modal-body" id="nginx-help-content"></div>
+      <div class="modal-foot"><button type="button" class="btn" onclick="document.getElementById('nginx-help-modal').close()">Got it</button></div>
+    </dialog>
     <dialog class="modal nginx-reference-modal" id="nginx-reference-modal" aria-labelledby="nginx-reference-title">
       <div class="modal-head"><h3 id="nginx-reference-title">Nginx setup quick reference</h3><button type="button" class="btn small" aria-label="Close setup quick reference" onclick="document.getElementById('nginx-reference-modal').close()">✕</button></div>
       <div class="modal-body">
@@ -1786,7 +1857,7 @@
     function sortTable(table, key) { const sort = tableSorts[table]; if (sort.key === key) sort.dir *= -1; else { sort.key = key; sort.dir = 1 } if (table === 'nginx') loadNginxObjects(); else if (table === 'bans') showActiveBans(); else if (table === 'rewrites') { state.adguardRewrites.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderAdguardRewrites() } else if (table === 'hosts') { state.adguardHosts.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderAdguardHosts() } else if (table === 'dnsmasq') { state.dnsmasqHosts.sort((a, b) => sort.dir * compareTableValues(a, b, key)); renderDnsmasqHosts() } updateSortHeaders(table) }
     function emptyRow(cols, text = 'No items configured') { return `<tr><td colspan="${cols}" class="empty">${esc(text)}</td></tr>` }
     function status(ok, on = 'Running', off = 'Stopped') { return `<span class="status ${ok ? 'ok' : 'off'}">${ok ? on : off}</span>` }
-    function openEditor(title, html, save) { document.getElementById('editor-title').textContent = title; document.getElementById('editor-body').innerHTML = html; document.getElementById('editor-save').onclick = save; document.getElementById('editor').showModal() }
+    function openEditor(title, html, save) { document.getElementById('editor').classList.toggle('nginx-site-editor', html.includes('id="nginx-object-form"')); document.getElementById('editor-title').textContent = title; document.getElementById('editor-body').innerHTML = html; document.getElementById('editor-save').onclick = save; document.getElementById('editor').showModal() }
     function closeEditor() { document.getElementById('editor').close() }
     function formObject(form) { return Object.fromEntries(new FormData(form).entries()) }
     function jsonLines(value) { return (value || '').split(/\r?\n/).map(v => v.trim()).filter(Boolean) }
@@ -2033,7 +2104,13 @@
       return `<div class="nginx-field-heading"><label for="${esc(id)}">${esc(label)}</label>${help ? `<button type="button" class="nginx-help-toggle" aria-label="Help: ${esc(label)}" aria-expanded="false" aria-controls="${esc(id)}-help" onclick="nginxToggleHelp(this)">?</button><span class="hint nginx-field-help" id="${esc(id)}-help" hidden>${esc(help)}</span>` : ''}</div>`;
     }
     function nginxToggleHelp(button) {
-      const help = document.getElementById(button.getAttribute('aria-controls'));
+      const help = document.getElementById(button.dataset.helpId || button.getAttribute('aria-controls'));
+      if (button.closest('#nginx-object-form')) {
+        document.getElementById('nginx-help-title').textContent = button.closest('.nginx-field-heading').querySelector('label').textContent;
+        document.getElementById('nginx-help-content').textContent = help.textContent;
+        document.getElementById('nginx-help-modal').showModal();
+        return;
+      }
       help.hidden = !help.hidden;
       button.setAttribute('aria-expanded', String(!help.hidden));
     }
@@ -2096,7 +2173,41 @@
       fields.forEach(([key, , type]) => { const value = form.elements[prefix + key].value.trim(); if (value !== '') result[key] = type === 'bool' ? value === 'true' : (type === 'number' || key === 'worker_processes' && value !== 'auto') ? Number(value) : value });
       return result;
     }
-    function nginxRoutesField(settings = {}, name = 'routes') { const id = 'nginx-setting-' + name; return `<div class="field full" data-nginx-routes>${nginxFieldHeading(name, 'Route policies (JSON, optional)', id)}<textarea class="input" id="${id}" name="${name}" placeholder='[{"path":"/admin","enable_lanonly":true}]'>${esc(settings.routes ? JSON.stringify(settings.routes, null, 2) : '')}</textarea></div>` }
+    function nginxRoutesSummary(value, defaults = false) {
+      if (!value.trim()) return defaults ? 'No default routes' : 'Use global defaults';
+      try { const routes = JSON.parse(value); return Array.isArray(routes) ? (routes.length ? `${routes.length} route ${routes.length === 1 ? 'policy' : 'policies'}` : 'No routes') : 'Invalid policies' } catch { return 'Invalid JSON' }
+    }
+    function nginxRoutesField(settings = {}, name = 'routes') {
+      const value = settings.routes ? JSON.stringify(settings.routes, null, 2) : '';
+      return `<div class="field full site-routes" data-nginx-routes><button type="button" class="btn small" aria-haspopup="dialog" aria-controls="nginx-routes-modal" onclick="openNginxRoutes(this)">Edit route policies</button><span class="hint" data-route-summary>${esc(nginxRoutesSummary(value, name === 'default_routes'))}</span><textarea hidden name="${name}">${esc(value)}</textarea></div>`;
+    }
+    function openNginxRoutes(button) {
+      const source = button.closest('[data-nginx-routes]').querySelector('textarea');
+      const modal = document.getElementById('nginx-routes-modal');
+      modal.routeTarget = source;
+      document.getElementById('nginx-routes-title').textContent = source.name === 'default_routes' ? 'Default route policies' : 'Site route policies';
+      document.getElementById('nginx-route-draft').value = source.value;
+      document.getElementById('nginx-route-inheritance').textContent = source.name === 'default_routes' ? 'Leave blank or use [] for no default routes. Sites inherit this list unless they replace it.' : 'Leave blank to inherit global routes. Use [] to disable routes for this site. Use policies returns these edits to the site form; Save applies them.';
+      document.getElementById('nginx-route-error').hidden = true;
+      modal.showModal();
+      document.getElementById('nginx-route-draft').focus();
+    }
+    function applyNginxRoutes(event) {
+      event.preventDefault();
+      const modal = document.getElementById('nginx-routes-modal'), source = modal.routeTarget;
+      const value = document.getElementById('nginx-route-draft').value.trim();
+      try {
+        if (value && !Array.isArray(JSON.parse(value))) throw new Error('Policies must be a JSON array, such as [{"path":"/admin/","enable_lanonly":true}].');
+        source.value = value;
+        source.closest('[data-nginx-routes]').querySelector('[data-route-summary]').textContent = nginxRoutesSummary(value, source.name === 'default_routes');
+        source.dispatchEvent(new Event('input', { bubbles: true }));
+        modal.close();
+      } catch (error) {
+        const message = document.getElementById('nginx-route-error');
+        message.textContent = error.message;
+        message.hidden = false;
+      }
+    }
     async function editNginxSettings() {
       try {
         const settings = await api('/nginx/settings');
@@ -2119,7 +2230,7 @@
         const existing = !!domain, row = existing ? await api(nginxObjectUrl({ kind, domain, name })) : null, global = await api('/nginx/settings');
         const settings = row?.settings || {}, custom = existing && row.settings === null, policyFields = nginxPolicyFieldsFor(kind);
         const identity = `<div class="field">${nginxFieldHeading(kind === 'domain' ? 'domain' : 'parent_domain', kind === 'domain' ? 'Domain' : 'Parent domain', 'nginx-object-domain')}${existing ? `<input class="input" name="domain" id="nginx-object-domain" value="${esc(domain)}" readonly>` : kind === 'domain' ? '<input class="input" name="domain" id="nginx-object-domain" placeholder="example.com" required>' : `<select class="input" name="domain" id="nginx-object-domain" required>${nginxDomainOptions()}</select>`}</div>${kind === 'domain' ? '' : `<div class="field">${nginxFieldHeading('site_name', kind + ' name', 'nginx-object-name')}<input class="input" id="nginx-object-name" name="name" value="${esc(name)}" ${existing ? 'readonly' : 'required'}></div>`}`;
-        openEditor(existing ? `Edit ${kind}: ${name}` : `Add ${kind}`, `<form id="nginx-object-form" class="form"><div class="actions"><button type="button" class="btn small" onclick="openNginxReference()">Setup quick reference</button></div><div class="form-grid">${identity}${kind === 'subfolder' ? '' : `<div class="field full">${nginxFieldHeading('server_names', 'Server names / aliases, one per line', 'nginx-object-server-names')}<textarea class="input" id="nginx-object-server-names" name="server_names">${esc((row?.server_names || []).join('\n'))}</textarea></div>`}<div class="field full" data-nginx-upstream>${nginxFieldHeading('upstream', 'Upstream URL', 'nginx-object-upstream')}<input class="input" id="nginx-object-upstream" name="upstream" value="${esc(row?.upstream || '')}" placeholder="http://192.168.1.10:8080"></div>${custom ? '<input type="hidden" name="mode" value="custom">' : '<input type="hidden" name="mode" value="managed">'}</div><div data-managed-settings ${custom ? 'hidden' : ''}><div class="form-grid">${nginxSettingsFields(policyFields, settings, global.site_defaults)}${nginxRoutesField(settings)}</div></div><div class="field" data-custom-settings ${custom ? '' : 'hidden'}>${nginxFieldHeading('content', 'Custom server configuration', 'nginx-object-content')}<textarea class="input" id="nginx-object-content" name="content" style="min-height:320px">${esc(custom ? row.content : '')}</textarea></div>${existing ? '' : `<div class="field">${nginxFieldHeading('enabled', 'Enable after creation', 'nginx-object-enabled')}<input type="checkbox" id="nginx-object-enabled" name="enabled"></div>`}</form>`, async () => {
+        openEditor(existing ? `Edit ${kind}: ${name}` : `Add ${kind}`, `<form id="nginx-object-form" class="form"><div class="site-toolbar"><span class="hint">${custom ? 'Custom configuration' : 'Blank settings inherit global defaults · ? for help'}</span><button type="button" class="btn small" onclick="openNginxReference()">Setup guide</button></div><div class="form-grid">${identity}${kind === 'subfolder' ? '' : `<div class="field">${nginxFieldHeading('server_names', 'Hostnames / aliases', 'nginx-object-server-names')}<textarea class="input" id="nginx-object-server-names" name="server_names">${esc((row?.server_names || []).join('\n'))}</textarea></div>`}<div class="field" data-nginx-upstream>${nginxFieldHeading('upstream', 'Upstream URL', 'nginx-object-upstream')}<input class="input" id="nginx-object-upstream" name="upstream" value="${esc(row?.upstream || '')}" placeholder="http://192.168.1.10:8080"></div>${custom ? '<input type="hidden" name="mode" value="custom">' : '<input type="hidden" name="mode" value="managed">'}</div><div class="site-options" data-managed-settings ${custom ? 'hidden' : ''}><h4>Site options</h4><div class="form-grid site-policy-grid">${nginxSettingsFields(policyFields, settings, global.site_defaults)}</div>${nginxRoutesField(settings)}</div><div class="field" data-custom-settings ${custom ? '' : 'hidden'}>${nginxFieldHeading('content', 'Custom server configuration', 'nginx-object-content')}<textarea class="input" id="nginx-object-content" name="content" style="min-height:320px">${esc(custom ? row.content : '')}</textarea></div>${existing ? '' : `<div class="field">${nginxFieldHeading('enabled', 'Enable after creation', 'nginx-object-enabled')}<input type="checkbox" id="nginx-object-enabled" name="enabled"></div>`}</form>`, async () => {
           try {
             const f = document.getElementById('nginx-object-form'), domain = f.elements.domain.value.trim(), name = kind === 'domain' ? domain : f.elements.name.value.trim();
             const payload = { upstream: f.elements.upstream.value.trim(), server_names: kind === 'subfolder' ? [] : f.elements.server_names.value.split(/\s+/).filter(Boolean) };
@@ -2131,6 +2242,12 @@
           } catch (e) { toast(e.message, true) }
         });
         const form = document.getElementById('nginx-object-form');
+        form.querySelectorAll('.nginx-help-toggle').forEach(button => {
+          button.dataset.helpId = button.getAttribute('aria-controls');
+          button.setAttribute('aria-controls', 'nginx-help-modal');
+          button.setAttribute('aria-haspopup', 'dialog');
+          button.removeAttribute('aria-expanded');
+        });
         const updateFields = () => nginxUpdateSiteFields(form, kind, global.site_defaults);
         form.addEventListener('input', updateFields);
         form.addEventListener('change', updateFields);
@@ -2312,7 +2429,7 @@
     async function openDnsmasqHosts() { const modal = document.getElementById('dnsmasq-hosts-modal'); try { state.dnsmasqHosts = await api('/adguard/dnsmasq-hosts'); renderDnsmasqHosts(); modal.showModal() } catch (e) { toast(e.message, true) } }
     function closeDnsmasqHosts() { document.getElementById('dnsmasq-hosts-modal').close() }
 
-    async function loadWireguardStatus() { try { const st = await api('/wireguard/status'); const badge = document.getElementById('wireguard-status-badge'); if (badge) { badge.innerHTML = st.is_running ? `<span class="badge success" style="background:#3c763d;color:#fff;padding:4px 8px;border-radius:4px">Running</span>` : `<span class="badge danger" style="background:#a94442;color:#fff;padding:4px 8px;border-radius:4px">Stopped</span>`; } } catch(e) {} }
+    async function loadWireguardStatus() { try { const st = await api('/wireguard/status'); const badge = document.getElementById('wireguard-status-badge'); if (badge) { badge.innerHTML = status(st.is_running); } } catch(e) {} }
     async function loadWireguard() { try { const cfg = await api('/wireguard/config'); state.wireguard = cfg; const f = document.getElementById('wireguard-form'); if (f) { f.elements.private_key.value = cfg.interface.private_key || ''; f.elements.address.value = cfg.interface.address || ''; f.elements.listen_port.value = cfg.interface.listen_port || ''; f.elements.post_up.value = cfg.interface.post_up || ''; f.elements.post_down.value = cfg.interface.post_down || ''; } renderWireguardPeers(); await loadWireguardStatus(); } catch (e) { toast(e.message, true); } }
     async function saveWireguardSettings(e) { e.preventDefault(); const f = e.target; const cfg = state.wireguard || { interface: {}, peers: [] }; cfg.interface = { private_key: f.elements.private_key.value, address: f.elements.address.value, listen_port: f.elements.listen_port.value ? parseInt(f.elements.listen_port.value, 10) : null, post_up: f.elements.post_up.value || null, post_down: f.elements.post_down.value || null }; try { state.wireguard = await api('/wireguard/config', { method: 'PUT', body: JSON.stringify(cfg) }); toast('WireGuard settings saved'); renderWireguardPeers(); } catch (err) { toast(err.message, true); } }
     async function toggleWireguard(enable) { try { const res = await api('/wireguard/toggle', { method: 'POST', body: JSON.stringify({ enable }) }); toast(res.message); loadWireguardStatus(); } catch(e) { toast(e.message, true); } }
