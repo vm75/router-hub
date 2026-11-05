@@ -1,0 +1,40 @@
+{% if nginx_is_root | default(false) %}
+user {{ nginx_user | default('nobody', true) }};
+{% endif %}
+
+# Set number of worker processes automatically based on number of CPU cores.
+worker_processes {{ worker_processes | default(2) }};
+
+error_log   {{ error_log_path | default((var_dir | default('/opt/var')) ~ '/log/nginx/error.log') }};
+
+pid {{ pid_path | default((var_dir | default('/opt/var')) ~ '/run/nginx.pid') }};
+
+# Includes files with directives to load dynamic modules.
+include module.d/*.conf;
+
+events {
+    # The maximum number of simultaneous connections that can be opened by
+    # a worker process.
+    worker_connections  {{ worker_connections | default(64) }};
+}
+
+http {
+    include                 mime.types;
+    default_type            application/octet-stream;
+{% if temp_dir is defined %}
+{% for directive, folder in [('client_body', 'client-body'), ('proxy', 'proxy'), ('fastcgi', 'fastcgi'), ('uwsgi', 'uwsgi'), ('scgi', 'scgi')] %}
+    {{ directive }}_temp_path {{ temp_dir }}/{{ folder }};
+{% endfor %}
+{% endif %}
+
+    # Access logging is configured in conf.d/01-global.conf.
+
+    # resolves dns
+    include resolver.conf;
+
+    include conf.d/*.conf;
+    include domains-enabled/*/root.conf;
+    include domains-enabled/*/subdomains-enabled/*.conf;
+}
+
+daemon {{ 'on' if nginx_daemon | default(false) else 'off' }};

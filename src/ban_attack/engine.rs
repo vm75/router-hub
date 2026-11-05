@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     net::IpAddr,
     path::PathBuf,
     sync::{
@@ -25,18 +24,9 @@ use crate::ban_attack::{
     tailer::Tailer,
 };
 
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub enum EngineEvent {
-    Match {
-        file: PathBuf,
-        rule: String,
-        ip: IpAddr,
-        groups: BTreeMap<String, String>,
-        ip_count: u64,
-        subnet: IpNet,
-        subnet_count: u64,
-    },
+    Match,
     Banned {
         target: BanTarget,
     },
@@ -296,26 +286,11 @@ impl Worker {
         let mut aggregator = Aggregator::new(config.aggregation.clone());
         if let Some(ref path) = config.persistence_file {
             match load_state(path) {
-                Ok(Some((state, migrated))) => {
+                Ok(Some(state)) => {
                     if let Err(error) =
                         aggregator.restore_persistent_state(&state, backend.as_ref())
                     {
                         startup_errors.push(format!("could not restore ban state: {error}"));
-                    } else if migrated {
-                        if let Err(error) = save_state(path, &aggregator.persistent_state()) {
-                            startup_errors
-                                .push(format!("could not migrate legacy bans.json: {error}"));
-                        } else {
-                            let legacy = path.with_file_name("bans.json");
-                            let archive = path.with_file_name("bans.json.migrated-v1");
-                            if let Err(error) = std::fs::rename(&legacy, &archive) {
-                                startup_errors.push(format!(
-                                    "migrated state but could not archive {} as {}: {error}",
-                                    legacy.display(),
-                                    archive.display()
-                                ));
-                            }
-                        }
                     }
                 }
                 Ok(None) => {}
@@ -647,15 +622,7 @@ impl Worker {
                     {
                         Ok(result) => {
                             self.dirty = true;
-                            self.emit(EngineEvent::Match {
-                                file: path.clone(),
-                                rule: rule_name,
-                                ip: hit.ip,
-                                groups: hit.groups,
-                                ip_count: result.ip_count,
-                                subnet: result.subnet,
-                                subnet_count: result.subnet_count,
-                            });
+                            self.emit(EngineEvent::Match);
                             if !result.transitions.is_empty() {
                                 self.save_persistence_if_configured(true);
                             } else {
@@ -698,7 +665,7 @@ impl Worker {
 
     fn emit(&mut self, event: EngineEvent) {
         match event {
-            EngineEvent::Match { .. } => {
+            EngineEvent::Match => {
                 self.health.last_match_at = Some(Utc::now());
             }
             EngineEvent::Banned { target } => {
@@ -737,105 +704,23 @@ impl Worker {
     }
 }
 
-#[derive(Deserialize)]
-struct LegacyBanRecord {
-    network: IpNet,
-    #[serde(default = "legacy_reason")]
-    reason: String,
-    #[serde(default)]
-    created_at: Option<chrono::DateTime<Utc>>,
-    #[serde(default)]
-    expires_at: Option<chrono::DateTime<Utc>>,
-    #[serde(default)]
-    hit_count: u64,
-}
-
-#[derive(Deserialize)]
-struct LegacyEngineState {
-    #[serde(default)]
-    banned_ips: Vec<IpAddr>,
-    #[serde(default)]
-    banned_subnets: Vec<IpNet>,
-}
-
-fn legacy_reason() -> String {
-    "legacy ban".to_owned()
-}
-
 fn load_state(
     path: &std::path::Path,
-) -> Result<Option<(crate::ban_attack::PersistentState, bool)>, String> {
-    if path.exists() {
-        let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-        let state: crate::ban_attack::PersistentState =
-            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-        if state.schema_version != 1 {
-            return Err(format!(
-                "unsupported ban state schema version {}",
-                state.schema_version
-            ));
-        }
-        return Ok(Some((state, false)));
-    }
-    let legacy_path = path.with_file_name("bans.json");
-    if !legacy_path.exists() {
-        return Ok(None);
-    }
-    let bytes = std::fs::read(&legacy_path).map_err(|error| error.to_string())?;
-    let now = Utc::now();
-    let active_bans = if let Ok(records) = serde_json::from_slice::<Vec<LegacyBanRecord>>(&bytes) {
-        records
-            .into_iter()
-            .filter_map(|record| {
-                let expires_at = record
-                    .expires_at
-                    .unwrap_or_else(|| now + ChronoDuration::hours(1));
-                (expires_at > now).then_some(crate::ban_attack::ActiveBan {
-                    network: record.network,
-                    source: "legacy".to_owned(),
-                    reason: record.reason,
-                    created_at: record.created_at.unwrap_or(now),
-                    expires_at,
-                    hit_count: record.hit_count,
-                    offense_count: 1,
-                    triggering_rule: None,
-                })
-            })
-            .collect()
-    } else {
-        let legacy: LegacyEngineState =
-            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-        legacy
-            .banned_ips
-            .into_iter()
-            .map(IpNet::from)
-            .chain(legacy.banned_subnets)
-            .map(|network| crate::ban_attack::ActiveBan {
-                network,
-                source: "legacy".to_owned(),
-                reason: "migrated legacy ban".to_owned(),
-                created_at: now,
-                expires_at: now + ChronoDuration::hours(1),
-                hit_count: 1,
-                offense_count: 1,
-                triggering_rule: None,
-            })
-            .collect()
+) -> Result<Option<crate::ban_attack::PersistentState>, String> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
     };
-    Ok(Some((
-        crate::ban_attack::PersistentState {
-            schema_version: 1,
-            saved_at: Some(now),
-            active_bans,
-            scores: vec![],
-            reputation: vec![],
-            subnet_offenders: vec![],
-            rule_stats: vec![],
-            banned_ips: vec![],
-            banned_subnets: vec![],
-        },
-        true,
-    )))
+    let state: crate::ban_attack::PersistentState =
+        serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+    if state.schema_version != 1 {
+        return Err(format!(
+            "unsupported ban state schema version {}",
+            state.schema_version
+        ));
+    }
+    Ok(Some(state))
 }
 
 fn save_state(
@@ -900,33 +785,25 @@ mod tests {
     }
 
     #[test]
-    fn imports_both_legacy_state_shapes_with_expiration() {
+    fn requires_explicit_current_state_schema() {
         let directory = tempdir().unwrap();
-        let state_path = directory.path().join("ban-attack-state.json");
-        let legacy_path = directory.path().join("bans.json");
-        std::fs::write(
-            &legacy_path,
-            br#"[{"network":"192.0.2.4/32","reason":"old","created_at":"2026-07-30T00:00:00Z","expires_at":"2099-07-30T01:00:00Z","hit_count":2}]"#,
-        )
-        .unwrap();
-        let (records, migrated) = load_state(&state_path).unwrap().unwrap();
-        assert!(migrated);
-        assert_eq!(records.active_bans.len(), 1);
-        assert_eq!(records.active_bans[0].network.to_string(), "192.0.2.4/32");
+        let path = directory.path().join("ban-attack-state.json");
+        for document in [r#"{"banned_ips":["192.0.2.1"]}"#, r#"{"schema_version":0}"#] {
+            std::fs::write(&path, document).unwrap();
+            assert!(load_state(&path).is_err());
+        }
+        std::fs::write(&path, r#"{"schema_version":1}"#).unwrap();
+        assert_eq!(load_state(&path).unwrap().unwrap().schema_version, 1);
+    }
 
-        std::fs::write(
-            &legacy_path,
-            br#"{"banned_ips":["198.51.100.8"],"banned_subnets":["2001:db8::/64"]}"#,
-        )
-        .unwrap();
-        let (records, migrated) = load_state(&state_path).unwrap().unwrap();
-        assert!(migrated);
-        assert_eq!(records.active_bans.len(), 2);
+    #[test]
+    fn ignores_old_ban_documents() {
+        let directory = tempdir().unwrap();
+        std::fs::write(directory.path().join("bans.json"), "[]").unwrap();
         assert!(
-            records
-                .active_bans
-                .iter()
-                .all(|ban| ban.expires_at > Utc::now())
+            load_state(&directory.path().join("ban-attack-state.json"))
+                .unwrap()
+                .is_none()
         );
     }
 }

@@ -2,7 +2,51 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.8.0
+
+### Changed
+
+- Update emulated nginx fixtures to use managed site inputs, remove obsolete
+  templates and the generated ASUS page, and expand Linux smoke coverage to
+  managed-site persistence, regeneration, and HTTPS. Add `make test-nginx` and
+  check Linux Python dependencies before creating lab files.
+
+- Simplify the root README and move detailed guides into `docs/`, including
+  `docs/architecture.md`. Include the guides in release archives.
+
+- Remove automatic legacy ban-state imports and nginx compatibility settings;
+  older installations must follow the migration guide. Consolidate cache settings
+  under `cache_policy`, remove unused helpers and dependency features, and avoid
+  allocating unused firewall match-event captures. Existing unban route aliases
+  retain their behavior.
+
+- Show nginx site settings only for the applicable object type and active features,
+  preserving temporarily hidden values and defaults used by child routes. Add
+  on-demand help beside each nginx setting.
+
+- Add an offline nginx setup quick reference for PWA, WordPress, and media sites,
+  available from the Nginx page and site editors.
+
+- Use `settings/nginx.toml` as the sole persisted source for shared nginx settings,
+  site defaults, and allowlists; remove the separate global JSON state file.
+
+- Rename nginx deployment inputs to `settings/nginx.toml` with a `[global]` table.
+
+- Omit nginx's worker-user directive for non-root execution; root execution uses
+  the configured user or `nobody`. Configure one temporary parent with fixed
+  nginx subfolders, defaulting to `tmp` alongside the Linux nginx root.
+
+- Preserve nginx worker user, daemon mode, and Linux temporary paths during
+  regeneration and normalize relative fallback certificate paths.
+
+- Save managed nginx site inputs in `settings/sites.toml`, read deployment entries,
+  and regenerate configuration from settings-only managed editors.
+
+- Render nginx using bundled Jinja policies with global settings and inherited
+  per-site controls, preserving explicit false/zero values and custom server text.
+- Remove nginx template/root-file editors and legacy configuration conversion;
+  existing configurations must be manually ported before deployment. The router
+  installer bootstraps a missing nginx configuration from the current empty bundle.
 
 ## 0.7.2
 

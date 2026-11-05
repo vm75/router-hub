@@ -1,0 +1,14 @@
+# Managed by Router Hub. HTTP requests for enabled sites and HTTP-01 certificate domains are handled here.
+server {
+    server_name
+        {% include 'settings/servers.conf' %}
+
+    listen {{ router_ip | default('127.0.0.1') }}:{{ http_port | default(80) }};
+
+    include ban-shield/server-guard.conf;
+    include snippets/acme-challenge.conf;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

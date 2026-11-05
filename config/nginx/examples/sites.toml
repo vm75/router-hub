@@ -1,0 +1,141 @@
+# Synthetic policy examples only; these sites are not enabled by default.
+# Router Hub reads each table and passes its policy fields to the
+# indicated template. `kind` and `upstream` are metadata, not nginx directives.
+
+[sites."shared.example.test"]
+kind = "domain"
+domain = "shared.example.test"
+server_name = "one.shared.example.test two.shared.example.test"
+enable_lanonly = false
+enable_subfolders = false
+disable_root = true
+
+[sites."books.example.test"]
+kind = "subdomain"
+domain = "example.test"
+server_name = "books.example.test"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = true
+client_max_body_size = "128M"
+enable_streaming = true
+enable_longlived = true
+proxy_session_timeout = "300s"
+proxy_connect_timeout = "60s"
+backend_auth = true
+forwarded_for = "append"
+
+[sites."dns.example.test"]
+kind = "subdomain"
+domain = "example.test"
+server_name = "dns.example.test"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = true
+client_max_body_size = "16M"
+routes = [{path = "/control", access_log = false}]
+
+[sites."vault.example.test"]
+kind = "subdomain"
+domain = "example.test"
+server_name = "vault.example.test"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = false
+client_max_body_size = "16M"
+enable_longlived = true
+routes = [
+  {path = "/admin", enable_lanonly = true},
+  {path = "/identity/connect/token", match = "exact", enable_longlived = false, rate_limit = {zone = "vaultwarden_login", burst = 5}},
+]
+
+[sites."gallery.example.test"]
+kind = "domain"
+domain = "gallery.example.test"
+server_name = "gallery.example.test www.gallery.example.test"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = false
+enable_subfolders = false
+disable_root = false
+client_max_body_size = "64M"
+enable_streaming = true
+enable_longlived = true
+proxy_session_timeout = "86400s"
+proxy_connect_timeout = "60s"
+forwarded_for = "append"
+routes = [{path = "/wp-login.php", match = "exact", rate_limit = {zone = "wplogin", burst = 3}}]
+
+[sites."apps.example.test/music"]
+kind = "subfolder"
+domain = "apps.example.test"
+subfolder = "music"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = false
+client_max_body_size = "100M"
+enable_streaming = true
+enable_byte_ranges = true
+proxy_connect_timeout = "60s"
+forwarded_for = "append"
+routes = [
+  {path = "/admin", enable_lanonly = true, disable_proxy_redirect = true, enable_byte_ranges = false},
+  {path = '/(?:sw[.]js$|.*[.]html$|config|auth)', match = "regex", cache_policy = "no_cache", enable_byte_ranges = false},
+]
+
+[sites."apps.example.test/music-dev"]
+kind = "subfolder"
+domain = "apps.example.test"
+subfolder = "music-dev"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = true
+client_max_body_size = "100M"
+enable_streaming = true
+enable_byte_ranges = true
+proxy_connect_timeout = "60s"
+forwarded_for = "append"
+routes = [
+  {path = "/admin", enable_lanonly = true, disable_proxy_redirect = true, enable_byte_ranges = false},
+  {path = '/(?:sw[.]js$|.*[.]html$|config|auth)', match = "regex", cache_policy = "no_cache", enable_byte_ranges = false},
+]
+
+[sites."apps.example.test/spa"]
+kind = "subfolder"
+domain = "apps.example.test"
+subfolder = "spa"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = false
+client_max_body_size = "100M"
+enable_streaming = true
+enable_byte_ranges = true
+proxy_connect_timeout = "60s"
+forwarded_for = "append"
+spa_fallback = "/index.html"
+routes = [
+  {path = "/admin", enable_lanonly = true, cache_policy = "no_cache", spa_fallback = "", enable_byte_ranges = false},
+  {path = "/api/admin/", enable_lanonly = true, spa_fallback = "", enable_byte_ranges = false},
+  {path = "/api/updates", proxy_transport = "sse", proxy_connect_timeout = "300s", proxy_session_timeout = "300s", cors_origin = "*", spa_fallback = "", enable_byte_ranges = false},
+  {path = '/(?:service-worker[.]js|manifest[.]json)$', match = "regex", cache_policy = "no_cache", spa_fallback = "", enable_byte_ranges = false},
+  {path = "/", match = "exact", rewrite_to = "/index.html", cache_policy = "no_cache", hide_etag = true, spa_fallback = "", enable_byte_ranges = false},
+  {path = "/index.html", match = "exact", cache_policy = "no_cache", hide_etag = true, spa_fallback = "", enable_byte_ranges = false},
+  {path = '/.*[.]html$', match = "regex", cache_policy = "no_cache", spa_fallback = "", enable_byte_ranges = false},
+  {path = '/(?:assets|icons)/.*[.](?:css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$', match = "regex", cache_policy = "immutable", spa_fallback = "", enable_byte_ranges = false},
+]
+
+[sites."apps.example.test/spa-dev"]
+kind = "subfolder"
+domain = "apps.example.test"
+subfolder = "spa-dev"
+upstream = "http://127.0.0.1:9000"
+enable_lanonly = false
+client_max_body_size = "100M"
+enable_streaming = true
+enable_byte_ranges = true
+proxy_connect_timeout = "60s"
+forwarded_for = "append"
+spa_fallback = "/index.html"
+routes = [
+  {path = "/admin", enable_lanonly = true, cache_policy = "no_cache", spa_fallback = "", enable_byte_ranges = false},
+  {path = "/api/admin/", enable_lanonly = true, spa_fallback = "", enable_byte_ranges = false},
+  {path = "/api/updates", proxy_transport = "sse", proxy_connect_timeout = "300s", proxy_session_timeout = "300s", cors_origin = "*", spa_fallback = "", enable_byte_ranges = false},
+  {path = '/(?:service-worker[.]js|manifest[.]json)$', match = "regex", cache_policy = "no_cache", spa_fallback = "", enable_byte_ranges = false},
+  {path = "/", match = "exact", rewrite_to = "/index.html", cache_policy = "no_cache", hide_etag = true, spa_fallback = "", enable_byte_ranges = false},
+  {path = "/index.html", match = "exact", cache_policy = "no_cache", hide_etag = true, spa_fallback = "", enable_byte_ranges = false},
+  {path = '/.*[.]html$', match = "regex", cache_policy = "no_cache", spa_fallback = "", enable_byte_ranges = false},
+  {path = '/(?:assets|icons)/.*[.](?:css|js|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$', match = "regex", cache_policy = "immutable", spa_fallback = "", enable_byte_ranges = false},
+]

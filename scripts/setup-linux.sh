@@ -15,6 +15,11 @@ if (( missing )); then
     echo 'Install the missing commands with your system package manager, then rerun this script.' >&2
     exit 2
 fi
+# Check Python requirements before creating any lab files.
+python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"; import jinja2' || {
+    echo 'Activate a Python 3.11+ environment with requirements.txt installed.' >&2
+    exit 2
+}
 nginx_bin=$(command -v nginx)
 dehydrated_bin=$(command -v dehydrated || true)
 if [[ -z "$dehydrated_bin" ]]; then
@@ -23,17 +28,10 @@ if [[ -z "$dehydrated_bin" ]]; then
 fi
 api_port=3030
 nginx_port=8080
+nginx_tls_port=8443
 umask 077
-mkdir -p "$lab"/{state,run,logs/nginx,nginx/conf.d,nginx/domains-available,nginx/domains-enabled,nginx/templates,nginx/snippets,init.d,wireguard,certs}
-mkdir -p "$lab/nginx"/{client-body,proxy,fastcgi,uwsgi,scgi,logs}
-
-# Install the shared, portable nginx templates while preserving local edits.
-cp -an "$repo_root/config/nginx/templates/." "$lab/nginx/templates/"
-cp -an "$repo_root/config/nginx/snippets/." "$lab/nginx/snippets/"
-cp -an "$repo_root/config/nginx/conf.d/." "$lab/nginx/conf.d/"
-if [[ ! -e "$lab/nginx/mime.types" && ! -L "$lab/nginx/mime.types" ]]; then
-    install -m 644 "$repo_root/config/nginx/mime.types" "$lab/nginx/mime.types"
-fi
+mkdir -p "$lab"/{state,run,logs/nginx,nginx/conf.d,nginx/domains-available,nginx/domains-enabled,nginx/snippets,init.d,wireguard,certs}
+mkdir -p "$lab/tmp" "$lab/nginx/logs"
 
 if [[ ! -e "$lab/state/firewall-policy.json" && ! -L "$lab/state/firewall-policy.json" ]]; then
     printf '%s\n' '{"enabled":false,"observe_only":false,"rules":[],"allowlist":[]}' > "$lab/state/firewall-policy.json"
@@ -41,10 +39,17 @@ fi
 
 if [[ ! -e "$lab/nginx/nginx.conf" && ! -L "$lab/nginx/nginx.conf" ]]; then
     python3 "$repo_root/scripts/render-nginx-config.py" \
-        "$repo_root/config/nginx/nginx.conf.template" \
-        "$lab/nginx/nginx.conf" "$lab/run/nginx.pid" "$lab/logs/nginx/error.log"
+        "$repo_root/config/nginx" "$lab/nginx" \
+        --var-dir "$lab/var" --pid-path "$lab/run/nginx.pid" \
+        --error-log-path "$lab/var/log/nginx/error.log" \
+        --acme-directory "$lab/certs/acme-challenge" \
+        --http-port "$nginx_port" --https-port "$nginx_tls_port"
+    openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=localhost \
+        -keyout "$lab/nginx/certs/default/privkey.pem" \
+        -out "$lab/nginx/certs/default/fullchain.pem" >/dev/null 2>&1
     cat > "$lab/nginx/conf.d/00-linux-default.conf" <<EOF
 server {
+    server_name 127.0.0.1;
     listen $nginx_port;
     location ^~ /.well-known/acme-challenge/ {
         alias $lab/certs/acme-challenge/;
@@ -103,18 +108,17 @@ prefix_path = "$lab/nginx"
 pid_path = "$lab/run/nginx.pid"
 domains_available_dir = "$lab/nginx/domains-available"
 domains_enabled_dir = "$lab/nginx/domains-enabled"
-templates_dir = "$lab/nginx/templates"
 domain_upstream_map_path = "$lab/nginx/conf.d/02_domain_upstream_map.conf"
 subdomain_upstream_map_path = "$lab/nginx/conf.d/03_subdomain_upstream_map.conf"
 subfolder_upstream_map_path = "$lab/nginx/conf.d/04_subfolder_upstream_map.conf"
 http_forwarder_path = "$lab/nginx/conf.d/05-http-to-https.conf"
-log_dir = "$lab/logs/nginx"
+log_dir = "$lab/var/log/nginx"
 
 [certificates]
 certs_dir = "$lab/certs"
 
 [firewall]
-log_dirs = ["$lab/logs/nginx"]
+log_dirs = ["$lab/var/log/nginx"]
 
 [adguard]
 enabled = false

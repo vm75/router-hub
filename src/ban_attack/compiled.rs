@@ -21,7 +21,6 @@ pub(crate) struct CompiledConfig {
     pub max_read_bytes_per_file_poll: usize,
     pub max_lines_per_file_poll: usize,
     pub max_line_bytes: usize,
-    #[allow(dead_code)]
     pub firewall: FirewallConfig,
     pub aggregation: AggregationConfig,
     pub ipset: IpSetConfig,

@@ -1,0 +1,9 @@
+{# Settings contain data only: one IP or CIDR per line, with optional comments. #}
+{% set allowed_ip_specs %}{% include 'settings/allowed_ips.txt' %}{% endset %}
+{% for line in allowed_ip_specs.splitlines() %}
+{% set ip_spec = line.split('#', 1)[0] | trim %}
+{% if ip_spec %}
+allow {{ ip_spec }};
+{% endif %}
+{% endfor %}
+deny all;

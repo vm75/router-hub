@@ -1,0 +1,5 @@
+{% import 'settings/proxy.jinja' as proxy with context %}
+{% set proxy_upstream = '$subfolder_upstream' %}
+{% set proxy_mount = '/' ~ subfolder %}
+{% set fallback_prefix = 'rh_mount_' ~ subfolder %}
+{% include 'snippets/proxy-site.conf.jinja' %}

@@ -1,0 +1,60 @@
+{# One owner per directive in each effective location policy. #}
+{% include 'snippets/proxy-request.conf.jinja' %}
+{% if policy.transport == 'sse' %}
+{% include 'snippets/proxy-events.conf' %}
+{% elif policy.transport == 'websocket' %}
+{% include 'snippets/proxy-upgrade.conf' %}
+{% endif %}
+{% if policy.clear_origin %}
+{% include 'snippets/proxy-origin.conf' %}
+{% endif %}
+{% if policy.large_upload %}
+{% include 'snippets/proxy-upload.conf.jinja' %}
+{% else %}
+client_max_body_size {{ policy.body_size }};
+{% endif %}
+{% if policy.longlived or policy.large_upload or policy.transport == 'sse' %}
+{% include 'snippets/proxy-timeouts.conf.jinja' %}
+{% endif %}
+{% if policy.streaming or policy.transport == 'sse' %}
+{% include 'snippets/proxy-streaming.conf' %}
+{% endif %}
+{% if policy.byte_ranges %}
+{% include 'snippets/proxy-byte-ranges.conf' %}
+{% endif %}
+{% if policy.transport == 'sse' or policy.cache in ['no_cache', 'immutable', 'pwa'] %}
+proxy_cache off;
+{% endif %}
+{% if policy.cache == 'no_cache' %}
+{% include 'snippets/pwa-no-cache.conf' %}
+{% elif policy.cache == 'immutable' %}
+add_header Cache-Control "public, max-age=31536000, immutable" always;
+{% elif policy.cache == 'pwa' %}
+add_header Cache-Control $pwa_cache_control always;
+add_header Pragma $pwa_pragma always;
+add_header Expires $pwa_expires always;
+{% endif %}
+{% if policy.cors_origin %}
+add_header Access-Control-Allow-Origin "{{ policy.cors_origin }}" always;
+add_header Access-Control-Allow-Methods "GET, OPTIONS" always;
+add_header Access-Control-Allow-Headers "Content-Type, Cache-Control" always;
+{% endif %}
+{% if policy.cache in ['no_cache', 'immutable', 'pwa'] or policy.cors_origin %}
+{% include 'snippets/security-headers.conf' %}
+{% endif %}
+{% if policy.backend_auth %}
+{% include 'snippets/proxy-backend-auth.conf' %}
+{% endif %}
+{% if policy.hide_etag %}
+proxy_hide_header ETag;
+{% endif %}
+{% if policy.disable_proxy_redirect %}
+proxy_redirect off;
+{% endif %}
+{% if policy.rate_limit %}
+# Local limits replace inherited limits, so retain the general limit explicitly.
+limit_req zone=global_rate burst=60 nodelay;
+limit_req zone={{ policy.rate_limit.zone }} burst={{ policy.rate_limit.burst }} nodelay;
+{% endif %}
+{% set log_enabled = policy.access_log %}
+{% include 'ban-shield/access-logging.conf.jinja' %}

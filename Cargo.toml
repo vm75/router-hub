@@ -1,6 +1,6 @@
 [package]
 name = "router-hub"
-version = "0.7.2"
+version = "0.8.0"
 edition = "2024"
 description = "A lightweight management hub for Asuswrt-Merlin routers"
 license = "MIT"
@@ -15,6 +15,7 @@ futures-util = "0.3"
 ipnet = { version = "2", features = ["serde"] }
 libc = "0.2"
 parking_lot = "0.12"
+minijinja = { version = "3.0.5", default-features = false, features = ["builtins", "macros", "multi_template", "serde", "std_collections"] }
 regex = "1"
 regex-automata = { version = "0.4", features = ["hybrid", "syntax", "perf-literal"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -38,6 +39,10 @@ strip = true
 lto = "thin"
 codegen-units = 1
 panic = "abort"
+
+# Rendering is an infrequent admin operation; optimize the engine for size.
+[profile.release.package.minijinja]
+opt-level = "s"
 
 [dev-dependencies]
 tempfile = "3"

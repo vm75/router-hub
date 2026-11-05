@@ -1,0 +1,1 @@
+load_module /opt/lib/nginx/modules/ngx_http_brotli_static_module.so;

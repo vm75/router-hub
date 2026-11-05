@@ -177,18 +177,6 @@ pub async fn unban(
     )))
 }
 
-/// Backwards-compatible alias for clients that used the former reset route.
-pub async fn unban_and_reset(
-    State(state): State<AppState>,
-    Path(network): Path<String>,
-) -> Result<Json<ApiMessage>, ApiError> {
-    let network: IpNet = network.parse().map_err(ApiError::bad_request)?;
-    state.firewall.unban(network).await?;
-    Ok(Json(ApiMessage::new(
-        "network unbanned, history cleared, and exception added",
-    )))
-}
-
 pub async fn reset_counts(
     State(state): State<AppState>,
     Path(network): Path<String>,

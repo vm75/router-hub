@@ -19,7 +19,7 @@ if [[ ! "$TARGET" =~ ^[a-zA-Z0-9_-]+$ ]]; then
   exit 2
 fi
 
-REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+REPO_DIR=$(CDPATH= cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO_DIR"
 
 if [[ ! -f "$BINARY" ]]; then
@@ -33,7 +33,7 @@ trap 'rm -rf "$STAGING"' EXIT
 
 mkdir -p "$STAGING/$NAME" dist
 install -m 0755 "$BINARY" "$STAGING/$NAME/router-hub"
-cp -R config scripts "$STAGING/$NAME/"
+cp -R config scripts docs "$STAGING/$NAME/"
 cp README.md CHANGELOG.md LICENSE "$STAGING/$NAME/"
 
 tar -C "$STAGING" -czf "$PWD/dist/$NAME.tar.gz" "$NAME"

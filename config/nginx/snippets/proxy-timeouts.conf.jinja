@@ -1,0 +1,4 @@
+# Idle time between successive reads/writes, not a total session lifetime.
+proxy_read_timeout {{ policy.session_timeout }};
+proxy_send_timeout {{ policy.session_timeout }};
+send_timeout {{ policy.session_timeout }};

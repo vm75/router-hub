@@ -1,0 +1,14 @@
+{% import 'settings/proxy.jinja' as proxy with context %}
+{% set proxy_upstream = '$subdomain_upstream' %}
+{% set proxy_mount = '' %}
+{% set fallback_prefix = 'rh_site' %}
+server {
+    server_name {{ server_name }};
+    include snippets/ssl.conf;
+    include snippets/security-headers.conf;
+    include snippets/acme-challenge.conf;
+    {% if proxy.lanonly %}
+    include snippets/restrict.conf;
+    {% endif %}
+    {% include 'snippets/proxy-site.conf.jinja' %}
+}

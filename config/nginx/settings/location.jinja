@@ -1,0 +1,23 @@
+{# Each location resolves overrides against its effective parent, including false. #}
+{% set lanonly = route.enable_lanonly | default(parent.lanonly) %}
+{% set access_log = route.access_log | default(parent.access_log) %}
+{% set large_upload = route.enable_large_upload | default(parent.large_upload) %}
+{% set longlived = route.enable_longlived | default(parent.longlived) %}
+{% set streaming = route.enable_streaming | default(parent.streaming) %}
+{% set byte_ranges = route.enable_byte_ranges | default(parent.byte_ranges) %}
+{% set clear_origin = route.clear_origin | default(parent.clear_origin) %}
+{% set body_size = route.client_max_body_size | default(parent.body_size) %}
+{% set upload_body_size = route.large_upload_max_body_size | default(parent.upload_body_size) %}
+{% set upload_timeout = route.client_upload_timeout | default(parent.upload_timeout) %}
+{% set transport = route.proxy_transport | default(parent.transport) %}
+{% set connect_timeout = route.proxy_connect_timeout | default('300s' if transport == 'sse' else parent.connect_timeout) %}
+{% set session_timeout = route.proxy_session_timeout | default('300s' if transport == 'sse' else parent.session_timeout) %}
+{% set cache = route.cache_policy | default(parent.cache) %}
+{% set backend_auth = route.backend_auth | default(parent.backend_auth) %}
+{% set forwarded_for = route.forwarded_for | default(parent.forwarded_for) %}
+{% set hide_etag = route.hide_etag | default(parent.hide_etag) %}
+{% set disable_proxy_redirect = route.disable_proxy_redirect | default(parent.disable_proxy_redirect) %}
+{% set spa_fallback = route.spa_fallback | default(parent.spa_fallback) %}
+{% set rewrite_to = route.rewrite_to | default('') %}
+{% set cors_origin = route.cors_origin | default(parent.cors_origin) %}
+{% set rate_limit = route.rate_limit | default(none) %}

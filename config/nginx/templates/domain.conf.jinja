@@ -1,0 +1,21 @@
+{% import 'settings/proxy.jinja' as proxy with context %}
+{% set proxy_upstream = '$domain_upstream' %}
+{% set proxy_mount = '' %}
+{% set fallback_prefix = 'rh_site' %}
+server {
+    server_name {{ server_name }};
+    include snippets/ssl.conf;
+    include snippets/security-headers.conf;
+    include snippets/acme-challenge.conf;
+    {% if proxy.lanonly %}
+    include snippets/restrict.conf;
+    {% endif %}
+    {% if proxy.subfolders %}
+    include domains-enabled/{{ domain }}/subfolders-enabled/*.conf;
+    {% endif %}
+    {% if proxy.root_disabled %}
+    location / { return 404; }
+    {% else %}
+    {% include 'snippets/proxy-site.conf.jinja' %}
+    {% endif %}
+}

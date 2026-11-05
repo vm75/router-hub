@@ -1,0 +1,46 @@
+{# Paths are relative to the mounted application; children inherit effective policy. #}
+{% macro location(route, parent, route_id) %}
+{% import 'settings/location.jinja' as policy with context %}
+{% set match = route.match | default('prefix') %}
+location {% if match == 'exact' %}= {% elif match == 'regex' %}~ ^{% elif match == 'regex_i' %}~* ^{% elif match == 'prefix' %}^~ {% endif %}{{ proxy_mount }}{{ route.path }} {
+    {% if policy.lanonly %}
+    include snippets/restrict.conf;
+    {% endif %}
+    {% include 'snippets/proxy-location.conf.jinja' %}
+    {% if policy.rewrite_to %}
+    rewrite ^ {{ policy.rewrite_to }} break;
+    {% elif proxy_mount %}
+    rewrite ^{{ proxy_mount }}/(.*)$ /$1 break;
+    {% endif %}
+    proxy_pass {{ proxy_upstream }};
+    {% if policy.spa_fallback %}
+    proxy_intercept_errors on;
+    error_page 404 = @{{ fallback_prefix }}_{{ route_id }};
+    {% else %}
+    proxy_intercept_errors off;
+    {% endif %}
+    {% for child in route.children | default([]) %}
+    {{ location(child, policy, route_id ~ '_' ~ loop.index0) }}
+    {% endfor %}
+}
+{% endmacro %}
+
+{% macro fallbacks(route, parent, route_id) %}
+{% import 'settings/location.jinja' as current with context %}
+{% if current.spa_fallback %}
+{% set route = dict(route, cache_policy='no_cache', spa_fallback='', rewrite_to=current.spa_fallback) %}
+{% import 'settings/location.jinja' as policy with context %}
+location @{{ fallback_prefix }}_{{ route_id }} {
+    {% if policy.lanonly %}
+    include snippets/restrict.conf;
+    {% endif %}
+    {% include 'snippets/proxy-location.conf.jinja' %}
+    rewrite ^ {{ policy.rewrite_to }} break;
+    proxy_pass {{ proxy_upstream }};
+    proxy_intercept_errors off;
+}
+{% endif %}
+{% for child in route.children | default([]) %}
+{{ fallbacks(child, current, route_id ~ '_' ~ loop.index0) }}
+{% endfor %}
+{% endmacro %}

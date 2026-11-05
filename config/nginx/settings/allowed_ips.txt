@@ -1,0 +1,3 @@
+# One IP/CIDR per line; blank by default (LAN-only routes deny all clients).
+# Put actual networks in nginx.deploy/settings/allowed_ips.txt.
+# Example: 192.0.2.0/24

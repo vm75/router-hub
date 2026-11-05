@@ -158,15 +158,18 @@ mod tests {
         assert_eq!(standalone.matches("<html").count(), 1);
         assert_eq!(standalone.matches("<body").count(), 1);
         assert!(standalone.contains("rel=\"icon\" href=\"data:image/svg+xml;base64,"));
-        assert!(standalone.contains("<details class=\"card nginx-root\">"));
+        assert!(!standalone.contains("nginx-root"));
         assert_eq!(
             standalone
                 .matches("class=\"card nginx-card nginx-accordion\"")
                 .count(),
-            3
+            2
         );
         assert!(!standalone.contains("nginx-card nginx-accordion\" open"));
-        assert!(standalone.contains("data-custom-config"));
+        assert!(standalone.contains("data-managed-settings"));
+        assert!(standalone.contains("editNginxSettings"));
+        assert!(!standalone.contains("/nginx/templates"));
+        assert!(!standalone.contains("/nginx/files"));
         assert!(standalone.contains("firewall-settings-form"));
         assert!(!standalone.contains(">Start nginx<"));
         assert!(!standalone.contains(">Stop nginx<"));

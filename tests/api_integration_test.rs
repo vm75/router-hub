@@ -23,7 +23,6 @@ async fn setup_test_app() -> (axum::Router, AppState, tempfile::TempDir) {
     config.nginx.pid_path = config.nginx.root_dir.join("nginx.pid");
     config.nginx.domains_available_dir = config.nginx.root_dir.join("domains-available");
     config.nginx.domains_enabled_dir = config.nginx.root_dir.join("domains-enabled");
-    config.nginx.templates_dir = config.nginx.root_dir.join("templates");
     config.nginx.subdomain_upstream_map_path = config
         .nginx
         .root_dir
@@ -593,405 +592,246 @@ async fn test_services_api() {
     }
 }
 
-#[tokio::test]
-async fn test_nginx_files_templates_objects_actions_and_logs_api() {
-    let (app, state, _temp) = setup_test_app().await;
-    let auth_header = ("authorization", "Bearer router-hub-test-token");
-
-    // Root-level nginx files can be created and read.
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/files/conf.d%2Fglobal.conf")
-        .header(auth_header.0, auth_header.1)
+async fn nginx_request(
+    app: &axum::Router,
+    method: &str,
+    path: &str,
+    body: serde_json::Value,
+) -> (StatusCode, serde_json::Value) {
+    let request = Request::builder()
+        .method(method)
+        .uri(format!("/api/nginx{path}"))
+        .header(header::AUTHORIZATION, "Bearer router-hub-test-token")
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(r#"{"content":"server_tokens off;"}"#))
+        .body(Body::from(body.to_string()))
         .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let req = Request::builder()
-        .uri("/api/nginx/files/conf.d%2Fglobal.conf")
-        .header(auth_header.0, auth_header.1)
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // Templates are independently managed.
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/templates/domain/basic")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            r#"{"content":"server { server_name {{server_name}}; }"}"#,
-        ))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // A domain can be created from a template and enabled.
-    let create_domain = serde_json::json!({
-        "domain": "example.test",
-        "name": "example.test",
-        "template": "basic",
-        "server_names": ["example.test", "www.example.test"],
-        "upstream": "http://127.0.0.1:8080",
-        "enabled": true
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/nginx/objects/domain")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_vec(&create_domain).unwrap()))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let domain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(domain["upstream"], "http://127.0.0.1:8080");
-    assert!(
-        std::fs::read_to_string(&state.config.nginx.domain_upstream_map_path)
-            .unwrap()
-            .contains("example.test http://127.0.0.1:8080;")
-    );
-    assert!(
-        std::fs::read_to_string(&state.config.nginx.domain_upstream_map_path)
-            .unwrap()
-            .contains("www.example.test http://127.0.0.1:8080;")
-    );
-
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/objects/domain/example.test/example.test")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            r#"{"template":"basic","upstream":"https://127.0.0.1:8443"}"#,
-        ))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let domain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(domain["upstream"], "https://127.0.0.1:8443");
-    let domain_map = std::fs::read_to_string(&state.config.nginx.domain_upstream_map_path).unwrap();
-    assert!(domain_map.contains("example.test https://127.0.0.1:8443;"));
-    assert!(domain_map.contains("www.example.test https://127.0.0.1:8443;"));
-
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/templates/subdomain/proxy")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            r#"{"content":"server { server_name {{server_name}}; }"}"#,
-        ))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let create_subdomain = serde_json::json!({
-        "domain": "example.test",
-        "name": "app",
-        "template": "proxy",
-        "server_names": ["app.example.test", "media.example.test"],
-        "upstream": "http://127.0.0.1:8081",
-        "enabled": true
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/nginx/objects/subdomain")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_vec(&create_subdomain).unwrap()))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let subdomain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(
-        subdomain["content"]
-            .as_str()
-            .unwrap()
-            .contains("server_name app.example.test media.example.test;")
-    );
-    assert_eq!(subdomain["object"]["template"], "proxy");
-    assert_eq!(subdomain["upstream"], "http://127.0.0.1:8081");
-    assert_eq!(
-        subdomain["server_names"],
-        serde_json::json!(["app.example.test", "media.example.test"])
-    );
-    assert!(
-        subdomain["content"]
-            .as_str()
-            .unwrap()
-            .starts_with("# router-hub-template: proxy\n")
-    );
-
-    // Changing a selected template rerenders the same site and preserves its aliases.
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/templates/subdomain/proxy-alt")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            r#"{"content":"server { server_name {{server_name}}; return 204; }"}"#,
-        ))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let update_subdomain = serde_json::json!({
-        "template": "proxy-alt",
-        "server_names": ["app.example.test", "media.example.test"],
-        "upstream": "https://127.0.0.1:8443"
-    });
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/objects/subdomain/example.test/app")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_vec(&update_subdomain).unwrap()))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let subdomain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(subdomain["object"]["template"], "proxy-alt");
-    assert_eq!(subdomain["upstream"], "https://127.0.0.1:8443");
-    assert!(
-        subdomain["content"]
-            .as_str()
-            .unwrap()
-            .contains("return 204;")
-    );
-
-    // Omitting aliases on an update keeps the aliases already present in the
-    // authoritative nginx object.
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/objects/subdomain/example.test/app")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(r#"{"template":"proxy-alt"}"#))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let subdomain: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(
-        subdomain["server_names"],
-        serde_json::json!(["app.example.test", "media.example.test"])
-    );
-    assert_eq!(subdomain["upstream"], "https://127.0.0.1:8443");
-
-    // A subfolder can use custom configuration, then start and stop.
-    let create_subfolder = serde_json::json!({
-        "domain": "example.test",
-        "name": "media",
-        "content": "location /media/ { proxy_pass http://127.0.0.1:8080; }",
-        "upstream": "http://127.0.0.1:8082",
-        "enabled": false
-    });
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/nginx/objects/subfolder")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_vec(&create_subfolder).unwrap()))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let subfolder: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(subfolder["upstream"], "http://127.0.0.1:8082");
-
-    let forwarder = std::fs::read_to_string(&state.config.nginx.http_forwarder_path).unwrap();
-    assert!(forwarder.contains("example.test"));
-    assert!(forwarder.contains("app.example.test"));
-
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/objects/subfolder/example.test/media")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            r##"{"content":"# router-hub-template: stale\nlocation /media/ { return 204; }"}"##,
-        ))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let subfolder: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(subfolder["object"]["template"], serde_json::Value::Null);
-    assert!(
-        !subfolder["content"]
-            .as_str()
-            .unwrap()
-            .contains("router-hub-template")
-    );
-
-    // An empty upstream explicitly removes the generated subfolder map entry.
-    let req = Request::builder()
-        .method("PUT")
-        .uri("/api/nginx/objects/subfolder/example.test/media")
-        .header(auth_header.0, auth_header.1)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(
-            r#"{"content":"location /media/ { return 204; }","upstream":""}"#,
-        ))
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let subfolder: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(subfolder["upstream"].is_null());
-    let subfolder_map =
-        std::fs::read_to_string(&state.config.nginx.subfolder_upstream_map_path).unwrap();
-    assert!(!subfolder_map.contains("media http://127.0.0.1:8082;"));
-
-    for (action, expected_enabled) in [
-        ("start", true),
-        ("stop", false),
-        ("enable", true),
-        ("disable", false),
-    ] {
-        let req = Request::builder()
-            .method("POST")
-            .uri(format!(
-                "/api/nginx/objects/subfolder/example.test/media/{action}"
-            ))
-            .header(auth_header.0, auth_header.1)
-            .body(Body::empty())
-            .unwrap();
-        let resp = app.clone().oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK, "action {action}");
-        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let object: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(object["enabled"], expected_enabled);
-        assert_eq!(object["running"], expected_enabled);
-    }
-
-    // Logs are read only and returned on explicit request.
-    std::fs::write(
-        state.config.nginx.log_dir.join("access.log"),
-        "first\nlast\n",
-    )
-    .unwrap();
-    let req = Request::builder()
-        .uri("/api/nginx/logs/access.log")
-        .header(auth_header.0, auth_header.1)
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let log: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(log["content"], "first\nlast\n");
-
-    let req = Request::builder()
-        .uri("/api/nginx/objects")
-        .header(auth_header.0, auth_header.1)
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let objects: Vec<serde_json::Value> = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(objects.len(), 3);
-    assert_eq!(
-        objects
-            .iter()
-            .find(|object| object["kind"] == "domain")
-            .unwrap()["template"],
-        "basic"
-    );
-    assert_eq!(
-        objects
-            .iter()
-            .find(|object| object["kind"] == "subdomain")
-            .unwrap()["template"],
-        "proxy-alt"
-    );
-    assert_eq!(
-        objects
-            .iter()
-            .find(|object| object["kind"] == "subdomain")
-            .unwrap()["display_name"],
-        "app.example.test"
-    );
-    assert_eq!(
-        objects
-            .iter()
-            .find(|object| object["kind"] == "subfolder")
-            .unwrap()["display_name"],
-        "example.test/media"
-    );
-
-    for (kind, domain, name) in [
-        ("subfolder", "example.test", "media"),
-        ("subdomain", "example.test", "app"),
-        ("domain", "example.test", "example.test"),
-    ] {
-        let req = Request::builder()
-            .method("DELETE")
-            .uri(format!("/api/nginx/objects/{kind}/{domain}/{name}"))
-            .header(auth_header.0, auth_header.1)
-            .body(Body::empty())
-            .unwrap();
-        let resp = app.clone().oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-    }
-
-    let subdomain_map =
-        std::fs::read_to_string(&state.config.nginx.subdomain_upstream_map_path).unwrap();
-    assert!(!subdomain_map.contains("app.example.test https://127.0.0.1:8443;"));
-    let forwarder = std::fs::read_to_string(&state.config.nginx.http_forwarder_path).unwrap();
-    assert!(!forwarder.contains("example.test"));
-
-    for path in [
-        "/api/nginx/templates/domain/basic",
-        "/api/nginx/templates/subdomain/proxy",
-        "/api/nginx/templates/subdomain/proxy-alt",
-        "/api/nginx/files/conf.d%2Fglobal.conf",
-    ] {
-        let req = Request::builder()
-            .method("DELETE")
-            .uri(path)
-            .header(auth_header.0, auth_header.1)
-            .body(Body::empty())
-            .unwrap();
-        let resp = app.clone().oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-    }
+    let value = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+    (status, value)
 }
 
 #[tokio::test]
-async fn test_nginx_root_file_validation_failure_restores_previous_content() {
+async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
+    use serde_json::json;
+    let (app, state, _temp) = setup_test_app().await;
+    // Removed editors have no read or mutation endpoints.
+    for path in [
+        "/files",
+        "/files/nginx.conf",
+        "/templates/domain",
+        "/templates/domain/basic",
+    ] {
+        for method in ["GET", "PUT", "DELETE"] {
+            assert_eq!(
+                nginx_request(&app, method, path, json!({"content":"bad"}))
+                    .await
+                    .0,
+                StatusCode::NOT_FOUND
+            );
+        }
+    }
+    let globals = json!({"shared":{"http_port":8080,"https_port":8443,"var_dir":state.config.nginx.log_dir.parent().unwrap().parent().unwrap(),"acme_challenge_dir":state.config.certificates.certs_dir.join("acme-challenge")}, "site_defaults":{"enable_streaming":true,"enable_lanonly":false}, "allowed_ips":["192.0.2.0/24"], "free_subdomains":["shared.example.test"]});
+    let (status, result) = nginx_request(&app, "PUT", "/settings", globals.clone()).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(
+        nginx_request(&app, "GET", "/settings", json!(null)).await.1,
+        globals
+    );
+    let persisted: toml::Value = toml::from_str(
+        &std::fs::read_to_string(router_hub::nginx_render::global_path(&state.config)).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(persisted["global"]["http_port"].as_integer(), Some(8080));
+    assert_eq!(
+        persisted["site_defaults"]["enable_streaming"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(persisted["allowed_ips"][0].as_str(), Some("192.0.2.0/24"));
+    let payload = json!({"domain":"example.test", "name":"example.test", "server_names":["example.test","www.example.test"], "settings":{"disable_root":false}, "upstream":"http://127.0.0.1:8081", "enabled":true});
+    let (status, domain) = nginx_request(&app, "POST", "/objects/domain", payload).await;
+    assert_eq!(status, StatusCode::OK, "{domain}");
+    assert_eq!(domain["object"]["managed"], true);
+    assert!(
+        domain["content"]
+            .as_str()
+            .unwrap()
+            .contains("proxy_buffering off;")
+    );
+    assert!(
+        !domain["content"]
+            .as_str()
+            .unwrap()
+            .contains("include snippets/restrict.conf;")
+    );
+    let domain_data =
+        std::fs::read_to_string(state.config.nginx.root_dir.join("settings/domains.conf")).unwrap();
+    assert!(domain_data.contains("www.example.test http://127.0.0.1:8081;"));
+    let folder = json!({"domain":"example.test", "name":"media", "settings":{"enable_streaming":false,"enable_large_upload":true,"large_upload_max_body_size":"0"}, "upstream":"http://127.0.0.1:8082", "enabled":true});
+    let (status, folder) = nginx_request(&app, "POST", "/objects/subfolder", folder).await;
+    assert_eq!(status, StatusCode::OK, "{folder}");
+    assert!(
+        folder["content"]
+            .as_str()
+            .unwrap()
+            .contains("client_max_body_size 0;")
+    );
+    assert!(
+        !folder["content"]
+            .as_str()
+            .unwrap()
+            .contains("proxy_buffering off;")
+    );
+    let custom = "server { server_name raw.example.test; # {{untouched}}\n return 204; }";
+    let payload = json!({"domain":"example.test", "name":"raw", "content":custom});
+    assert_eq!(
+        nginx_request(&app, "POST", "/objects/subdomain", payload)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    // Global edits rerender inherited settings while preserving per-site false/zero and custom content.
+    let globals = json!({"shared":{"http_port":8080,"https_port":8443},"site_defaults":{"enable_lanonly":true,"enable_streaming":true},"allowed_ips":["198.51.100.0/24"],"free_subdomains":[]});
+    let (status, response) = nginx_request(&app, "PUT", "/settings", globals).await;
+    assert_eq!(status, StatusCode::OK, "{response}");
+    let (_, domain) = nginx_request(
+        &app,
+        "GET",
+        "/objects/domain/example.test/example.test",
+        json!(null),
+    )
+    .await;
+    assert!(
+        domain["content"]
+            .as_str()
+            .unwrap()
+            .contains("include snippets/restrict.conf;")
+    );
+    let (_, folder) = nginx_request(
+        &app,
+        "GET",
+        "/objects/subfolder/example.test/media",
+        json!(null),
+    )
+    .await;
+    assert_eq!(folder["settings"]["enable_streaming"], false);
+    assert!(
+        !folder["content"]
+            .as_str()
+            .unwrap()
+            .contains("proxy_buffering off;")
+    );
+    assert_eq!(
+        nginx_request(
+            &app,
+            "GET",
+            "/objects/subdomain/example.test/raw",
+            json!(null)
+        )
+        .await
+        .1["content"],
+        custom
+    );
+    assert!(
+        std::fs::read_to_string(state.config.nginx.root_dir.join("snippets/restrict.conf"))
+            .unwrap()
+            .contains("allow 198.51.100.0/24;")
+    );
+    // Unknown legacy payload fields and unsafe directive values are rejected.
+    assert_eq!(
+        nginx_request(
+            &app,
+            "PUT",
+            "/objects/domain/example.test/example.test",
+            json!({"template":"basic"})
+        )
+        .await
+        .0,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(
+        nginx_request(&app, "PUT", "/settings", json!({"shared":{"http_port":0}}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        nginx_request(
+            &app,
+            "PUT",
+            "/objects/subfolder/example.test/media",
+            json!({"settings":{"proxy_connect_timeout":"1s; return 200;"}})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (_, unchanged) = nginx_request(
+        &app,
+        "GET",
+        "/objects/subfolder/example.test/media",
+        json!(null),
+    )
+    .await;
+    assert_eq!(unchanged["content"], folder["content"]);
+    // Updating aliases replaces the matching upstream entries together.
+    let (status, response) = nginx_request(&app,"PUT","/objects/domain/example.test/example.test",json!({"server_names":["example.test","alias.example.test"],"upstream":"https://127.0.0.1:9443"})).await;
+    assert_eq!(status, StatusCode::OK, "{response}");
+    let data =
+        std::fs::read_to_string(state.config.nginx.root_dir.join("settings/domains.conf")).unwrap();
+    assert!(!data.contains("www.example.test"));
+    assert!(data.contains("alias.example.test https://127.0.0.1:9443;"));
+    for action in ["disable", "enable", "stop", "start"] {
+        assert_eq!(
+            nginx_request(
+                &app,
+                "POST",
+                &format!("/objects/subfolder/example.test/media/{action}"),
+                json!(null)
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
+    std::fs::write(
+        state.config.nginx.log_dir.join("access.log"),
+        "nginx log entry\n",
+    )
+    .unwrap();
+    assert_eq!(
+        nginx_request(&app, "GET", "/logs/access.log", json!(null))
+            .await
+            .1["content"],
+        "nginx log entry\n"
+    );
+    assert_eq!(
+        nginx_request(
+            &app,
+            "DELETE",
+            "/objects/domain/example.test/example.test",
+            json!(null)
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        nginx_request(&app, "GET", "/objects", json!(null)).await.1,
+        json!([])
+    );
+    assert!(
+        !std::fs::read_to_string(state.config.nginx.root_dir.join("settings/domains.conf"))
+            .unwrap()
+            .contains("example.test")
+    );
+}
+
+#[tokio::test]
+async fn test_nginx_settings_validation_failure_restores_all_files() {
     let temp = tempdir().unwrap();
     let mut config = AppConfig {
         test_mode: false,
@@ -1006,7 +846,10 @@ async fn test_nginx_root_file_validation_failure_restores_previous_content() {
     config.nginx.pid_path = config.nginx.root_dir.join("nginx.pid");
     config.nginx.domains_available_dir = config.nginx.root_dir.join("domains-available");
     config.nginx.domains_enabled_dir = config.nginx.root_dir.join("domains-enabled");
-    config.nginx.templates_dir = config.nginx.root_dir.join("templates");
+    config.nginx.domain_upstream_map_path = config
+        .nginx
+        .root_dir
+        .join("conf.d/02_domain_upstream_map.conf");
     config.nginx.subdomain_upstream_map_path = config
         .nginx
         .root_dir
@@ -1021,6 +864,10 @@ async fn test_nginx_root_file_validation_failure_restores_previous_content() {
     config.commands.nginx = "/bin/false".into();
     config.ensure_directories().unwrap();
     std::fs::write(&config.nginx.config_path, "original").unwrap();
+    let original_globals = "# Operator settings\n[global]\nhttp_port = 19080\n";
+    let globals_path = router_hub::nginx_render::global_path(&config);
+    std::fs::create_dir_all(globals_path.parent().unwrap()).unwrap();
+    std::fs::write(&globals_path, original_globals).unwrap();
 
     let stores = Stores::load(&config).await.unwrap();
     let firewall = FirewallManager::new(config.clone(), stores.clone())
@@ -1031,19 +878,41 @@ async fn test_nginx_root_file_validation_failure_restores_previous_content() {
 
     let req = Request::builder()
         .method("PUT")
-        .uri("/api/nginx/files/nginx.conf")
+        .uri("/api/nginx/settings")
         .header(
             header::AUTHORIZATION,
             "Bearer router-hub-test-token-that-is-long-enough",
         )
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(r#"{"content":"invalid replacement"}"#))
+        .body(Body::from(
+            r#"{"shared":{"http_port":8080},"site_defaults":{"enable_lanonly":false}}"#,
+        ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
     assert_eq!(
         std::fs::read_to_string(&state.config.nginx.config_path).unwrap(),
         "original"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&globals_path).unwrap(),
+        original_globals
+    );
+    assert!(
+        !state
+            .config
+            .nginx
+            .root_dir
+            .join("snippets/ssl.conf")
+            .exists()
+    );
+    assert!(
+        !state
+            .config
+            .nginx
+            .root_dir
+            .join("settings/allowed_ips.txt")
+            .exists()
     );
 }
 
@@ -1314,4 +1183,250 @@ async fn test_dnsmasq_hosts_manage_only_dhcp_host_lines() {
         std::fs::read_to_string(&state.config.paths.dnsmasq_conf_add).unwrap(),
         "interface=wg*     # WireGuard\n\n# keep this\ndhcp-host=AA:BB:CC:DD:EE:FF,set:AA:BB:CC:DD:EE:FF,new,192.168.1.21\n"
     );
+}
+
+#[tokio::test]
+async fn test_nginx_settings_reload_failure_restores_all_files() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_app, state, temp) = setup_test_app().await;
+    let executable = temp.path().join("nginx-failing-reload");
+    std::fs::write(
+        &executable,
+        "#!/bin/sh\nfor arg do\n    [ \"$arg\" = reload ] && exit 1\ndone\nexit 0\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let mut config = (*state.config).clone();
+    config.test_mode = false;
+    config.commands.nginx = executable;
+    std::fs::create_dir_all(config.nginx.pid_path.parent().unwrap()).unwrap();
+    std::fs::write(&config.nginx.pid_path, std::process::id().to_string()).unwrap();
+    let state = AppState::new(config, state.stores.clone(), state.firewall.clone());
+    let app = api::app(state.clone()).unwrap();
+    let previous = std::fs::read(&state.config.nginx.config_path).unwrap();
+    let (status, response) = nginx_request(
+        &app,
+        "PUT",
+        "/settings",
+        serde_json::json!({"shared":{"http_port":8080}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{response}");
+    assert_eq!(
+        std::fs::read(&state.config.nginx.config_path).unwrap(),
+        previous
+    );
+    assert!(!router_hub::nginx_render::global_path(&state.config).exists());
+    assert!(
+        !state
+            .config
+            .nginx
+            .root_dir
+            .join("snippets/restrict.conf")
+            .exists()
+    );
+}
+
+#[tokio::test]
+async fn managed_sites_persist_inputs_and_regenerate_without_metadata() {
+    use router_hub::{models::NginxObjectKind, nginx, nginx_sites};
+    use serde_json::json;
+    let (app, state, _temp) = setup_test_app().await;
+    let (status, result) = nginx_request(&app, "POST", "/objects/domain", json!({"domain":"saved.test","name":"saved.test","settings":{"disable_root":true},"upstream":"http://127.0.0.1:8080"})).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    let path = nginx::available_path(
+        &state.config,
+        NginxObjectKind::Domain,
+        "saved.test",
+        "saved.test",
+    )
+    .unwrap();
+    // Generated bytes are disposable: their settings comment is not the source.
+    std::fs::write(&path, "server { server_name saved.test; }\n").unwrap();
+    let (status, result) = nginx_request(
+        &app,
+        "GET",
+        "/objects/domain/saved.test/saved.test",
+        json!(null),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["settings"]["disable_root"], true);
+    assert_eq!(result["object"]["managed"], true);
+    let (status, result) = nginx_request(
+        &app,
+        "PUT",
+        "/objects/domain/saved.test/saved.test",
+        json!({"settings":{"disable_root":false,"client_max_body_size":"23M"}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert!(
+        std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("client_max_body_size 23M;")
+    );
+    let saved = nginx_sites::find(
+        &state.config,
+        NginxObjectKind::Domain,
+        "saved.test",
+        "saved.test",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(saved.settings["client_max_body_size"], "23M");
+    assert_eq!(saved.upstream.as_deref(), Some("http://127.0.0.1:8080"));
+    std::fs::remove_file(&path).unwrap();
+    let (status, result) = nginx_request(&app, "PUT", "/settings", json!({})).await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert!(
+        std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("client_max_body_size 23M;")
+    );
+    let before = std::fs::read(nginx_sites::path(&state.config)).unwrap();
+    assert_eq!(
+        nginx_request(
+            &app,
+            "PUT",
+            "/objects/domain/saved.test/saved.test",
+            json!({"content":"server {}"})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        before,
+        std::fs::read(nginx_sites::path(&state.config)).unwrap()
+    );
+    assert_eq!(
+        nginx_request(
+            &app,
+            "POST",
+            "/objects/domain/saved.test/saved.test/enable",
+            json!(null)
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert!(
+        nginx_sites::find(
+            &state.config,
+            NginxObjectKind::Domain,
+            "saved.test",
+            "saved.test"
+        )
+        .unwrap()
+        .unwrap()
+        .enabled
+    );
+    assert_eq!(
+        nginx_request(
+            &app,
+            "DELETE",
+            "/objects/domain/saved.test/saved.test",
+            json!(null)
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert!(nginx_sites::load(&state.config).unwrap().sites.is_empty());
+}
+
+#[tokio::test]
+async fn managed_site_inputs_roll_back_when_nginx_rejects_an_update() {
+    use router_hub::{command::CommandRunner, models::NginxObjectKind, nginx, nginx_sites};
+    use serde_json::json;
+    let (_app, mut state, _temp) = setup_test_app().await;
+    state.runner = CommandRunner::new(false);
+    std::sync::Arc::make_mut(&mut state.config).commands.nginx = "/bin/false".into();
+    let app = api::app(state.clone()).unwrap();
+    let (status, result) = nginx_request(
+        &app,
+        "POST",
+        "/objects/domain",
+        json!({"domain":"rollback.test","name":"rollback.test","settings":{"disable_root":true}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    nginx::set_enabled(
+        &state.config,
+        NginxObjectKind::Domain,
+        "rollback.test",
+        "rollback.test",
+        true,
+    )
+    .unwrap();
+    let path = nginx::available_path(
+        &state.config,
+        NginxObjectKind::Domain,
+        "rollback.test",
+        "rollback.test",
+    )
+    .unwrap();
+    let inputs = std::fs::read(nginx_sites::path(&state.config)).unwrap();
+    let output = std::fs::read(&path).unwrap();
+    let (status, result) = nginx_request(
+        &app,
+        "PUT",
+        "/objects/domain/rollback.test/rollback.test",
+        json!({"settings":{"disable_root":false}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{result}");
+    assert_eq!(
+        inputs,
+        std::fs::read(nginx_sites::path(&state.config)).unwrap()
+    );
+    assert_eq!(output, std::fs::read(path).unwrap());
+}
+
+#[tokio::test]
+async fn emulated_fixture_sites_survive_shared_settings_regeneration() {
+    use serde_json::json;
+    let (app, state, _temp) = setup_test_app().await;
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("test-fixtures/etc/nginx");
+    let settings_dir = state.config.nginx.root_dir.join("settings");
+    std::fs::create_dir_all(&settings_dir).unwrap();
+    std::fs::copy(
+        fixture.join("settings/sites.toml"),
+        settings_dir.join("sites.toml"),
+    )
+    .unwrap();
+    let sites = router_hub::nginx_sites::load(&state.config).unwrap();
+    assert_eq!(sites.sites.len(), 3);
+    for (key, site) in &sites.sites {
+        let name = site.object_name(key).unwrap();
+        let source =
+            router_hub::nginx::available_path(&state.config, site.kind, &site.domain, &name)
+                .unwrap();
+        let relative = source.strip_prefix(&state.config.nginx.root_dir).unwrap();
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::copy(fixture.join(relative), &source).unwrap();
+    }
+    let (status, response) = nginx_request(&app, "PUT", "/settings", json!({})).await;
+    assert_eq!(status, StatusCode::OK, "{response}");
+    for (key, site) in &sites.sites {
+        let name = site.object_name(key).unwrap();
+        let route = format!("/objects/{}/{}/{}", site.kind.as_str(), site.domain, name);
+        let (status, response) = nginx_request(&app, "GET", &route, json!(null)).await;
+        assert_eq!(status, StatusCode::OK, "{response}");
+        assert_eq!(
+            response["settings"],
+            serde_json::to_value(&site.settings).unwrap()
+        );
+        assert_eq!(
+            response["upstream"],
+            serde_json::to_value(&site.upstream).unwrap()
+        );
+        assert!(
+            response["content"]
+                .as_str()
+                .unwrap()
+                .starts_with(router_hub::nginx_render::SETTINGS_PREFIX)
+        );
+    }
 }

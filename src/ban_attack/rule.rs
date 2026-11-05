@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    net::IpAddr,
-};
+use std::{collections::HashSet, net::IpAddr};
 
 use regex::Regex as CaptureRegex;
 use regex_automata::{
@@ -19,13 +16,11 @@ pub(crate) struct CompiledRule {
     captures: CaptureRegex,
     ip_group_index: usize,
     filters: Vec<(usize, HashSet<String>)>,
-    named_groups: Vec<(String, usize)>,
 }
 
 #[derive(Debug)]
 pub(crate) struct RuleHit {
     pub ip: IpAddr,
-    pub groups: BTreeMap<String, String>,
 }
 
 impl CompiledRule {
@@ -106,7 +101,6 @@ impl CompiledRule {
             captures,
             ip_group_index,
             filters,
-            named_groups,
         })
     }
 
@@ -137,17 +131,7 @@ impl CompiledRule {
         let Ok(ip) = ip_capture.as_str().parse::<IpAddr>() else {
             return Ok(None);
         };
-        let groups = self
-            .named_groups
-            .iter()
-            .filter_map(|(name, index)| {
-                captures
-                    .get(*index)
-                    .map(|value| (name.clone(), value.as_str().to_owned()))
-            })
-            .collect();
-
-        Ok(Some(RuleHit { ip, groups }))
+        Ok(Some(RuleHit { ip }))
     }
 }
 

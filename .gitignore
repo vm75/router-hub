@@ -4,3 +4,7 @@
 *.swp
 .DS_Store
 router-config/
+nginx.deploy/
+.venv/
+__pycache__/
+/test-fixtures/router/router-hub.asp

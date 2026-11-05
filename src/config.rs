@@ -106,8 +106,6 @@ impl AppConfig {
         self.nginx.pid_path = fixture_root.join("var/run/nginx.pid");
         self.nginx.domains_available_dir = fixture_root.join("etc/nginx/domains-available");
         self.nginx.domains_enabled_dir = fixture_root.join("etc/nginx/domains-enabled");
-        self.nginx.templates_dir =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/nginx/templates");
         self.nginx.subdomain_upstream_map_path =
             fixture_root.join("etc/nginx/conf.d/03_subdomain_upstream_map.conf");
         self.nginx.domain_upstream_map_path =
@@ -179,7 +177,6 @@ impl AppConfig {
             &mut self.nginx.pid_path,
             &mut self.nginx.domains_available_dir,
             &mut self.nginx.domains_enabled_dir,
-            &mut self.nginx.templates_dir,
             &mut self.nginx.subdomain_upstream_map_path,
             &mut self.nginx.domain_upstream_map_path,
             &mut self.nginx.subfolder_upstream_map_path,
@@ -315,9 +312,6 @@ impl AppConfig {
             &self.nginx.root_dir,
             &self.nginx.domains_available_dir,
             &self.nginx.domains_enabled_dir,
-            &self.nginx.templates_dir.join("domain"),
-            &self.nginx.templates_dir.join("subdomain"),
-            &self.nginx.templates_dir.join("subfolder"),
             self.nginx
                 .subdomain_upstream_map_path
                 .parent()
@@ -508,7 +502,7 @@ impl Default for ServicesConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct NginxConfig {
     pub root_dir: PathBuf,
     pub config_path: PathBuf,
@@ -517,7 +511,6 @@ pub struct NginxConfig {
     pub pid_path: PathBuf,
     pub domains_available_dir: PathBuf,
     pub domains_enabled_dir: PathBuf,
-    pub templates_dir: PathBuf,
     /// Nginx `map $host $subdomain_upstream` include managed by site changes.
     pub subdomain_upstream_map_path: PathBuf,
     /// Nginx `map $host $domain_upstream` include managed by domain changes.
@@ -540,7 +533,6 @@ impl Default for NginxConfig {
             pid_path: "/opt/var/run/nginx.pid".into(),
             domains_available_dir: "/opt/etc/nginx/domains-available".into(),
             domains_enabled_dir: "/opt/etc/nginx/domains-enabled".into(),
-            templates_dir: "/opt/etc/nginx/templates".into(),
             subdomain_upstream_map_path: "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
                 .into(),
             domain_upstream_map_path: "/opt/etc/nginx/conf.d/02_domain_upstream_map.conf".into(),

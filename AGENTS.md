@@ -6,18 +6,20 @@ Router Hub is a Rust service for administrators of Asuswrt-Merlin routers. It
 serves a standalone or mounted web UI and a protected Axum API for Entware
 services, nginx configuration, certificates, Wake-on-LAN, firewall bans, and
 optional AdGuard Home integration. Router-sensitive state is kept in TOML and
-atomic JSON files; nginx configuration remains authoritative for nginx objects.
+atomic JSON files. Managed nginx site inputs live in `settings/sites.toml`;
+custom nginx objects remain authored configuration files.
 
 ## Repository map
 
 - `src/main.rs`, `src/config.rs`, `src/state.rs` — startup, configuration, and shared runtime state.
 - `src/api/` — authenticated HTTP API handlers and route map.
-- `src/nginx.rs`, `src/firewall.rs`, `src/ban_attack/` — nginx filesystem workflows and log-driven bans.
+- `src/nginx.rs`, `src/nginx_render.rs`, `src/nginx_sites.rs` — nginx filesystem workflows, Jinja rendering, and settings.
+- `src/firewall.rs`, `src/ban_attack/` — firewall management and log-driven bans.
 - `src/command.rs`, `src/asus_ui.rs`, `src/storage.rs` — privilege boundary, ASUS page integration, and persistence.
 - `web/index.html`, `config/`, `scripts/`, `test-fixtures/` — UI/template, configuration, router install, and test-mode support.
 - `tests/` — API and firewall integration coverage.
 - [`README.md`](README.md) — operator setup and usage.
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — current boundaries, flows, and invariants.
+- [`docs/architecture.md`](docs/architecture.md) — current boundaries, flows, and invariants.
 
 ## Working commands
 
@@ -31,7 +33,9 @@ cargo build --release
 ```
 
 Useful repository shortcuts are `make check`, `make test`, `make run`,
-`make fmt`, `make clippy`, and `make release`. `make run` starts x64 test mode
+`make fmt`, `make clippy`, `make test-nginx`, and `make release`.
+`make test-nginx` needs Python 3.11+, Jinja2, nginx, and OpenSSL and uses temporary
+files and loopback servers. `make run` starts x64 test mode
 with `test-fixtures/etc/router-hub/router-hub.toml`; it does not execute router commands or send
 Wake-on-LAN packets.
 
@@ -72,9 +76,9 @@ production routers automatically.
 
 ## Documentation routing
 
-- Update `README.md` for user-facing setup, configuration, capabilities, or limitations.
+- Update `README.md` for the user-facing overview and quick start; keep detailed installation, configuration, development, Linux integration, and release guidance in the linked `docs/` guides.
 - Update `AGENTS.md` for agent workflow, commands, navigation, or safety constraints.
-- Update `ARCHITECTURE.md` when component boundaries, data flow, or invariants change.
+- Update `docs/architecture.md` when component boundaries, data flow, or invariants change.
 - Update `CHANGELOG.md` for user-visible release history when the project’s release policy requires it.
 - Do not create design, decision, container, or CI documentation without repository evidence or a concrete requirement.
 

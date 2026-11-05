@@ -1,0 +1,4 @@
+# Body size and upload buffering only. Session timeouts are a separate aspect.
+client_max_body_size {{ policy.upload_body_size }};
+client_body_timeout {{ policy.upload_timeout }};
+proxy_request_buffering off;

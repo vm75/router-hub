@@ -1,6 +1,5 @@
 use std::{net::SocketAddr, path::Path as FsPath, path::PathBuf, time::Duration};
 
-use anyhow::Context;
 use axum::{
     Json,
     extract::{Path, State},
@@ -10,11 +9,10 @@ use tokio::{net::TcpStream, time::timeout};
 
 use crate::{
     api::ApiError,
-    models::{
-        ApiMessage, CommandResult, NginxFileEntry, NginxLogEntry, NginxObject, NginxObjectKind,
-        NginxTemplateEntry,
-    },
+    models::{ApiMessage, CommandResult, NginxLogEntry, NginxObject, NginxObjectKind},
     nginx as nginx_core,
+    nginx_render::{self, GlobalSettings, Settings},
+    nginx_sites,
     state::AppState,
 };
 
@@ -25,20 +23,12 @@ pub struct NginxStatus {
     root_dir: PathBuf,
     domains_available_dir: PathBuf,
     domains_enabled_dir: PathBuf,
-    templates_dir: PathBuf,
     log_dir: PathBuf,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct FileContent {
     content: String,
-}
-
-#[derive(Deserialize)]
-pub struct TemplateContent {
-    content: String,
-    #[serde(default)]
-    name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -48,14 +38,16 @@ pub struct ObjectContent {
     server_names: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     upstream: Option<String>,
+    settings: Option<Settings>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateObject {
     domain: String,
     name: String,
     #[serde(default)]
-    template: Option<String>,
+    settings: Option<Settings>,
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
@@ -68,9 +60,10 @@ pub struct CreateObject {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateObject {
     #[serde(default)]
-    template: Option<String>,
+    settings: Option<Settings>,
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
@@ -87,7 +80,6 @@ pub async fn status(State(state): State<AppState>) -> Json<NginxStatus> {
         root_dir: state.config.nginx.root_dir.clone(),
         domains_available_dir: state.config.nginx.domains_available_dir.clone(),
         domains_enabled_dir: state.config.nginx.domains_enabled_dir.clone(),
-        templates_dir: state.config.nginx.templates_dir.clone(),
         log_dir: state.config.nginx.log_dir.clone(),
     })
 }
@@ -170,7 +162,7 @@ pub async fn get_object(
     let object = find_object(&state, kind, &domain, &name).await?;
     let server_names = nginx_core::extract_server_names(&content);
     let map_key = (kind == NginxObjectKind::Subfolder)
-        .then(|| nginx_core::subfolder_map_key(&content, &name))
+        .then(|| nginx_core::subfolder_map_key(&name))
         .transpose()?;
     let upstream = nginx_core::site_upstream_with_key(
         &state.config,
@@ -180,11 +172,23 @@ pub async fn get_object(
         &server_names,
         map_key.as_deref(),
     )?;
+    let stored = nginx_sites::find(&state.config, kind, &domain, &name)?;
+    let server_names = stored
+        .as_ref()
+        .map(|site| {
+            site.server_name
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or(server_names);
+    let upstream = stored.map(|site| site.upstream).unwrap_or(upstream);
     Ok(Json(ObjectContent {
         object,
-        content,
+        content: content.clone(),
         server_names,
         upstream,
+        settings: nginx_sites::settings(&state.config, kind, &domain, &name)?,
     }))
 }
 
@@ -197,16 +201,13 @@ pub async fn create_object(
     if kind == NginxObjectKind::Domain {
         request.name.clone_from(&request.domain);
     }
-    let template = request
-        .template
-        .as_deref()
-        .filter(|value| !value.is_empty());
+    let _guard = state.nginx_lock.lock().await;
     let content = render_object_content(
         &state,
         kind,
         &request.domain,
         &request.name,
-        template,
+        request.settings.as_ref(),
         request.content.as_deref(),
         &request.server_names,
     )?;
@@ -222,9 +223,18 @@ pub async fn create_object(
         .as_deref()
         .filter(|value| !value.trim().is_empty());
     let map_key = (kind == NginxObjectKind::Subfolder)
-        .then(|| nginx_core::subfolder_map_key(&content, &request.name))
+        .then(|| nginx_core::subfolder_map_key(&request.name))
         .transpose()?;
-    nginx_core::validate_site_upstream(kind, upstream).map_err(ApiError::bad_request)?;
+    nginx_core::validate_site_upstream(upstream).map_err(ApiError::bad_request)?;
+    let inputs = save_site_inputs(
+        &state,
+        kind,
+        &request.domain,
+        &request.name,
+        &content,
+        upstream,
+        request.enabled,
+    )?;
     nginx_core::write_object(
         &state.config,
         kind,
@@ -292,6 +302,7 @@ pub async fn create_object(
         let _ = nginx_core::delete_object(&state.config, kind, &request.domain, &request.name);
         return Err(error.into());
     }
+    inputs.commit();
     let object = find_object(&state, kind, &request.domain, &request.name).await?;
     let server_names = nginx_core::extract_server_names(&content);
     let upstream = nginx_core::site_upstream_with_key(
@@ -304,9 +315,10 @@ pub async fn create_object(
     )?;
     Ok(Json(ObjectContent {
         object,
-        content,
+        content: content.clone(),
         server_names,
         upstream,
+        settings: nginx_sites::settings(&state.config, kind, &request.domain, &request.name)?,
     }))
 }
 
@@ -315,15 +327,25 @@ pub async fn update_object(
     Path((kind, domain, name)): Path<(String, String, String)>,
     Json(body): Json<UpdateObject>,
 ) -> Result<Json<ObjectContent>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
     let previous = nginx_core::read_object(&state.config, kind, &domain, &name)
         .map_err(not_found_or_internal)?;
-    let previous_server_names = nginx_core::extract_server_names(&previous);
+    let stored = nginx_sites::find(&state.config, kind, &domain, &name)?;
+    let previous_server_names = stored
+        .as_ref()
+        .map(|site| {
+            site.server_name
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_else(|| nginx_core::extract_server_names(&previous));
     let previous_server_names =
         nginx_core::normalize_server_names(kind, &domain, &name, &previous_server_names)
             .map_err(ApiError::bad_request)?;
     let previous_map_key = (kind == NginxObjectKind::Subfolder)
-        .then(|| nginx_core::subfolder_map_key(&previous, &name))
+        .then(|| nginx_core::subfolder_map_key(&name))
         .transpose()?;
     let previous_upstream = nginx_core::site_upstream_with_key(
         &state.config,
@@ -333,7 +355,20 @@ pub async fn update_object(
         &previous_server_names,
         previous_map_key.as_deref(),
     )?;
-    let template = body.template.as_deref().filter(|value| !value.is_empty());
+    let previous_upstream = stored
+        .as_ref()
+        .map(|site| site.upstream.clone())
+        .unwrap_or(previous_upstream);
+    let previous_settings = nginx_sites::settings(&state.config, kind, &domain, &name)?;
+    if previous_settings.is_some() && body.content.is_some() {
+        return Err(ApiError::bad_request("managed sites accept settings only"));
+    }
+    let settings = body.settings.as_ref().or_else(|| {
+        body.content
+            .is_none()
+            .then_some(previous_settings.as_ref())
+            .flatten()
+    });
     let server_names = body
         .server_names
         .as_deref()
@@ -346,19 +381,28 @@ pub async fn update_object(
         Some(value) => Some(value),
         None => previous_upstream.as_deref(),
     };
-    nginx_core::validate_site_upstream(kind, upstream).map_err(ApiError::bad_request)?;
+    nginx_core::validate_site_upstream(upstream).map_err(ApiError::bad_request)?;
     let content = render_object_content(
         &state,
         kind,
         &domain,
         &name,
-        template,
-        body.content.as_deref(),
+        settings,
+        body.content
+            .as_deref()
+            .or_else(|| settings.is_none().then_some(previous.as_str())),
         &server_names,
     )?;
     let map_key = (kind == NginxObjectKind::Subfolder)
-        .then(|| nginx_core::subfolder_map_key(&content, &name))
+        .then(|| nginx_core::subfolder_map_key(&name))
         .transpose()?;
+    let enabled = nginx_core::symlink_exists(&nginx_core::enabled_path(
+        &state.config,
+        kind,
+        &domain,
+        &name,
+    )?);
+    let inputs = save_site_inputs(&state, kind, &domain, &name, &content, upstream, enabled)?;
     nginx_core::write_object(&state.config, kind, &domain, &name, &content, false)
         .map_err(conflict_or_bad_request)?;
 
@@ -443,6 +487,7 @@ pub async fn update_object(
             }
         }
     }
+    inputs.commit();
     let object = find_object(&state, kind, &domain, &name).await?;
     let upstream = nginx_core::site_upstream_with_key(
         &state.config,
@@ -455,9 +500,33 @@ pub async fn update_object(
     Ok(Json(ObjectContent {
         object,
         server_names,
-        content,
+        content: content.clone(),
         upstream,
+        settings: nginx_sites::settings(&state.config, kind, &domain, &name)?,
     }))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn save_site_inputs(
+    state: &AppState,
+    kind: NginxObjectKind,
+    domain: &str,
+    name: &str,
+    content: &str,
+    upstream: Option<&str>,
+    enabled: bool,
+) -> Result<nginx_render::FileTransaction, ApiError> {
+    let site = nginx_render::site_settings(content)?.map(|settings| nginx_sites::Site {
+        kind,
+        domain: domain.into(),
+        name: Some(name.into()),
+        server_name: nginx_core::extract_server_names(content).join(" "),
+        subfolder: (kind == NginxObjectKind::Subfolder).then(|| name.into()),
+        upstream: upstream.map(str::to_string),
+        enabled,
+        settings,
+    });
+    Ok(nginx_sites::save(&state.config, kind, domain, name, site)?)
 }
 
 fn render_object_content(
@@ -465,39 +534,107 @@ fn render_object_content(
     kind: NginxObjectKind,
     domain: &str,
     name: &str,
-    template: Option<&str>,
+    settings: Option<&Settings>,
     custom_content: Option<&str>,
     server_names: &[String],
 ) -> Result<String, ApiError> {
-    let (source, template) = match template {
-        Some(template) => (
-            nginx_core::read_template(&state.config, kind, template)
-                .map_err(not_found_or_internal)?,
-            Some(template),
-        ),
-        None => (
-            custom_content
-                .map(nginx_core::strip_template_comment)
-                .ok_or_else(|| {
-                    ApiError::bad_request("either template or custom content is required")
-                })?,
-            None,
-        ),
-    };
-    let rendered = nginx_core::render_template(&source, kind, domain, name, server_names)
-        .map_err(ApiError::bad_request)?;
-    match template {
-        Some(template) => {
-            nginx_core::with_template_comment(template, &rendered).map_err(ApiError::bad_request)
-        }
-        None => Ok(rendered),
+    if settings.is_some() && custom_content.is_some() {
+        return Err(ApiError::bad_request(
+            "choose managed settings or custom content",
+        ));
     }
+    if let Some(content) = custom_content {
+        if content
+            .lines()
+            .any(|line| line.starts_with(nginx_render::SETTINGS_PREFIX))
+        {
+            return Err(ApiError::bad_request(
+                "custom configuration cannot contain managed settings metadata",
+            ));
+        }
+        return Ok(content.to_string());
+    }
+    let global = nginx_render::load_global(&state.config)?;
+    nginx_render::render_site(
+        &global,
+        settings.unwrap_or(&Settings::new()),
+        kind,
+        domain,
+        name,
+        server_names,
+    )
+    .map_err(ApiError::bad_request)
+}
+
+pub async fn get_settings(State(state): State<AppState>) -> Result<Json<GlobalSettings>, ApiError> {
+    Ok(Json(nginx_render::load_global(&state.config)?))
+}
+
+pub async fn put_settings(
+    State(state): State<AppState>,
+    Json(settings): Json<GlobalSettings>,
+) -> Result<Json<ApiMessage>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
+    let settings = nginx_render::with_path_defaults(settings, &state.config);
+    settings.validate().map_err(ApiError::bad_request)?;
+    let mut files =
+        nginx_render::shared_files(&state.config, &settings).map_err(ApiError::bad_request)?;
+    let sites = nginx_sites::load(&state.config)?;
+    // Render from saved inputs even when a generated output has been removed.
+    for (key, site) in &sites.sites {
+        let name = site.object_name(key)?;
+        let names = site
+            .server_name
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let rendered = nginx_render::render_site(
+            &settings,
+            &site.settings,
+            site.kind,
+            &site.domain,
+            &name,
+            &names,
+        )
+        .map_err(ApiError::bad_request)?;
+        files.insert(
+            nginx_core::available_path(&state.config, site.kind, &site.domain, &name)?,
+            rendered,
+        );
+    }
+    files.insert(
+        nginx_sites::path(&state.config),
+        toml::to_string_pretty(&sites).map_err(ApiError::internal)?,
+    );
+    let mut transaction = nginx_render::FileTransaction::apply(&state.config, files)?;
+    let result = nginx_test(&state).await?;
+    if !result.success {
+        transaction.rollback()?;
+        return Err(ApiError::conflict(format!(
+            "nginx test failed; previous settings restored: {}",
+            result.stderr
+        )));
+    }
+    if nginx_running(&state).await {
+        let result = nginx_reload(&state).await?;
+        if !result.success {
+            transaction.rollback()?;
+            let _ = nginx_reload(&state).await;
+            return Err(ApiError::conflict(format!(
+                "nginx reload failed; previous settings restored: {}",
+                result.stderr
+            )));
+        }
+    }
+    transaction.commit();
+    Ok(Json(ApiMessage::new("nginx settings saved")))
 }
 
 pub async fn delete_object(
     State(state): State<AppState>,
     Path((kind, domain, name)): Path<(String, String, String)>,
 ) -> Result<Json<ApiMessage>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
     nginx_core::read_object(&state.config, kind, &domain, &name).map_err(not_found_or_internal)?;
     let cleanup_objects = nginx_core::list_objects(&state.config, false)?
@@ -516,7 +653,7 @@ pub async fn delete_object(
                 &nginx_core::extract_server_names(&content),
             )?;
             let map_key = (object.kind == NginxObjectKind::Subfolder)
-                .then(|| nginx_core::subfolder_map_key(&content, &object.name))
+                .then(|| nginx_core::subfolder_map_key(&object.name))
                 .transpose()?;
             let upstream = nginx_core::site_upstream_with_key(
                 &state.config,
@@ -534,6 +671,7 @@ pub async fn delete_object(
     if was_enabled {
         change_enabled(&state, kind, &domain, &name, false, true, false).await?;
     }
+    let inputs = nginx_sites::save(&state.config, kind, &domain, &name, None)?;
     nginx_core::delete_object(&state.config, kind, &domain, &name)?;
     for (object, names, map_key, upstream) in cleanup_objects {
         nginx_core::sync_site_upstream(
@@ -549,6 +687,7 @@ pub async fn delete_object(
         )?;
     }
     nginx_core::reconcile_http_forwarder(&state.config)?;
+    inputs.commit();
     Ok(Json(ApiMessage::new("nginx object deleted")))
 }
 
@@ -556,6 +695,7 @@ pub async fn object_action(
     State(state): State<AppState>,
     Path((kind, domain, name, action)): Path<(String, String, String, String)>,
 ) -> Result<Json<NginxObject>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
     nginx_core::read_object(&state.config, kind, &domain, &name).map_err(not_found_or_internal)?;
     let (enabled, start_global) = match action.as_str() {
@@ -577,7 +717,22 @@ pub async fn object_action(
             "enable or start the parent domain before starting this object",
         ));
     }
+    let inputs = if let Some(mut site) = nginx_sites::find(&state.config, kind, &domain, &name)? {
+        site.enabled = enabled;
+        Some(nginx_sites::save(
+            &state.config,
+            kind,
+            &domain,
+            &name,
+            Some(site),
+        )?)
+    } else {
+        None
+    };
     change_enabled(&state, kind, &domain, &name, enabled, true, start_global).await?;
+    if let Some(inputs) = inputs {
+        inputs.commit();
+    }
     find_object(&state, kind, &domain, &name).await.map(Json)
 }
 
@@ -672,10 +827,12 @@ async fn find_object(
 }
 
 pub async fn test(State(state): State<AppState>) -> Result<Json<CommandResult>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     Ok(Json(nginx_test(&state).await?))
 }
 
 pub async fn reload(State(state): State<AppState>) -> Result<Json<CommandResult>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     let test_result = nginx_test(&state).await?;
     if !test_result.success {
         return Err(ApiError::conflict(format!(
@@ -687,6 +844,7 @@ pub async fn reload(State(state): State<AppState>) -> Result<Json<CommandResult>
 }
 
 pub async fn start(State(state): State<AppState>) -> Result<Json<CommandResult>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     let test_result = nginx_test(&state).await?;
     if !test_result.success {
         return Err(ApiError::conflict(format!(
@@ -698,6 +856,7 @@ pub async fn start(State(state): State<AppState>) -> Result<Json<CommandResult>,
 }
 
 pub async fn stop(State(state): State<AppState>) -> Result<Json<CommandResult>, ApiError> {
+    let _guard = state.nginx_lock.lock().await;
     Ok(Json(nginx_stop(&state).await?))
 }
 
@@ -757,114 +916,21 @@ async fn run_nginx(state: &AppState, args: Vec<String>) -> anyhow::Result<Comman
         command_args.push(prefix.to_string_lossy().to_string());
     }
     command_args.extend(args);
-    state
+    let result = state
         .runner
         .run(
             &state.config.commands.nginx,
             command_args,
             Duration::from_secs(state.config.nginx.reload_timeout_seconds),
         )
-        .await
-}
-
-pub async fn list_files(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<NginxFileEntry>>, ApiError> {
-    Ok(Json(nginx_core::list_root_files(&state.config)?))
-}
-
-pub async fn get_file(
-    State(state): State<AppState>,
-    Path(path): Path<String>,
-) -> Result<Json<FileContent>, ApiError> {
-    let path = nginx_core::root_file_path(&state.config, &path).map_err(ApiError::bad_request)?;
-    let content = tokio::fs::read_to_string(&path)
-        .await
-        .with_context(|| format!("failed to read {}", path.display()))
-        .map_err(not_found_or_internal)?;
-    Ok(Json(FileContent { content }))
-}
-
-pub async fn put_file(
-    State(state): State<AppState>,
-    Path(path): Path<String>,
-    Json(body): Json<FileContent>,
-) -> Result<Json<ApiMessage>, ApiError> {
-    let path = nginx_core::root_file_path(&state.config, &path).map_err(ApiError::bad_request)?;
-    let previous = read_optional(&path).await?;
-    nginx_core::atomic_write(&path, body.content.as_bytes())?;
-    let result = nginx_test(&state).await?;
-    if !result.success {
-        restore_optional(&path, previous.as_deref()).await?;
-        return Err(ApiError::conflict(format!(
-            "nginx test failed; the previous file was restored: {}",
-            result.stderr
-        )));
-    }
-    Ok(Json(ApiMessage::new("nginx file saved")))
-}
-
-pub async fn delete_file(
-    State(state): State<AppState>,
-    Path(path): Path<String>,
-) -> Result<Json<ApiMessage>, ApiError> {
-    let path = nginx_core::root_file_path(&state.config, &path).map_err(ApiError::bad_request)?;
-    let previous = read_optional(&path)
-        .await?
-        .ok_or_else(|| ApiError::not_found("nginx file not found"))?;
-    tokio::fs::remove_file(&path).await?;
-    let result = nginx_test(&state).await?;
-    if !result.success {
-        nginx_core::atomic_write(&path, &previous)?;
-        return Err(ApiError::conflict(format!(
-            "nginx test failed; the deleted file was restored: {}",
-            result.stderr
-        )));
-    }
-    Ok(Json(ApiMessage::new("nginx file deleted")))
-}
-
-pub async fn list_templates(
-    State(state): State<AppState>,
-    Path(kind): Path<String>,
-) -> Result<Json<Vec<NginxTemplateEntry>>, ApiError> {
-    let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
-    Ok(Json(nginx_core::list_templates(&state.config, kind)?))
-}
-
-pub async fn get_template(
-    State(state): State<AppState>,
-    Path((kind, name)): Path<(String, String)>,
-) -> Result<Json<FileContent>, ApiError> {
-    let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
-    let content =
-        nginx_core::read_template(&state.config, kind, &name).map_err(not_found_or_internal)?;
-    Ok(Json(FileContent { content }))
-}
-
-pub async fn put_template(
-    State(state): State<AppState>,
-    Path((kind, name)): Path<(String, String)>,
-    Json(body): Json<TemplateContent>,
-) -> Result<Json<ApiMessage>, ApiError> {
-    let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
-    if let Some(new_name) = body.name.as_deref().filter(|value| *value != name) {
-        nginx_core::rename_template(&state.config, kind, &name, new_name, &body.content)
-            .map_err(conflict_or_bad_request)?;
-    } else {
-        nginx_core::write_template(&state.config, kind, &name, &body.content)
-            .map_err(conflict_or_bad_request)?;
-    }
-    Ok(Json(ApiMessage::new("nginx template saved")))
-}
-
-pub async fn delete_template(
-    State(state): State<AppState>,
-    Path((kind, name)): Path<(String, String)>,
-) -> Result<Json<ApiMessage>, ApiError> {
-    let kind = nginx_core::parse_kind(&kind).map_err(ApiError::bad_request)?;
-    nginx_core::delete_template(&state.config, kind, &name).map_err(conflict_or_bad_request)?;
-    Ok(Json(ApiMessage::new("nginx template deleted")))
+        .await;
+    Ok(result.unwrap_or_else(|error| CommandResult {
+        success: false,
+        code: None,
+        stdout: String::new(),
+        stderr: error.to_string(),
+        simulated: false,
+    }))
 }
 
 pub async fn list_logs(
@@ -879,26 +945,6 @@ pub async fn get_log(
 ) -> Result<Json<FileContent>, ApiError> {
     let content = nginx_core::read_log(&state.config, &path).map_err(not_found_or_internal)?;
     Ok(Json(FileContent { content }))
-}
-
-async fn read_optional(path: &FsPath) -> Result<Option<Vec<u8>>, ApiError> {
-    match tokio::fs::read(path).await {
-        Ok(bytes) => Ok(Some(bytes)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.into()),
-    }
-}
-
-async fn restore_optional(path: &FsPath, content: Option<&[u8]>) -> Result<(), ApiError> {
-    match content {
-        Some(content) => nginx_core::atomic_write(path, content)?,
-        None => {
-            if path.exists() {
-                tokio::fs::remove_file(path).await?;
-            }
-        }
-    }
-    Ok(())
 }
 
 fn not_found_or_internal(error: anyhow::Error) -> ApiError {

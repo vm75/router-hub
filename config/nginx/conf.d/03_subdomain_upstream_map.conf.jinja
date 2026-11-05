@@ -1,0 +1,25 @@
+# Router Hub maintains site-specific entries in this map when the site editor
+# has an upstream map target. Other administrator entries are preserved.
+map $host $subdomain_upstream {
+    default "";
+
+    include settings/subdomains.conf;
+}
+
+map $host $domain_cert_folder {
+    hostnames;
+
+    default ''; # error case
+
+    # Match shared/free suffixes before the general domain/TLD fallback.
+    {% set free_domain_specs %}{% include 'settings/free_subdomains.txt' %}{% endset %}
+    {% for line in free_domain_specs.splitlines() %}
+    {% set free_domain = line.split('#', 1)[0] | trim %}
+    {% if free_domain %}
+    ~^(?:.+[.])?(?<domain>[^.]+)[.]{{ free_domain | replace('.', '[.]') }}$ ${domain}_{{ free_domain | replace('.', '_') }};
+    {% endif %}
+    {% endfor %}
+
+    # Standard domain/TLD certificate folder (example.com -> example_com).
+    ~^(?:.+\.)?(?<domain>[^.]+)\.(?<tld>[^.]+)$          ${domain}_${tld};
+}

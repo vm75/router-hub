@@ -1,0 +1,29 @@
+{# Import with context once per site. Defaults apply only to undefined values. #}
+{% set lanonly = enable_lanonly | default(true) %}
+{% set subfolders = enable_subfolders | default(true) %}
+{% set root_disabled = disable_root | default(true) %}
+{% set large_upload = enable_large_upload | default(false) %}
+{% set longlived = enable_longlived | default(false) %}
+{% set streaming = enable_streaming | default(false) %}
+{% set byte_ranges = enable_byte_ranges | default(false) %}
+{% set restricted_sessions = enable_restricted_sessions | default(false) %}
+{% set clear_origin = clear_origin | default(false) %}
+
+{% set body_size = client_max_body_size | default('100M') %}
+{% set upload_body_size = large_upload_max_body_size | default('5G') %}
+{% set connect_timeout = proxy_connect_timeout | default('10s') %}
+{% set session_timeout = proxy_session_timeout | default('3600s') %}
+{% set upload_timeout = client_upload_timeout | default('3600s') %}
+
+{# Route policies inherit these site defaults unless explicitly overridden. #}
+{% set access_log = access_log | default(true) %}
+{% set transport = proxy_transport | default('websocket') %}
+{% set cache = cache_policy | default('inherit') %}
+{% set backend_auth = backend_auth | default(false) %}
+{% set forwarded_for = forwarded_for | default('replace') %}
+{% set hide_etag = hide_etag | default(false) %}
+{% set disable_proxy_redirect = disable_proxy_redirect | default(false) %}
+{% set spa_fallback = spa_fallback | default('') %}
+{% set rewrite_to = rewrite_to | default('') %}
+{% set cors_origin = cors_origin | default('') %}
+{% set rate_limit = none %}

@@ -82,6 +82,10 @@ pub fn router() -> Router<AppState> {
         .route("/services", get(services::list))
         .route("/services/{name}/{action}", post(services::action))
         .route("/services/{name}/logs", get(services::logs))
+        .route(
+            "/nginx/settings",
+            get(nginx::get_settings).put(nginx::put_settings),
+        )
         .route("/nginx/status", get(nginx::status))
         .route("/nginx/test", post(nginx::test))
         .route("/nginx/reload", post(nginx::reload))
@@ -98,20 +102,6 @@ pub fn router() -> Router<AppState> {
         .route(
             "/nginx/objects/{kind}/{domain}/{name}/{action}",
             post(nginx::object_action),
-        )
-        .route("/nginx/files", get(nginx::list_files))
-        .route(
-            "/nginx/files/{*path}",
-            get(nginx::get_file)
-                .put(nginx::put_file)
-                .delete(nginx::delete_file),
-        )
-        .route("/nginx/templates/{kind}", get(nginx::list_templates))
-        .route(
-            "/nginx/templates/{kind}/{name}",
-            get(nginx::get_template)
-                .put(nginx::put_template)
-                .delete(nginx::delete_template),
         )
         .route("/nginx/logs", get(nginx::list_logs))
         .route("/nginx/logs/{*path}", get(nginx::get_log))
@@ -155,10 +145,7 @@ pub fn router() -> Router<AppState> {
             "/firewall/bans",
             get(firewall::list_bans).post(firewall::manual_ban),
         )
-        .route(
-            "/firewall/bans/{network}/reset",
-            delete(firewall::unban_and_reset),
-        )
+        .route("/firewall/bans/{network}/reset", delete(firewall::unban))
         .route("/firewall/bans/{network}", delete(firewall::unban))
         .route(
             "/firewall/reset-counts/{network}",

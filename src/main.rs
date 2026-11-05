@@ -8,6 +8,8 @@ mod config;
 mod firewall;
 mod models;
 mod nginx;
+mod nginx_render;
+mod nginx_sites;
 mod state;
 mod storage;
 mod system;
@@ -54,6 +56,8 @@ struct Cli {
 enum Command {
     Serve,
     CheckConfig,
+    /// Bootstrap an empty current-format nginx tree only when nginx.conf is missing.
+    InitNginx,
     RenderUi,
     MountUi,
     UnmountUi,
@@ -81,6 +85,21 @@ fn main() -> Result<()> {
     match cli.command.unwrap_or(Command::Serve) {
         Command::CheckConfig => {
             println!("configuration is valid: {}", cli.config.display());
+            Ok(())
+        }
+        Command::InitNginx => {
+            let created = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(nginx_render::bootstrap(&config))?;
+            println!(
+                "{}",
+                if created {
+                    "initialized empty Jinja nginx configuration"
+                } else {
+                    "existing nginx configuration preserved"
+                }
+            );
             Ok(())
         }
         Command::RenderUi => {
@@ -137,7 +156,7 @@ async fn serve(config: AppConfig) -> Result<()> {
     let firewall = FirewallManager::new(config.clone(), stores.clone()).await?;
     let state = AppState::new(config.clone(), stores, firewall.clone());
 
-    if let Err(error) = crate::nginx::reconcile_auxiliary_config(&config) {
+    if let Err(error) = crate::nginx::reconcile_http_forwarder(&config) {
         warn!(%error, "unable to reconcile nginx auxiliary configuration");
     }
 

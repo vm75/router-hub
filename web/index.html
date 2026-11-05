@@ -718,6 +718,14 @@
       margin-bottom: 10px
     }
 
+    .nginx-summary-card {
+      margin-bottom: 10px
+    }
+
+    .nginx-summary-card .muted {
+      margin: 10px;
+    }
+
     .nginx-card .table td {
       padding: 6px 8px;
       vertical-align: middle
@@ -744,42 +752,6 @@
       gap: 8px;
       align-items: center;
       flex-wrap: wrap
-    }
-
-    .nginx-root>summary {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 8px 10px;
-      background: #1F2D35;
-      color: #fff;
-      cursor: pointer;
-      font-size: 13px
-    }
-
-    .nginx-root>summary::before {
-      content: '+';
-      color: var(--cyan);
-      font-weight: bold
-    }
-
-    .nginx-root[open]>summary::before {
-      content: '−'
-    }
-
-    .nginx-root>summary span:first-child {
-      margin-right: auto
-    }
-
-    .nginx-root-body {
-      padding: 8px 10px 10px
-    }
-
-    .nginx-root-toolbar {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 6px
     }
 
     .nginx-accordion>summary {
@@ -812,46 +784,6 @@
       padding: 0
     }
 
-    .nginx-tree {
-      border: 1px solid #334956;
-      background: #1a2a34;
-      padding: 5px;
-      font-size: 12px
-    }
-
-    .nginx-dir {
-      margin-left: 12px
-    }
-
-    .nginx-dir>summary {
-      cursor: pointer;
-      padding: 4px;
-      color: #b9d8e8
-    }
-
-    .nginx-files {
-      display: grid;
-      gap: 2px;
-      margin-left: 12px
-    }
-
-    .nginx-file {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 4px 6px
-    }
-
-    .nginx-file:hover {
-      background: rgba(255, 255, 255, .04)
-    }
-
-    .nginx-file-meta {
-      color: var(--asus-muted);
-      font-size: 10px
-    }
-
     /* ── Modal ── */
     .modal {
       border: 1px solid var(--asus-border);
@@ -862,6 +794,73 @@
       max-height: 90vh;
       box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
       padding: 0
+    }
+
+    .nginx-field-heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px
+    }
+
+    .nginx-help-toggle {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 1px solid var(--asus-border);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--asus-muted);
+      cursor: pointer;
+      font: inherit
+    }
+
+    .nginx-help-toggle:hover,
+    .nginx-help-toggle[aria-expanded="true"] {
+      color: #fff;
+      border-color: currentColor
+    }
+
+    .nginx-help-toggle:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 2px
+    }
+
+    .nginx-field-help {
+      flex-basis: 100%;
+      line-height: 1.5
+    }
+
+    .nginx-reference-modal {
+      width: min(980px, calc(100vw - 20px))
+    }
+
+    .nginx-reference-modal h4 {
+      margin: 18px 0 8px;
+      font-size: 14px
+    }
+
+    .nginx-reference-modal li {
+      margin: 6px 0
+    }
+
+    .nginx-reference-table .table {
+      min-width: 640px
+    }
+
+    .nginx-reference-table th[scope="row"] {
+      text-align: left;
+      white-space: normal
+    }
+
+    .nginx-reference-example {
+      border-top: 1px solid var(--asus-border);
+      padding: 12px 0
+    }
+
+    .nginx-reference-example summary {
+      cursor: pointer;
+      font-weight: 600
     }
 
     .bans-modal {
@@ -1452,7 +1451,7 @@
                   <tr>
                     <th><button class="table-sort" data-sort-table="nginx" data-sort-key="site" onclick="sortTable('nginx','site')">Site <span class="table-sort-indicator">↕</span></button></th>
                     <th><button class="table-sort" data-sort-table="nginx" data-sort-key="port" onclick="sortTable('nginx','port')">Port <span class="table-sort-indicator">↕</span></button></th>
-                    <th><button class="table-sort" data-sort-table="nginx" data-sort-key="template" onclick="sortTable('nginx','template')">Template <span class="table-sort-indicator">↕</span></button></th>
+                    <th><button class="table-sort" data-sort-table="nginx" data-sort-key="managed" onclick="sortTable('nginx','managed')">Configuration <span class="table-sort-indicator">↕</span></button></th>
                     <th><button class="table-sort" data-sort-table="nginx" data-sort-key="state" onclick="sortTable('nginx','state')">State <span class="table-sort-indicator">↕</span></button></th>
                     <th>Actions</th>
                   </tr>
@@ -1462,20 +1461,8 @@
             </div>
           </div>
         </details>
-        <details class="card nginx-card nginx-accordion">
-          <summary><span>Templates</span><span class="muted">Reusable site configurations</span></summary>
-          <div class="nginx-accordion-body">
-            <div class="card-head">
-              <h2>Configuration templates</h2>
-              <div class="actions"><select class="input" id="template-kind" onchange="loadNginxTemplates()">
-                  <option value="domain">Domain</option>
-                  <option value="subdomain">Subdomain</option>
-                  <option value="subfolder">Subfolder</option>
-                </select><button class="btn primary" onclick="editNginxTemplate()">New</button></div>
-            </div>
-            <div id="nginx-templates-list"></div>
-          </div>
-        </details>
+        <div class="card nginx-summary-card"><div class="card-head"><h2>Setup quick reference</h2><button type="button" class="btn" onclick="openNginxReference()">Open guide</button></div><p class="muted">Settings for PWAs, WordPress, and video, photo, audio, and book servers.</p></div>
+        <div class="card nginx-summary-card"><div class="card-head"><h2>Global settings</h2><button class="btn" onclick="editNginxSettings()">Configure</button></div><p class="muted">Shared listeners, DNS, client allowlists, and defaults inherited by managed sites.</p></div>
         <details class="card nginx-card nginx-accordion">
           <summary><span>Logs</span><span class="muted">Read-only, manually refreshed</span></summary>
           <div class="nginx-accordion-body">
@@ -1485,14 +1472,6 @@
                   onclick="viewNginxLog()">View / refresh</button></div>
             </div>
             <pre class="log" id="nginx-log-content">Select a log to view it. Logs do not auto-refresh.</pre>
-          </div>
-        </details>
-        <details class="card nginx-root">
-          <summary><span>Nginx root files</span><span class="muted">Infrequent, advanced configuration</span></summary>
-          <div class="nginx-root-body">
-            <div class="nginx-root-toolbar"><button class="btn primary" onclick="editNginxFile('')">New file</button>
-            </div>
-            <div id="nginx-files-list"></div>
           </div>
         </details>
       </section>
@@ -1638,6 +1617,67 @@
       <div class="modal-foot"><button class="btn" onclick="closeEditor()">Cancel</button><button class="btn primary"
           id="editor-save">Save</button></div>
     </dialog>
+    <dialog class="modal nginx-reference-modal" id="nginx-reference-modal" aria-labelledby="nginx-reference-title">
+      <div class="modal-head"><h3 id="nginx-reference-title">Nginx setup quick reference</h3><button type="button" class="btn small" aria-label="Close setup quick reference" onclick="document.getElementById('nginx-reference-modal').close()">✕</button></div>
+      <div class="modal-body">
+        <p class="muted">Starting points for managed sites. Use the field names below in the site editor; set explicit values when your global defaults differ.</p>
+        <h4>Connect the app</h4>
+        <ol>
+          <li>Choose a domain, subdomain, or subfolder and set <strong>Upstream URL</strong> to the app's internal HTTP/HTTPS address.</li>
+          <li>Choose <strong>LAN only</strong>. A public site needs <strong>No</strong>; a private site needs an allowlist in Global settings. A child cannot remove its parent domain's LAN restriction.</li>
+          <li>For a domain that serves an app, set <strong>Return 404 at domain root</strong> to <strong>No</strong>. Enable subfolders only when needed. Enable a child's parent domain before enabling the child, and configure its TLS certificate.</li>
+        </ol>
+        <h4>Choose a profile</h4>
+        <div class="table-wrap nginx-reference-table" tabindex="0" role="region" aria-label="Site profiles; scroll horizontally on small screens">
+          <table class="table">
+            <thead><tr><th scope="col">Use case</th><th scope="col">Cache policy</th><th scope="col">Stream responses</th><th scope="col">Byte ranges</th><th scope="col">Long-lived connections</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">PWA without media</th><td><code>pwa</code></td><td>No</td><td>No</td><td>No</td></tr>
+              <tr><th scope="row">PWA with media</th><td><code>pwa</code></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+              <tr><th scope="row">WordPress without media</th><td><code>inherit</code></td><td>No</td><td>No</td><td>No</td></tr>
+              <tr><th scope="row">WordPress with photos</th><td><code>inherit</code></td><td>No</td><td>No</td><td>No</td></tr>
+              <tr><th scope="row">WordPress with video/audio</th><td><code>inherit</code></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+              <tr><th scope="row">Media server: video, photo, audio, books</th><td><code>inherit</code></td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="hint">Set <strong>Cache policy</strong> explicitly as shown. PWA profiles need versioned static asset URLs because they receive long-lived cache headers. <code>inherit</code> adds no cache policy; the app's headers still apply. Use <code>no_cache</code> on private/authentication routes. For small photo/book libraries, streaming and long-lived connections are optional; byte ranges help seeking and PDF/download resumes.</p>
+        <h4>Uploads, playback, and authentication</h4>
+        <ul>
+          <li><strong>Body size limit</strong> caps request uploads, not downloads. <code>128M</code> is a starting upload cap; match it to the app's needs.</li>
+          <li>For big media/library uploads, set <strong>Large uploads = Yes</strong> and choose <strong>Large upload limit</strong>, for example <code>1G</code>. This separate limit replaces Body size limit while enabled. Match backend/PHP upload limits too.</li>
+          <li><strong>Stream responses</strong> delivers data without response buffering. <strong>Byte ranges</strong> supports seeking/resuming. Long-lived connections and large uploads use <strong>Session timeout</strong> (default <code>3600s</code>); large uploads also use <strong>Upload idle timeout</strong> (default <code>3600s</code>).</li>
+          <li>WebSockets work with the default <strong>Transport = websocket</strong>. Use <code>sse</code> only on an event-stream route. For backends needing HTTP authentication passthrough, such as Calibre, set <strong>Backend authentication = Yes</strong>.</li>
+        </ul>
+        <details class="nginx-reference-example">
+          <summary>PWA / SPA: keep API errors real and admin pages private</summary>
+          <p>Only if the app uses client-side routes, set <strong>SPA fallback URI</strong> to <code>/index.html</code>. Exclude its API/auth paths from that fallback. In <strong>Route policies (JSON, optional)</strong>, adapt these paths and merge with any existing routes:</p>
+          <pre class="log" data-nginx-route-example="spa">[
+  {"path":"/api/","spa_fallback":"","cache_policy":"no_cache","enable_byte_ranges":false},
+  {"path":"/admin","enable_lanonly":true,"spa_fallback":"","cache_policy":"no_cache","enable_byte_ranges":false}
+]</pre>
+          <p class="hint">Do not use SPA fallback for WordPress. A mounted app must support its public subfolder/base URL. Route paths are relative to the app: use <code>/admin</code>, not <code>/myapp/admin</code>.</p>
+        </details>
+        <details class="nginx-reference-example">
+          <summary>WordPress: uncached admin/login and login rate limiting</summary>
+          <p>Set <strong>Cache policy = inherit</strong>. Add these entries to <strong>Route policies (JSON, optional)</strong>; the bundled login zone is ready to use:</p>
+          <pre class="log" data-nginx-route-example="wordpress">[
+  {"path":"/wp-admin/","cache_policy":"no_cache","enable_byte_ranges":false},
+  {"path":"/wp-login.php","match":"exact","cache_policy":"no_cache","enable_byte_ranges":false,"rate_limit":{"zone":"wplogin","burst":3}}
+]</pre>
+          <p class="hint">Normal pages follow the backend's cache headers. Login/admin routes get no-store headers. Configure actual user authentication in WordPress.</p>
+        </details>
+        <details class="nginx-reference-example">
+          <summary>Live updates: add an SSE route</summary>
+          <p>If the app exposes an SSE endpoint, adapt its path and merge this entry into <strong>Route policies (JSON, optional)</strong>:</p>
+          <pre class="log" data-nginx-route-example="sse">[
+  {"path":"/api/updates","proxy_transport":"sse","cache_policy":"no_cache","enable_byte_ranges":false,"spa_fallback":"","proxy_session_timeout":"300s"}
+]</pre>
+          <p class="hint">This clears Connection and disables response buffering on that route. Other routes retain WebSocket support. Keep <strong>Clear Origin header = No</strong> unless the backend specifically requires otherwise.</p>
+        </details>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn" onclick="document.getElementById('nginx-reference-modal').close()">Close</button></div>
+    </dialog>
     <dialog class="modal rewrites-modal" id="dnsmasq-hosts-modal">
       <div class="modal-head"><h3>DHCP reservations</h3><button class="btn small" onclick="closeDnsmasqHosts()">✕</button></div>
       <div class="modal-body"><p class="hint">Only <code>dhcp-host</code> lines are managed. Interfaces, comments, and other directives are kept in <code>/jffs/configs/dnsmasq.conf.add</code> but are not shown here.</p><div class="table-wrap"><table class="table"><thead><tr><th><button class="table-sort" data-sort-table="dnsmasq" data-sort-key="mac" onclick="sortTable('dnsmasq','mac')">MAC address <span class="table-sort-indicator">↕</span></button></th><th><button class="table-sort" data-sort-table="dnsmasq" data-sort-key="hostname" onclick="sortTable('dnsmasq','hostname')">Hostname <span class="table-sort-indicator">↕</span></button></th><th><button class="table-sort" data-sort-table="dnsmasq" data-sort-key="ip" onclick="sortTable('dnsmasq','ip')">IP address <span class="table-sort-indicator">↕</span></button></th><th>Actions</th></tr></thead><tbody id="dnsmasq-hosts-body"></tbody></table></div><div style="margin-top:12px"><button class="btn" onclick="addDnsmasqHost()">Add DHCP reservation</button></div></div>
@@ -1719,7 +1759,7 @@
     const cookieToken = document.cookie.match(/(?:^|; )router-hub-token=([^;]*)/)?.[1];
     const CONFIG = { version: __ROUTER_HUB_VERSION_JSON__, apiBase: __ROUTER_HUB_API_BASE_JSON__, token: __ROUTER_HUB_TOKEN_JSON__ || sessionStorage.getItem('router-hub-token') || cookieToken };
     const apiBase = CONFIG.apiBase.replace('{PROTOCOL}', location.protocol).replace('{HOST}', location.hostname).replace(/\/$/, '');
-    const state = { view: 'dashboard', nginxObjects: [], nginxTemplates: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [], wireguard: null };
+    const state = { view: 'dashboard', nginxObjects: [], certs: [], dehydratedLock: { locked: false, path: '' }, machines: [], machineStatuses: {}, firewall: null, adguard: null, adguardRewrites: [], adguardHosts: [], dnsmasqHosts: [], wireguard: null };
     const tableSorts = { nginx: { key: 'site', dir: 1 }, bans: { key: 'reason', dir: 1 }, rewrites: { key: 'domain', dir: 1 }, hosts: { key: 'ip', dir: 1 }, dnsmasq: { key: 'mac', dir: 1 } };
     let wolStatusTimer;
     let wolStatusRequest;
@@ -1911,44 +1951,196 @@
 
     function nginxPath(value) { return value.split('/').map(encodeURIComponent).join('/') }
     function nginxObjectUrl(o) { return `/nginx/objects/${o.kind}/${encodeURIComponent(o.domain)}/${encodeURIComponent(o.name)}` }
-    async function loadNginx() { await Promise.all([loadNginxObjects(), loadNginxStatus(), loadNginxFiles(), loadNginxTemplates(), loadNginxLogs()]) }
+    async function loadNginx() { await Promise.all([loadNginxObjects(), loadNginxStatus(), loadNginxLogs()]) }
     function nginxObjectStatus(o) { const state = o.state || (o.enabled ? (o.running ? 'live' : 'down') : 'disabled'); const kind = state === 'live' ? 'ok' : state === 'down' ? 'warn' : 'off'; return `<span class="status ${kind}">${esc(state)}</span>` }
     function launchNginxSite(kind, domain, name) { const o = state.nginxObjects.find(x => x.kind === kind && x.domain === domain && x.name === name); const target = o ? (o.display_name || o.name) : (kind === 'subdomain' ? `${name}.${domain}` : kind === 'subfolder' ? `${domain}/${name}` : domain); if (!target) return toast('Site launch URL unavailable', true); const url = /^https?:\/\//i.test(target) ? target : `${location.protocol === 'https:' ? 'https:' : 'http:'}//${target}`; window.open(url, '_blank', 'noopener,noreferrer') }
-    function nginxObjectRow(o) { const child = o.kind !== 'domain', kind = esc(o.kind), domain = esc(o.domain), name = esc(o.name); return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${kind}</span></td><td>${o.port ?? '<span class="muted">—</span>'}</td><td>${o.template ? `<span class="tag">${esc(o.template)}</span>` : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${kind}','${domain}','${name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${kind}','${domain}','${name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${kind}','${domain}','${name}')">Delete</button><button class="btn small action" title="Launch site" aria-label="Launch site" onclick="launchNginxSite('${kind}','${domain}','${name}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Open URL"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg></button></div></td></tr>` }
+    function nginxObjectRow(o) { const child = o.kind !== 'domain', kind = esc(o.kind), domain = esc(o.domain), name = esc(o.name); return `<tr class="${child ? 'nginx-child-row' : 'nginx-domain-row'}"><td><strong>${esc(o.display_name || o.name)}</strong> <span class="tag">${kind}</span></td><td>${o.port ?? '<span class="muted">—</span>'}</td><td>${o.managed ? '<span class="tag">Managed</span>' : '<span class="muted">Custom</span>'}</td><td>${nginxObjectStatus(o)}</td><td><div class="row-actions"><button class="btn small" onclick="editNginxObject('${kind}','${domain}','${name}')">Edit</button><button class="btn small" onclick="nginxObjectAction('${kind}','${domain}','${name}','${o.enabled ? 'disable' : 'enable'}')">${o.enabled ? 'Disable' : 'Enable'}</button><button class="btn small danger" onclick="deleteNginxObject('${kind}','${domain}','${name}')">Delete</button><button class="btn small action" title="Launch site" aria-label="Launch site" onclick="launchNginxSite('${kind}','${domain}','${name}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Open URL"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg></button></div></td></tr>` }
     function nginxObjectRows(objects) { const sort = tableSorts.nginx, compare = (a, b) => sort.dir * compareTableValues(a, b, sort.key) || (a.kind || '').localeCompare(b.kind || '') || (a.display_name || a.name).localeCompare(b.display_name || b.name), domains = objects.filter(o => o.kind === 'domain').sort(compare), children = objects.filter(o => o.kind !== 'domain'), rows = []; domains.forEach(domain => { rows.push(domain); if (domain.enabled) rows.push(...children.filter(child => child.domain === domain.domain).sort(compare)) }); const knownDomains = new Set(domains.map(domain => domain.domain)); rows.push(...children.filter(child => !knownDomains.has(child.domain)).sort(compare)); return rows.map(nginxObjectRow).join('') }
     async function loadNginxObjects() { try { state.nginxObjects = await api('/nginx/objects'); document.getElementById('nginx-objects-body').innerHTML = state.nginxObjects.length ? nginxObjectRows(state.nginxObjects) : emptyRow(5, 'No nginx sites'); updateSortHeaders('nginx') } catch (e) { toast(e.message, true) } }
     async function loadNginxStatus() { try { const s = await api('/nginx/status'); document.getElementById('nginx-status').innerHTML = `${status(s.running)} <span title="Config: ${esc(s.config_path)} · Root: ${esc(s.root_dir)}">Config <code>${esc(s.config_path)}</code></span>` } catch (e) { document.getElementById('nginx-status').textContent = e.message } }
-    function nginxTemplateOptions(templates, selected = '') { const known = templates.some(t => t.name === selected), missing = selected && !known ? `<option value="${esc(selected)}" selected>${esc(selected)} (missing)</option>` : ''; return `<option value="" ${selected ? '' : 'selected'}>Custom</option>${missing}${templates.map(t => `<option value="${esc(t.name)}" ${t.name === selected ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}` }
-    function nginxDefaultServerNames(kind, domain, name) { return [kind === 'subdomain' ? `${name}.${domain}` : domain].filter(Boolean) }
-    function nginxFormServerNames(form, kind) { const names = jsonLines(form.elements.server_names.value); return names.length ? names : nginxDefaultServerNames(kind, form.elements.domain.value.trim(), kind === 'domain' ? form.elements.domain.value.trim() : form.elements.name.value.trim()) }
-    function nginxDomainOptions() { const domains = [...new Set(state.nginxObjects.filter(o => o.kind === 'domain').map(o => o.domain))]; return `<option value="" selected disabled>Select a parent domain</option>${domains.map(domain => `<option value="${esc(domain)}">${esc(domain)}</option>`).join('')}` }
-    function stripNginxTemplateComment(content) { return content.split(/\r?\n/).filter(line => !line.trim().startsWith('# router-hub-template:')).join('\n') }
-    function renderNginxTemplate(source, kind, form) { const domain = form.elements.domain.value.trim(), name = kind === 'domain' ? domain : form.elements.name.value.trim(), values = { kind, domain, name, subdomain: name, subfolder: name, server_name: nginxFormServerNames(form, kind).join(' ') }; return Object.entries(values).reduce((content, [key, value]) => content.split(`{{${key}}}`).join(value), source) }
-    function previewNginxTemplate(form, kind) { if (form.elements.template.value && form._nginxTemplateSource !== undefined) form.elements.content.value = renderNginxTemplate(form._nginxTemplateSource, kind, form) }
-    async function nginxTemplateChanged(form, kind) { const custom = form.querySelector('[data-custom-config]'), template = form.elements.template.value; custom.hidden = !!template; if (!template) return; try { form._nginxTemplateSource = (await api(`/nginx/templates/${kind}/${encodeURIComponent(template)}`)).content; previewNginxTemplate(form, kind) } catch (e) { toast(e.message, true) } }
-    function wireNginxObjectForm(form, kind) { form.elements.template.addEventListener('change', () => nginxTemplateChanged(form, kind));['domain', 'name', 'server_names'].forEach(name => form.elements[name]?.addEventListener('input', () => previewNginxTemplate(form, kind))); form.elements.domain.addEventListener('change', () => previewNginxTemplate(form, kind)) }
-    async function newNginxObject(kind) {
-      let templates = [];
-      try { templates = await api(`/nginx/templates/${kind}`) } catch (e) { return toast(e.message, true) }
-      const nameField = kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" name="name" required placeholder="${kind === 'subdomain' ? 'app' : 'media'}"></div>`;
-      const upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" placeholder="http://192.168.1.10:8080"><span class="hint">Optional. Router Hub adds this site to the hostname or subfolder upstream map.</span></div>`;
-      const domainField = kind === 'domain' ? '<input class="input" name="domain" required placeholder="example.com">' : `<select class="input" name="domain" required>${nginxDomainOptions()}</select>`;
-      openEditor(`Add nginx ${kind}`, `<form id="nginx-object-form" class="form"><div class="form-grid"><div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label>${domainField}</div>${nameField}<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names" placeholder="Leave blank for the site default"></textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>${upstreamField}<div class="field full"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates)}</select><span class="hint">Templates replace {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, and {{subfolder}}.</span></div><div class="field full" data-custom-config><label>Custom configuration</label><textarea class="input" name="content" style="min-height:280px"></textarea></div><div class="field"><label><input type="checkbox" name="enabled"> Enable after creation</label></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-form'), v = formObject(f), domain = v.domain.trim(), name = kind === 'domain' ? domain : v.name.trim(), payload = { domain, name, template: v.template || null, content: v.template ? null : v.content, server_names: nginxFormServerNames(f, kind), upstream: v.upstream.trim(), enabled: f.elements.enabled.checked }; await api(`/nginx/objects/${kind}`, { method: 'POST', body: JSON.stringify(payload) }); closeEditor(); toast(`${kind} created`); loadNginx() } catch (e) { toast(e.message, true) } });
-      wireNginxObjectForm(document.getElementById('nginx-object-form'), kind)
+    function openNginxReference() { document.getElementById('nginx-reference-modal').showModal() }
+    const nginxPolicyFields = [
+      ['enable_lanonly', 'LAN only', 'bool', true], ['enable_subfolders', 'Enable subfolders (domain)', 'bool', true],
+      ['disable_root', 'Return 404 at domain root', 'bool', true], ['enable_large_upload', 'Large uploads', 'bool', false],
+      ['enable_longlived', 'Long-lived connections', 'bool', false], ['enable_streaming', 'Stream responses', 'bool', false],
+      ['enable_byte_ranges', 'Byte ranges', 'bool', false],
+      ['enable_restricted_sessions', 'LAN-only Sessions route', 'bool', false],
+      ['clear_origin', 'Clear Origin header', 'bool', false], ['access_log', 'Ordinary access logging', 'bool', true],
+      ['backend_auth', 'Backend authentication', 'bool', false], ['hide_etag', 'Hide ETag', 'bool', false],
+      ['disable_proxy_redirect', 'Disable proxy redirects', 'bool', false],
+      ['client_max_body_size', 'Body size limit', 'text', '100M'], ['large_upload_max_body_size', 'Large upload limit', 'text', '5G'],
+      ['proxy_connect_timeout', 'Connect timeout', 'text', '10s'], ['proxy_session_timeout', 'Session timeout', 'text', '3600s'],
+      ['client_upload_timeout', 'Upload idle timeout', 'text', '3600s'],
+      ['proxy_transport', 'Transport', ['websocket', 'http', 'sse'], 'websocket'],
+      ['cache_policy', 'Cache policy', ['inherit', 'no_cache', 'immutable', 'pwa'], 'inherit'],
+      ['forwarded_for', 'Forwarded client chain', ['replace', 'append'], 'replace'],
+      ['spa_fallback', 'SPA fallback URI', 'text', ''], ['rewrite_to', 'Rewrite URI', 'text', ''], ['cors_origin', 'CORS origin', 'text', '']
+    ];
+    const nginxSettingHelp = {
+      enable_lanonly: 'Allow only clients listed in Global settings → Allowed client IPs / CIDRs. A parent domain’s LAN restriction also applies to its subfolders.',
+      enable_subfolders: 'Domain only: load enabled child apps at paths such as /music/. Subdomains are configured separately.',
+      disable_root: 'Domain only: return 404 for requests outside enabled subfolders and ACME routes. Set No to expose the root app’s upstream and proxy settings.',
+      enable_large_upload: 'Send uploaded request bodies to the backend without buffering them in nginx temporary files. Uses Large upload limit and the extended session/upload idle timeouts.',
+      enable_longlived: 'Extend idle read, write, and client-send timeouts for long jobs, streams, or idle WebSockets. Session timeout controls the idle gap, not total connection lifetime.',
+      enable_streaming: 'Deliver backend responses as they arrive instead of buffering them. Useful for streaming media and live updates; SSE always streams.',
+      enable_byte_ranges: 'Enable partial responses and forward Range / If-Range headers for media seeking and resumable downloads.',
+      enable_restricted_sessions: 'Add a LAN-only /Sessions route under this app and suppress its ordinary access logs. Useful for media-server session APIs.',
+      clear_origin: 'Remove the Origin header sent to the backend. Leave No unless the application specifically requires this.',
+      access_log: 'Write normal request logs. Setting No keeps ordinary requests quiet while security traps remain logged.',
+      backend_auth: 'Pass Authorization and WWW-Authenticate through to the backend and disable nginx basic authentication for this app. The backend authenticates users.',
+      hide_etag: 'Remove the backend’s ETag response header. Useful for app-shell routes that should not reuse cached versions.',
+      disable_proxy_redirect: 'Pass backend redirects through without nginx rewriting them. Useful when the application already knows its public URL.',
+      client_max_body_size: 'Maximum request/upload body in normal proxy mode, such as 128M. Does not limit downloads. Large uploads uses its separate limit; 0 means unlimited.',
+      large_upload_max_body_size: 'Maximum request/upload body while Large uploads is enabled, such as 1G. Replaces Body size limit in that mode; 0 means unlimited.',
+      proxy_connect_timeout: 'Maximum time to establish a connection to the backend, such as 10s. This is separate from the idle timeout of an established connection.',
+      proxy_session_timeout: 'Idle time allowed between upstream reads/writes and client sends for long-lived connections or large uploads. Not a total session deadline.',
+      client_upload_timeout: 'Allowed idle gap between reads of an uploaded request body when Large uploads is enabled. Not a total upload deadline.',
+      proxy_transport: 'websocket supports both normal HTTP and upgrades; http omits upgrade headers. sse clears Connection, always streams, and uses 300s connection/session timeouts unless a route overrides them.',
+      cache_policy: 'inherit keeps the app’s cache headers; no_cache prevents storage; pwa keeps the shell fresh and caches static assets; immutable long-caches versioned files.',
+      forwarded_for: 'replace uses nginx’s observed client IP. append adds it to the incoming X-Forwarded-For chain and is intended for trusted proxy setups.',
+      spa_fallback: 'On an upstream 404, serve this URI, commonly /index.html, for client-side routing. Exclude API/auth routes. Leave blank for apps that should return their own 404s.',
+      rewrite_to: 'Rewrite matching requests to this one backend URI before proxying. Leave blank for normal path handling, including automatic subfolder-prefix removal.',
+      cors_origin: 'Add CORS response headers allowing GET / OPTIONS from this origin, or *. The backend still needs to handle any required preflight requests.',
+      router_ip: 'Local address nginx listens on for the generated HTTP and HTTPS servers. This address must exist on the nginx host; it is not the backend address.',
+      http_port: 'Listening port for HTTP redirects and HTTP-01 certificate challenges, normally 80.',
+      https_port: 'Listening port for TLS sites, normally 443.',
+      worker_processes: 'Number of nginx worker processes, or auto. Choose a value appropriate for the host’s CPU and memory.',
+      worker_connections: 'Maximum simultaneous connections per worker. Proxied traffic uses connections to both clients and backends.',
+      resolver_addr: 'DNS server nginx uses to resolve backend hostnames. It must be reachable from the nginx host.',
+      resolver_validity: 'How long nginx caches DNS answers before refreshing them, such as 30s.',
+      var_dir: 'Base directory for generated access and security logs. Router Hub’s main configuration separately controls nginx’s PID and error-log paths.',
+      acme_challenge_dir: 'Directory containing HTTP-01 challenge files. It must match the certificate issuer’s challenge directory and be readable by nginx.',
+      default_certificate_dir: 'Certificate directory for the unknown-host TLS server. Requires fullchain.pem and privkey.pem. Relative paths resolve beneath the nginx root.',
+      nginx_daemon: 'Yes runs nginx in the background. No keeps it in the foreground for a supervisor. Match the way your nginx service starts.',
+      nginx_user: 'When Router Hub runs as root, workers use this account or nobody if blank. When Router Hub runs as non-root, the generated configuration omits the user directive.',
+      temp_dir: 'Writable parent for nginx’s client-body, proxy, fastcgi, uwsgi, and scgi temporary folders. Only the parent folder is configurable.',
+      pwa_shell_cache_control: 'Cache-Control header for PWA app-shell files. The default prevents stale shell files from being stored.',
+      pwa_asset_cache_control: 'Cache-Control header for static PWA assets. Long-lived caching requires versioned asset URLs so application updates are picked up.',
+      allowed_ips: 'One client IP or CIDR per line. LAN-only sites deny clients outside this list; an empty list denies all clients to those locations.',
+      free_subdomains: 'One shared domain suffix per line, such as duckdns.org. Used to select certificate folders for individual accounts; put more specific suffixes first.',
+      domain: 'Domain group and hostname for this root site, such as example.com. Add aliases separately if the site answers to multiple hostnames.',
+      parent_domain: 'Existing domain group that owns this child site. The parent must be enabled before its child sites can be served.',
+      site_name: 'Name of the subdomain or subfolder within its parent. A subfolder name becomes the public path prefix, such as /music/.',
+      server_names: 'Hostnames and aliases accepted by this server, separated by spaces or new lines. Leave blank to use the name derived from the site identity.',
+      upstream: 'Internal HTTP or HTTPS URL of the application, including its port if needed. Subfolder routes remove their public prefix before forwarding.',
+      enabled: 'Enable this site after creating it. Nginx configuration is tested before applying the change; a parent domain must be enabled to serve its children.',
+      content: 'Authored nginx text for an existing custom site. It is not processed as Jinja or regenerated when managed defaults change.',
+      routes: 'JSON array of route overrides. Paths are relative to the app mount. Blank inherits global routes; [] disables them. Feature settings can also supply defaults to child routes.',
+      default_routes: 'Default JSON route policies inherited by managed sites. Each site can replace this list. Route paths are relative to that app’s mount.'
+    };
+    function nginxFieldHeading(key, label, id) {
+      const help = nginxSettingHelp[key];
+      return `<div class="nginx-field-heading"><label for="${esc(id)}">${esc(label)}</label>${help ? `<button type="button" class="nginx-help-toggle" aria-label="Help: ${esc(label)}" aria-expanded="false" aria-controls="${esc(id)}-help" onclick="nginxToggleHelp(this)">?</button><span class="hint nginx-field-help" id="${esc(id)}-help" hidden>${esc(help)}</span>` : ''}</div>`;
     }
-    async function editNginxObject(kind, domain, name) { const o = { kind, domain, name }, url = nginxObjectUrl(o); try { const [row, templates] = await Promise.all([api(url), api(`/nginx/templates/${kind}`)]), selected = row.object.template || '', identityFields = `<div class="field"><label>${kind === 'domain' ? 'Domain' : 'Parent domain'}</label><input class="input" value="${esc(domain)}" readonly></div>${kind === 'domain' ? '' : `<div class="field"><label>${kind === 'subdomain' ? 'Subdomain' : 'Subfolder'} name</label><input class="input" value="${esc(name)}" readonly></div>`}`, serverNamesField = kind === 'subfolder' ? '' : `<div class="field full"><label>Server names / aliases, one per line</label><textarea class="input" name="server_names">${esc((row.server_names || []).join('\n'))}</textarea><span class="hint">Every name uses this one configuration and the same upstream.</span></div>`, upstreamField = `<div class="field full"><label>Upstream map target</label><input class="input" name="upstream" value="${esc(row.upstream || '')}" placeholder="http://192.168.1.10:8080"><span class="hint">Leave blank to remove this site from the generated upstream map.</span></div>`; openEditor(`Edit ${kind}: ${name}`, `<form id="nginx-object-edit" class="form"><input type="hidden" name="domain" value="${esc(domain)}"><input type="hidden" name="name" value="${esc(name)}"><div class="form-grid">${identityFields}${serverNamesField}${upstreamField}<div class="field"><label>Template</label><select class="input" name="template">${nginxTemplateOptions(templates, selected)}</select></div><div class="field full" data-custom-config ${selected ? 'hidden' : ''}><label>Custom configuration</label><textarea class="input" name="content" style="min-height:340px">${esc(stripNginxTemplateComment(row.content))}</textarea><span class="hint">The editor is shown only for Custom. Selecting Custom keeps the last rendered template here.</span></div></div></form>`, async () => { try { const f = document.getElementById('nginx-object-edit'), v = formObject(f), payload = { template: v.template || null, content: v.template ? null : v.content, server_names: kind === 'subfolder' ? undefined : nginxFormServerNames(f, kind), upstream: v.upstream.trim() }; await api(url, { method: 'PUT', body: JSON.stringify(payload) }); closeEditor(); toast('Site configuration saved'); loadNginxObjects() } catch (e) { toast(e.message, true) } }); const form = document.getElementById('nginx-object-edit'); wireNginxObjectForm(form, kind); if (selected) nginxTemplateChanged(form, kind) } catch (e) { toast(e.message, true) } }
+    function nginxToggleHelp(button) {
+      const help = document.getElementById(button.getAttribute('aria-controls'));
+      help.hidden = !help.hidden;
+      button.setAttribute('aria-expanded', String(!help.hidden));
+    }
+    const nginxDomainPolicyKeys = new Set(['enable_subfolders', 'disable_root']);
+    function nginxPolicyFieldsFor(kind) { return nginxPolicyFields.filter(([key]) => kind === 'domain' || !nginxDomainPolicyKeys.has(key)) }
+    function nginxUpdateSiteFields(form, kind, inherited) {
+      if (form.elements.mode.value === 'custom') return;
+      const definitions = new Map(nginxPolicyFields.map(field => [field[0], field]));
+      const effective = key => {
+        const field = definitions.get(key), value = form.elements[key]?.value;
+        if (value !== undefined && value !== '') return field[2] === 'bool' ? value === 'true' : value;
+        return inherited[key] ?? field[3];
+      };
+      const proxy = kind !== 'domain' || !effective('disable_root');
+      const largeUpload = effective('enable_large_upload'), sse = effective('proxy_transport') === 'sse';
+      const routeText = form.elements.routes.value.trim();
+      let routeDefaults = !!routeText;
+      try { routeDefaults = (routeText ? JSON.parse(routeText) : inherited.routes || []).length > 0 } catch { }
+      for (const field of form.querySelectorAll('[data-nginx-setting]')) {
+        const key = field.dataset.nginxSetting;
+        let visible = proxy || key === 'enable_lanonly' || nginxDomainPolicyKeys.has(key);
+        if (visible && !nginxDomainPolicyKeys.has(key) && key !== 'enable_lanonly') {
+          if (['large_upload_max_body_size', 'client_upload_timeout'].includes(key)) visible = largeUpload || routeDefaults;
+          if (key === 'client_max_body_size') visible = !largeUpload || routeDefaults;
+          if (key === 'proxy_session_timeout') visible = !sse && (effective('enable_longlived') || largeUpload || routeDefaults);
+          if (key === 'proxy_connect_timeout') visible = !sse;
+          if (key === 'enable_longlived') visible = (!sse && !largeUpload) || routeDefaults;
+          if (key === 'enable_streaming') visible = !sse || routeDefaults;
+        }
+        field.hidden = !visible;
+      }
+      form.querySelector('[data-nginx-upstream]').hidden = !proxy;
+      form.querySelector('[data-nginx-routes]').hidden = !proxy;
+    }
+    const nginxSharedFields = [
+      ['router_ip', 'Listen address', 'text', '127.0.0.1'], ['http_port', 'HTTP port', 'number', 80], ['https_port', 'HTTPS port', 'number', 443],
+      ['worker_processes', 'Worker processes (or auto)', 'text', 2], ['worker_connections', 'Worker connections', 'number', 64],
+      ['resolver_addr', 'DNS resolver', 'text', '127.0.0.1'], ['resolver_validity', 'DNS validity', 'text', '30s'],
+      ['var_dir', 'Runtime directory', 'text', '/opt/var'], ['acme_challenge_dir', 'ACME challenge directory', 'text', ''],
+      ['default_certificate_dir', 'Fallback certificate directory', 'text', ''],
+      ['nginx_daemon', 'Run nginx in background', 'bool', true],
+      ['nginx_user', 'Worker user (root only; default nobody)', 'text', 'nobody'],
+      ['temp_dir', 'Temporary files parent directory', 'text', ''],
+      ['pwa_shell_cache_control', 'PWA shell Cache-Control', 'text', 'no-cache, no-store, must-revalidate'],
+      ['pwa_asset_cache_control', 'PWA asset Cache-Control', 'text', 'public, max-age=31536000, immutable']
+    ];
+    function nginxSettingsFields(fields, values = {}, inherited = {}, prefix = '') {
+      return fields.map(([key, label, type, fallback]) => {
+        const value = values[key], base = inherited[key] ?? fallback, name = prefix + key, id = 'nginx-setting-' + name;
+        let control;
+        if (type === 'bool' || Array.isArray(type)) {
+          const options = type === 'bool' ? [true, false] : type;
+          control = `<select class="input" name="${name}" id="${id}"><option value="">Use default (${esc(String(base))})</option>${options.map(option => `<option value="${esc(String(option))}" ${value === option ? 'selected' : ''}>${type === 'bool' ? (option ? 'Yes' : 'No') : esc(option)}</option>`).join('')}</select>`;
+        } else control = `<input class="input" name="${name}" id="${id}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(value ?? (key === 'nginx_user' ? fallback : ''))}" placeholder="${esc(String(base))}">`;
+        return `<div class="field" data-nginx-setting="${esc(key)}">${nginxFieldHeading(key, label, id)}${control}</div>`;
+      }).join('');
+    }
+    function nginxReadSettings(form, fields, prefix = '') {
+      const result = {};
+      fields.forEach(([key, , type]) => { const value = form.elements[prefix + key].value.trim(); if (value !== '') result[key] = type === 'bool' ? value === 'true' : (type === 'number' || key === 'worker_processes' && value !== 'auto') ? Number(value) : value });
+      return result;
+    }
+    function nginxRoutesField(settings = {}, name = 'routes') { const id = 'nginx-setting-' + name; return `<div class="field full" data-nginx-routes>${nginxFieldHeading(name, 'Route policies (JSON, optional)', id)}<textarea class="input" id="${id}" name="${name}" placeholder='[{"path":"/admin","enable_lanonly":true}]'>${esc(settings.routes ? JSON.stringify(settings.routes, null, 2) : '')}</textarea></div>` }
+    async function editNginxSettings() {
+      try {
+        const settings = await api('/nginx/settings');
+        openEditor('Global nginx settings', `<form id="nginx-settings-form" class="form"><h3>Shared settings</h3><div class="form-grid">${nginxSettingsFields(nginxSharedFields, settings.shared)}</div><h3>Default site settings</h3><p class="muted">Managed sites inherit these values unless they set an override. Custom configurations retain their authored content.</p><div class="form-grid">${nginxSettingsFields(nginxPolicyFields, settings.site_defaults, {}, 'default_')}${nginxRoutesField(settings.site_defaults, 'default_routes')}</div><div class="field">${nginxFieldHeading('allowed_ips', 'Allowed client IPs / CIDRs, one per line', 'nginx-setting-allowed_ips')}<textarea class="input" id="nginx-setting-allowed_ips" name="allowed_ips">${esc(settings.allowed_ips.join('\n'))}</textarea></div><div class="field">${nginxFieldHeading('free_subdomains', 'Shared / free domain suffixes, one per line', 'nginx-setting-free_subdomains')}<textarea class="input" id="nginx-setting-free_subdomains" name="free_subdomains">${esc(settings.free_subdomains.join('\n'))}</textarea></div></form>`, async () => {
+          try {
+            const f = document.getElementById('nginx-settings-form'), lines = key => f.elements[key].value.split('\n').map(s => s.trim()).filter(Boolean);
+            const defaults = nginxReadSettings(f, nginxPolicyFields, 'default_');
+            if (f.elements.default_routes.value.trim()) defaults.routes = JSON.parse(f.elements.default_routes.value);
+            await api('/nginx/settings', { method: 'PUT', body: JSON.stringify({ shared: { ...nginxReadSettings(f, nginxSharedFields), nginx_user: f.elements.nginx_user.value.trim() }, site_defaults: defaults, allowed_ips: lines('allowed_ips'), free_subdomains: lines('free_subdomains') }) });
+            closeEditor(); toast('Nginx settings saved'); loadNginx();
+          } catch (e) { toast(e.message, true) }
+        });
+      } catch (e) { toast(e.message, true) }
+    }
+    function nginxDomainOptions(selected = '') { return state.nginxObjects.filter(o => o.kind === 'domain').map(o => `<option value="${esc(o.domain)}" ${selected === o.domain ? 'selected' : ''}>${esc(o.domain)}</option>`).join('') }
+    async function newNginxObject(kind) { return nginxObjectEditor(kind) }
+    async function editNginxObject(kind, domain, name) { return nginxObjectEditor(kind, domain, name) }
+    async function nginxObjectEditor(kind, domain = '', name = '') {
+      try {
+        const existing = !!domain, row = existing ? await api(nginxObjectUrl({ kind, domain, name })) : null, global = await api('/nginx/settings');
+        const settings = row?.settings || {}, custom = existing && row.settings === null, policyFields = nginxPolicyFieldsFor(kind);
+        const identity = `<div class="field">${nginxFieldHeading(kind === 'domain' ? 'domain' : 'parent_domain', kind === 'domain' ? 'Domain' : 'Parent domain', 'nginx-object-domain')}${existing ? `<input class="input" name="domain" id="nginx-object-domain" value="${esc(domain)}" readonly>` : kind === 'domain' ? '<input class="input" name="domain" id="nginx-object-domain" placeholder="example.com" required>' : `<select class="input" name="domain" id="nginx-object-domain" required>${nginxDomainOptions()}</select>`}</div>${kind === 'domain' ? '' : `<div class="field">${nginxFieldHeading('site_name', kind + ' name', 'nginx-object-name')}<input class="input" id="nginx-object-name" name="name" value="${esc(name)}" ${existing ? 'readonly' : 'required'}></div>`}`;
+        openEditor(existing ? `Edit ${kind}: ${name}` : `Add ${kind}`, `<form id="nginx-object-form" class="form"><div class="actions"><button type="button" class="btn small" onclick="openNginxReference()">Setup quick reference</button></div><div class="form-grid">${identity}${kind === 'subfolder' ? '' : `<div class="field full">${nginxFieldHeading('server_names', 'Server names / aliases, one per line', 'nginx-object-server-names')}<textarea class="input" id="nginx-object-server-names" name="server_names">${esc((row?.server_names || []).join('\n'))}</textarea></div>`}<div class="field full" data-nginx-upstream>${nginxFieldHeading('upstream', 'Upstream URL', 'nginx-object-upstream')}<input class="input" id="nginx-object-upstream" name="upstream" value="${esc(row?.upstream || '')}" placeholder="http://192.168.1.10:8080"></div>${custom ? '<input type="hidden" name="mode" value="custom">' : '<input type="hidden" name="mode" value="managed">'}</div><div data-managed-settings ${custom ? 'hidden' : ''}><div class="form-grid">${nginxSettingsFields(policyFields, settings, global.site_defaults)}${nginxRoutesField(settings)}</div></div><div class="field" data-custom-settings ${custom ? '' : 'hidden'}>${nginxFieldHeading('content', 'Custom server configuration', 'nginx-object-content')}<textarea class="input" id="nginx-object-content" name="content" style="min-height:320px">${esc(custom ? row.content : '')}</textarea></div>${existing ? '' : `<div class="field">${nginxFieldHeading('enabled', 'Enable after creation', 'nginx-object-enabled')}<input type="checkbox" id="nginx-object-enabled" name="enabled"></div>`}</form>`, async () => {
+          try {
+            const f = document.getElementById('nginx-object-form'), domain = f.elements.domain.value.trim(), name = kind === 'domain' ? domain : f.elements.name.value.trim();
+            const payload = { upstream: f.elements.upstream.value.trim(), server_names: kind === 'subfolder' ? [] : f.elements.server_names.value.split(/\s+/).filter(Boolean) };
+            if (f.elements.mode.value === 'custom') payload.content = f.elements.content.value;
+            else { payload.settings = nginxReadSettings(f, policyFields); if (f.elements.routes.value.trim()) payload.settings.routes = JSON.parse(f.elements.routes.value) }
+            if (!existing) Object.assign(payload, { domain, name, enabled: f.elements.enabled.checked });
+            await api(existing ? nginxObjectUrl({ kind, domain, name }) : `/nginx/objects/${kind}`, { method: existing ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+            closeEditor(); toast('Site saved'); loadNginx();
+          } catch (e) { toast(e.message, true) }
+        });
+        const form = document.getElementById('nginx-object-form');
+        const updateFields = () => nginxUpdateSiteFields(form, kind, global.site_defaults);
+        form.addEventListener('input', updateFields);
+        form.addEventListener('change', updateFields);
+        updateFields();
+      } catch (e) { toast(e.message, true) }
+    }
     async function nginxObjectAction(kind, domain, name, action) { try { await api(`${nginxObjectUrl({ kind, domain, name })}/${action}`, { method: 'POST' }); toast(`${name}: ${action} complete`); await Promise.all([loadNginxObjects(), loadNginxStatus()]) } catch (e) { toast(e.message, true) } }
     async function deleteNginxObject(kind, domain, name) { const detail = kind === 'domain' ? 'This also deletes all nested subdomain and subfolder definitions. ' : ''; if (!confirm(`${detail}Delete ${kind} ${name}?`)) return; try { await api(nginxObjectUrl({ kind, domain, name }), { method: 'DELETE' }); toast(`${kind} deleted`); loadNginxObjects() } catch (e) { toast(e.message, true) } }
     function nginxCommandResult(command, result) { const action = command === 'test' ? 'Nginx configuration test' : 'Nginx reload'; const detail = (result.stderr || result.stdout || '').trim(); const message = result.success ? `${action} successful` : `${action} failed${detail ? `: ${detail}` : result.code !== null && result.code !== undefined ? ` (exit code ${result.code})` : ': no failure reason returned'}`; showOutput(action, message) }
     async function nginxCommand(command) { try { const r = await api(`/nginx/${command}`, { method: 'POST' }); nginxCommandResult(command, r); await Promise.all([loadNginxStatus(), loadNginxObjects()]) } catch (e) { const action = command === 'test' ? 'Nginx configuration test' : 'Nginx reload'; showOutput(action, `${action} failed: ${e.message}`) } }
-    function nginxFileTree(files) { const root = { dirs: Object.create(null), files: [] }; files.forEach(file => { const parts = file.path.split('/'), name = parts.pop(); let node = root; parts.forEach(part => node = node.dirs[part] || (node.dirs[part] = { dirs: Object.create(null), files: [] })); node.files.push({ ...file, name }) }); const render = node => `${Object.keys(node.dirs).sort().map(name => `<details class="nginx-dir"><summary>${esc(name)}</summary>${render(node.dirs[name])}</details>`).join('')}<div class="nginx-files">${node.files.sort((a, b) => a.name.localeCompare(b.name)).map(file => `<div class="nginx-file"><span><strong>${esc(file.name)}</strong> <span class="nginx-file-meta">${file.size} bytes · ${prettyDate(file.modified)}</span></span><span class="row-actions"><button class="btn small" data-nginx-path="${esc(file.path)}" onclick="editNginxFile(this.dataset.nginxPath)">Edit</button><button class="btn small danger" data-nginx-path="${esc(file.path)}" onclick="deleteNginxFile(this.dataset.nginxPath)">Delete</button></span></div>`).join('')}</div>`; return `<div class="nginx-tree">${render(root)}</div>` }
-    async function loadNginxFiles() { try { const files = await api('/nginx/files'); document.getElementById('nginx-files-list').innerHTML = files.length ? nginxFileTree(files) : '<div class="empty">No editable nginx root files</div>' } catch (e) { toast(e.message, true) } }
-    async function editNginxFile(path) { let content = ''; try { if (path) content = (await api(`/nginx/files/${nginxPath(path)}`)).content } catch (e) { return toast(e.message, true) } openEditor(path ? 'Edit nginx root file' : 'New nginx root file', `<form id="nginx-file-form" class="form"><div class="field"><label>Path relative to nginx root</label><input class="input" name="path" ${path ? 'readonly' : ''} value="${esc(path)}" placeholder="conf.d/global.conf"></div><div class="field"><label>Content</label><textarea class="input" name="content" style="min-height:320px">${esc(content)}</textarea></div></form>`, async () => { try { const v = formObject(document.getElementById('nginx-file-form')); await api(`/nginx/files/${nginxPath(v.path)}`, { method: 'PUT', body: JSON.stringify({ content: v.content }) }); closeEditor(); toast('Nginx file saved'); loadNginxFiles() } catch (e) { toast(e.message, true) } }) }
-    async function deleteNginxFile(path) { if (!confirm(`Delete nginx file ${path}?`)) return; try { await api(`/nginx/files/${nginxPath(path)}`, { method: 'DELETE' }); toast('Nginx file deleted'); loadNginxFiles() } catch (e) { toast(e.message, true) } }
-    async function loadNginxTemplates() { try { const kind = document.getElementById('template-kind').value, templates = await api(`/nginx/templates/${kind}`); state.nginxTemplates = templates; document.getElementById('nginx-templates-list').innerHTML = templates.length ? `<table class="table"><tbody>${templates.map(t => `<tr><td><strong>${esc(t.name)}</strong><div class="muted">${t.size} bytes</div></td><td><div class="row-actions"><button class="btn small" data-template-name="${esc(t.name)}" onclick="editNginxTemplate(this.dataset.templateName)">Edit</button><button class="btn small" data-template-name="${esc(t.name)}" onclick="duplicateNginxTemplate(this.dataset.templateName)">Duplicate</button><button class="btn small danger" data-template-name="${esc(t.name)}" onclick="deleteNginxTemplate(this.dataset.templateName)">Delete</button></div></td></tr>`).join('')}</tbody></table>` : `<div class="empty">No ${esc(kind)} templates</div>` } catch (e) { toast(e.message, true) } }
-    async function editNginxTemplate(name = '') { const kind = document.getElementById('template-kind').value; let content = ''; try { if (name) content = (await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`)).content } catch (e) { return toast(e.message, true) } openEditor(name ? 'Edit nginx template' : 'New nginx template', `<form id="nginx-template-form" class="form"><div class="field"><label>Template name</label><input class="input" name="name" value="${esc(name)}" placeholder="reverse-proxy" required></div><div class="field"><label>Configuration template</label><textarea class="input" name="content" style="min-height:320px">${esc(content)}</textarea><span class="hint">Available placeholders: {{domain}}, {{name}}, {{server_name}}, {{subdomain}}, {{subfolder}}, {{kind}}.</span></div></form>`, async () => { try { const v = formObject(document.getElementById('nginx-template-form')); const pathName = name || v.name; await api(`/nginx/templates/${kind}/${encodeURIComponent(pathName)}`, { method: 'PUT', body: JSON.stringify({ name: v.name, content: v.content }) }); closeEditor(); toast('Template saved'); loadNginxTemplates() } catch (e) { toast(e.message, true) } }) }
-    async function duplicateNginxTemplate(name) { const kind = document.getElementById('template-kind').value; try { const content = (await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`)).content, names = new Set(state.nginxTemplates.map(template => template.name)); let suffix = 1, duplicate = `${name}-${suffix}`; while (names.has(duplicate)) duplicate = `${name}-${++suffix}`; await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`, { method: 'PUT', body: JSON.stringify({ name: duplicate, content }) }); toast(`Template duplicated as ${duplicate}`); loadNginxTemplates() } catch (e) { toast(e.message, true) } }
-    async function deleteNginxTemplate(name) { const kind = document.getElementById('template-kind').value; if (!confirm(`Delete ${kind} template ${name}?`)) return; try { await api(`/nginx/templates/${kind}/${encodeURIComponent(name)}`, { method: 'DELETE' }); loadNginxTemplates() } catch (e) { toast(e.message, true) } }
     async function loadNginxLogs() { try { const logs = await api('/nginx/logs'), select = document.getElementById('nginx-log-select'), selected = select.value; select.innerHTML = logs.length ? logs.map(log => `<option value="${esc(log.path)}">${esc(log.path)} (${log.size} bytes)</option>`).join('') : '<option value="">No logs found</option>'; if (logs.some(log => log.path === selected)) select.value = selected } catch (e) { toast(e.message, true) } }
     async function viewNginxLog() { const path = document.getElementById('nginx-log-select').value; if (!path) return toast('No nginx log selected', true); try { const result = await api(`/nginx/logs/${nginxPath(path)}`), output = document.getElementById('nginx-log-content'); output.textContent = result.content; requestAnimationFrame(() => { output.scrollTop = output.scrollHeight }) } catch (e) { toast(e.message, true) } }
 

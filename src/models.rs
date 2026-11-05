@@ -36,22 +36,13 @@ pub struct NginxObject {
     pub name: String,
     pub display_name: String,
     pub path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub template: Option<String>,
+    pub managed: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
     pub enabled: bool,
     pub running: bool,
     #[serde(default)]
     pub state: String,
-    pub modified: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NginxTemplateEntry {
-    pub kind: NginxObjectKind,
-    pub name: String,
-    pub size: u64,
     pub modified: Option<DateTime<Utc>>,
 }
 
@@ -284,13 +275,6 @@ pub struct RuntimeInfo {
     pub api_base_url: String,
     pub token_hint: String,
     pub test_mode: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NginxFileEntry {
-    pub path: String,
-    pub size: u64,
-    pub modified: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

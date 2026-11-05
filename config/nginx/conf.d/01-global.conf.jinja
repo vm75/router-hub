@@ -1,0 +1,36 @@
+# =============================================================================
+# GLOBAL HTTP SETTINGS
+# =============================================================================
+
+# Don't tell nginx version to the clients. Default is 'on'.
+server_tokens off;
+
+# Specifies the maximum accepted body size of a client request, as
+# indicated by the request header Content-Length. If the stated content
+# length is greater than this size, then the client receives the HTTP
+# error code 413. Set to 0 to disable. Default is '1m'.
+client_max_body_size 16M;
+
+# Sendfile copies data between one FD and other from within the kernel,
+# which is more efficient than read() + write(). Default is off.
+sendfile on;
+
+# Causes nginx to attempt to send its HTTP response head in one packet,
+# instead of using partial frames. Default is 'off'.
+tcp_nopush on;
+
+# Enable gzipping of responses.
+gzip on;
+gzip_disable "msie6";
+
+# Set the Vary HTTP header as defined in the RFC 2616. Default is 'off'.
+gzip_vary on;
+
+# other config
+client_body_buffer_size 128k;
+keepalive_timeout 65;
+large_client_header_buffers 4 16k;
+send_timeout 5m;
+tcp_nodelay on;
+types_hash_max_size 2048;
+variables_hash_max_size 2048;

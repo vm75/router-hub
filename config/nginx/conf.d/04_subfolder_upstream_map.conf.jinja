@@ -1,0 +1,34 @@
+# Render route matching from settings/subfolders.conf; every name accepts a -dev suffix.
+# Extract the mounted application from the original request URI.
+#
+# Use $request_uri rather than $uri: the app locations rewrite $uri to remove
+# the public subfolder before proxy_pass is evaluated, while $request_uri
+# remains unchanged.
+map $request_uri $subfolder_app {
+    default "";
+
+    {# Derive route names from upstream entries; comments and blank lines are ignored. #}
+    {% set subfolder_specs %}{% include 'settings/subfolders.conf' %}{% endset %}
+    {% set subfolders = namespace(names=[]) %}
+    {% for line in subfolder_specs.splitlines() %}
+    {% set entry = line.split('#', 1)[0] | trim %}
+    {% if entry %}
+    {% set name = entry.split()[0] %}
+    {% set base_name = name[:-4] if name.endswith('-dev') else name %}
+    {% if base_name not in subfolders.names %}
+    {% set subfolders.names = subfolders.names + [base_name] %}
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    {% if subfolders.names %}
+    ~^/(?<subfolder_from_uri>(?:{{ subfolders.names | join('|') }})(?:-dev)?)(?:/|\?|$) $subfolder_from_uri;
+    {% endif %}
+}
+
+# This namespace is intentionally separate from the $upstream_* variables used
+# by the hostname-based subdomain maps.
+map $subfolder_app $subfolder_upstream {
+    default "";
+
+    include settings/subfolders.conf;
+}

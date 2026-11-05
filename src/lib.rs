@@ -8,6 +8,8 @@ pub mod config;
 pub mod firewall;
 pub mod models;
 pub mod nginx;
+pub mod nginx_render;
+pub mod nginx_sites;
 pub mod state;
 pub mod storage;
 pub mod system;

@@ -1,0 +1,4 @@
+location ^~ /.well-known/acme-challenge/ {
+    alias {{ (acme_challenge_dir | default('/opt/acme-challenge')).rstrip('/') }}/;
+    default_type text/plain;
+}

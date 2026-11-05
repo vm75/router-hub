@@ -1,0 +1,8 @@
+{% set route_specs = routes | default([]) %}
+{% if proxy.restricted_sessions %}
+{% set route_specs = route_specs + [dict(path='/Sessions', enable_lanonly=true, access_log=false, spa_fallback='')] %}
+{% endif %}
+{% set root_route = dict(path='/', match='root', children=route_specs, rewrite_to=proxy.rewrite_to) %}
+{% import 'snippets/proxy-routes.conf.jinja' as renderer with context %}
+{{ renderer.location(root_route, proxy, 'root') }}
+{{ renderer.fallbacks(root_route, proxy, 'root') }}

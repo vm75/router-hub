@@ -3,8 +3,6 @@ use std::{collections::BTreeMap, path::PathBuf};
 use ipnet::IpNet;
 use serde::{Deserialize, Serialize};
 
-use crate::ban_attack::Error;
-
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -63,13 +61,6 @@ pub struct Config {
     pub exceptions: Vec<IpNet>,
 
     pub files: Vec<FileConfig>,
-}
-
-impl Config {
-    #[allow(dead_code)]
-    pub fn from_toml(input: &str) -> Result<Self, Error> {
-        toml::from_str(input).map_err(|error| Error::Config(error.to_string()))
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

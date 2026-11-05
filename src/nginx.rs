@@ -3,7 +3,7 @@ use std::{
     fs,
     io::{Read, Seek, SeekFrom},
     os::unix::fs as unix_fs,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result, bail};
@@ -13,13 +13,9 @@ use walkdir::WalkDir;
 
 use crate::{
     config::AppConfig,
-    models::{NginxFileEntry, NginxLogEntry, NginxObject, NginxObjectKind, NginxTemplateEntry},
+    models::{NginxLogEntry, NginxObject, NginxObjectKind},
     util::safe_relative_path,
 };
-
-const ROOT_FILE_EXCLUSIONS: &[&str] =
-    &["certs", "domains-available", "domains-enabled", "templates"];
-const TEMPLATE_COMMENT_PREFIX: &str = "# router-hub-template:";
 
 pub fn parse_kind(value: &str) -> Result<NginxObjectKind> {
     match value {
@@ -240,7 +236,7 @@ fn object_entry(
             .unwrap_or(path)
             .to_string_lossy()
             .to_string(),
-        template: template_name(&content),
+        managed: crate::nginx_sites::settings(config, kind, domain, name)?.is_some(),
         port: site_upstream_with_key(
             config,
             kind,
@@ -248,7 +244,7 @@ fn object_entry(
             name,
             &extract_server_names(&content),
             (kind == NginxObjectKind::Subfolder)
-                .then(|| subfolder_map_key(&content, name))
+                .then(|| subfolder_map_key(name))
                 .transpose()?
                 .as_deref(),
         )?
@@ -264,7 +260,7 @@ pub fn object_upstream(config: &AppConfig, object: &NginxObject) -> Result<Optio
     let content = read_object(config, object.kind, &object.domain, &object.name)?;
     let server_names = extract_server_names(&content);
     let map_key = (object.kind == NginxObjectKind::Subfolder)
-        .then(|| subfolder_map_key(&content, &object.name))
+        .then(|| subfolder_map_key(&object.name))
         .transpose()?;
     site_upstream_with_key(
         config,
@@ -417,24 +413,7 @@ pub fn normalize_server_names(
     Ok(names)
 }
 
-pub fn render_template(
-    template: &str,
-    kind: NginxObjectKind,
-    domain: &str,
-    name: &str,
-    server_names: &[String],
-) -> Result<String> {
-    let server_name = normalize_server_names(kind, domain, name, server_names)?.join(" ");
-    Ok(template
-        .replace("{{kind}}", kind.as_str())
-        .replace("{{domain}}", domain)
-        .replace("{{name}}", name)
-        .replace("{{subdomain}}", name)
-        .replace("{{subfolder}}", name)
-        .replace("{{server_name}}", &server_name))
-}
-
-pub fn validate_site_upstream(_kind: NginxObjectKind, upstream: Option<&str>) -> Result<()> {
+pub fn validate_site_upstream(upstream: Option<&str>) -> Result<()> {
     let Some(upstream) = upstream.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(());
     };
@@ -448,6 +427,14 @@ pub fn validate_site_upstream(_kind: NginxObjectKind, upstream: Option<&str>) ->
     Ok(())
 }
 
+fn upstream_data_path(config: &AppConfig, kind: NginxObjectKind) -> PathBuf {
+    config.nginx.root_dir.join(match kind {
+        NginxObjectKind::Domain => "settings/domains.conf",
+        NginxObjectKind::Subdomain => "settings/subdomains.conf",
+        NginxObjectKind::Subfolder => "settings/subfolders.conf",
+    })
+}
+
 pub fn site_upstream_with_key(
     config: &AppConfig,
     kind: NginxObjectKind,
@@ -456,74 +443,40 @@ pub fn site_upstream_with_key(
     server_names: &[String],
     map_key: Option<&str>,
 ) -> Result<Option<String>> {
-    match kind {
-        NginxObjectKind::Domain => {
-            let names = normalize_server_names(kind, domain, name, server_names)?;
-            for server_name in names {
-                if let Some(value) = read_map_value(
-                    config,
-                    &config.nginx.domain_upstream_map_path,
-                    "map $host $domain_upstream",
-                    &server_name,
-                )? {
-                    return Ok(Some(value));
-                }
+    let path = upstream_data_path(config, kind);
+    let content = read_managed_config_file(config, &path)?.unwrap_or_default();
+    let keys = if kind == NginxObjectKind::Subfolder {
+        vec![map_key.unwrap_or(name).to_string()]
+    } else {
+        normalize_server_names(kind, domain, name, server_names)?
+    };
+    for line in content.lines() {
+        let mut words = line
+            .split('#')
+            .next()
+            .unwrap_or_default()
+            .split_whitespace();
+        if words
+            .next()
+            .is_some_and(|key| keys.iter().any(|name| name == key))
+        {
+            if let Some(value) = words.next() {
+                return Ok(Some(value.trim_end_matches(';').to_string()));
             }
-            Ok(None)
         }
-        NginxObjectKind::Subdomain => {
-            let names = normalize_server_names(kind, domain, name, server_names)?;
-            for server_name in names {
-                if let Some(value) = read_map_value(
-                    config,
-                    &config.nginx.subdomain_upstream_map_path,
-                    "map $host $subdomain_upstream",
-                    &server_name,
-                )? {
-                    return Ok(Some(value));
-                }
-            }
-            Ok(None)
-        }
-        NginxObjectKind::Subfolder => read_map_value(
-            config,
-            &config.nginx.subfolder_upstream_map_path,
-            "map $subfolder_app $subfolder_upstream",
-            map_key.unwrap_or(name),
-        ),
     }
+    Ok(None)
 }
 
-pub fn subfolder_map_key(content: &str, name: &str) -> Result<String> {
-    for line in content.lines() {
-        let line = line.split('#').next().unwrap_or_default();
-        let Some(location) = line.find("location") else {
-            continue;
-        };
-        if location > 0
-            && line[..location]
-                .chars()
-                .next_back()
-                .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_')
-        {
-            continue;
-        }
-        let rest = &line[location + "location".len()..];
-        if !rest.starts_with(char::is_whitespace) {
-            continue;
-        }
-        let Some(slash) = rest.find('/') else {
-            continue;
-        };
-        let key = rest[slash + 1..]
-            .chars()
-            .take_while(|character| character.is_ascii_alphanumeric() || ".-_".contains(*character))
-            .collect::<String>();
-        if !key.is_empty() {
-            return validate_map_key(&key, "subfolder map key");
-        }
+pub fn subfolder_map_key(name: &str) -> Result<String> {
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"_-".contains(&c))
+    {
+        bail!("subfolder must be a literal path segment");
     }
-    validate_map_key(name, "subfolder map key")
+    Ok(name.into())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -538,174 +491,75 @@ pub fn sync_site_upstream(
     new_server_names: &[String],
     upstream: Option<&str>,
 ) -> Result<()> {
-    let upstream = upstream.map(str::trim).filter(|value| !value.is_empty());
-    validate_site_upstream(kind, upstream)?;
-
-    match kind {
-        NginxObjectKind::Domain | NginxObjectKind::Subdomain => {
-            let old_names = old_server_names.to_vec();
-            let new_names = if new_server_names.is_empty() {
+    validate_site_upstream(upstream)?;
+    let path = upstream_data_path(config, kind);
+    let previous = read_managed_config_file(config, &path)?;
+    let (old_keys, new_keys) = if kind == NginxObjectKind::Subfolder {
+        (
+            vec![subfolder_map_key(old_map_key.unwrap_or(name))?],
+            if new_server_names.is_empty() {
                 Vec::new()
             } else {
-                normalize_server_names(kind, domain, name, new_server_names)?
-            };
-            let mut remove = BTreeSet::new();
-            remove.extend(old_names.iter().cloned());
-            remove.extend(new_names.iter().cloned());
-            for name in &remove {
-                validate_map_key(name, "server name")?;
-            }
-
-            let (map_path, map_header) = if kind == NginxObjectKind::Domain {
-                (
-                    &config.nginx.domain_upstream_map_path,
-                    "map $host $domain_upstream",
-                )
-            } else {
-                (
-                    &config.nginx.subdomain_upstream_map_path,
-                    "map $host $subdomain_upstream",
-                )
-            };
-            let has_existing = remove.iter().try_fold(false, |found, name| {
-                Ok::<_, anyhow::Error>(
-                    found || read_map_value(config, map_path, map_header, name)?.is_some(),
-                )
-            })?;
-            if upstream.is_none() && !has_existing {
-                return Ok(());
-            }
-
-            let additions = upstream.map(|value| {
-                new_names
-                    .iter()
-                    .map(|name| (name.clone(), format!("{name} {value};")))
-                    .collect::<Vec<_>>()
-            });
-            update_map_file(
-                config,
-                map_path,
-                map_header,
-                additions.as_deref().unwrap_or(&[]),
-                |line| map_entry_key(line).is_some_and(|key| remove.contains(key)),
-            )
-        }
-        NginxObjectKind::Subfolder => {
-            let old_key = validate_map_key(old_map_key.unwrap_or(name), "subfolder map key")?;
-            let new_key = validate_map_key(new_map_key.unwrap_or(name), "subfolder map key")?;
-            let mut remove = BTreeSet::new();
-            remove.insert(old_key.clone());
-            remove.insert(new_key.clone());
-            let has_existing = remove.iter().try_fold(false, |found, key| {
-                Ok::<_, anyhow::Error>(
-                    found
-                        || read_map_value(
-                            config,
-                            &config.nginx.subfolder_upstream_map_path,
-                            "map $subfolder_app $subfolder_upstream",
-                            key,
-                        )?
-                        .is_some(),
-                )
-            })?;
-            let has_existing_selector = remove.iter().try_fold(false, |found, key| {
-                Ok::<_, anyhow::Error>(
-                    found
-                        || request_selector_exists(
-                            config,
-                            &config.nginx.subfolder_upstream_map_path,
-                            key,
-                            true,
-                        )?,
-                )
-            })?;
-            if upstream.is_none() && !has_existing && !has_existing_selector {
-                return Ok(());
-            }
-            let additions =
-                upstream.map(|value| vec![(new_key.clone(), format!("{new_key} {value};"))]);
-            update_map_file(
-                config,
-                &config.nginx.subfolder_upstream_map_path,
-                "map $subfolder_app $subfolder_upstream",
-                additions.as_deref().unwrap_or(&[]),
-                |line| {
-                    map_entry_key(line).is_some_and(|key| remove.contains(key))
-                        || remove
-                            .iter()
-                            .any(|key| line.contains(&format!("# router-hub-managed: {key}")))
-                },
-            )?;
-            let has_unmanaged_selector = request_selector_exists(
-                config,
-                &config.nginx.subfolder_upstream_map_path,
-                &new_key,
-                false,
-            )?;
-            let additions = upstream.filter(|_| !has_unmanaged_selector).map(|_| {
-                let escaped = regex::escape(&new_key);
-                vec![(
-                    new_key.clone(),
-                    format!(r#"~^/{escaped}(?:/|\?|$) {new_key};"#),
-                )]
-            });
-            update_map_file(
-                config,
-                &config.nginx.subfolder_upstream_map_path,
-                "map $request_uri $subfolder_app",
-                additions.as_deref().unwrap_or(&[]),
-                |line| {
-                    remove
-                        .iter()
-                        .any(|key| line.contains(&format!("# router-hub-managed: {key}")))
-                },
-            )
+                vec![subfolder_map_key(new_map_key.unwrap_or(name))?]
+            },
+        )
+    } else {
+        let new_keys = if new_server_names.is_empty() {
+            Vec::new()
+        } else {
+            normalize_server_names(kind, domain, name, new_server_names)?
+        };
+        (old_server_names.to_vec(), new_keys)
+    };
+    let keys: BTreeSet<_> = old_keys.iter().chain(&new_keys).collect();
+    let mut content = String::new();
+    for line in previous.as_deref().unwrap_or_default().lines() {
+        let key = line.split_whitespace().next().unwrap_or_default();
+        if !keys.iter().any(|name| name.as_str() == key) {
+            content.push_str(line);
+            content.push('\n');
         }
     }
-}
-
-pub fn reconcile_auxiliary_config(config: &AppConfig) -> Result<()> {
-    for object in list_objects(config, false)? {
-        if object.kind == NginxObjectKind::Domain {
-            continue;
-        }
-        let content = read_object(config, object.kind, &object.domain, &object.name)?;
-        let map_key = (object.kind == NginxObjectKind::Subfolder)
-            .then(|| subfolder_map_key(&content, &object.name))
-            .transpose()?;
-        let names = normalize_server_names(
-            object.kind,
-            &object.domain,
-            &object.name,
-            &extract_server_names(&content),
-        )?;
-        let upstream = site_upstream_with_key(
-            config,
-            object.kind,
-            &object.domain,
-            &object.name,
-            &names,
-            map_key.as_deref(),
-        )?;
-        if upstream.is_some() {
-            sync_site_upstream(
-                config,
-                object.kind,
-                &object.domain,
-                &object.name,
-                map_key.as_deref(),
-                map_key.as_deref(),
-                &names,
-                &names,
-                upstream.as_deref(),
-            )?;
+    if let Some(upstream) = upstream.filter(|value| !value.trim().is_empty()) {
+        for key in new_keys {
+            content.push_str(&format!("{key} {upstream};\n"));
         }
     }
-    reconcile_http_forwarder(config)
+    let mut data = std::collections::BTreeMap::new();
+    let data_name = path
+        .strip_prefix(&config.nginx.root_dir)?
+        .to_string_lossy()
+        .into_owned();
+    data.insert(data_name, content.clone());
+    let global = crate::nginx_render::load_global(config)?;
+    data.insert(
+        "settings/free_subdomains.txt".into(),
+        global.free_subdomains.join("\n"),
+    );
+    let env = crate::nginx_render::environment(&data)?;
+    let (source, output) = match kind {
+        NginxObjectKind::Domain => (
+            "conf.d/02_domain_upstream_map.conf",
+            &config.nginx.domain_upstream_map_path,
+        ),
+        NginxObjectKind::Subdomain => (
+            "conf.d/03_subdomain_upstream_map.conf.jinja",
+            &config.nginx.subdomain_upstream_map_path,
+        ),
+        NginxObjectKind::Subfolder => (
+            "conf.d/04_subfolder_upstream_map.conf.jinja",
+            &config.nginx.subfolder_upstream_map_path,
+        ),
+    };
+    let rendered = env.get_template(source)?.render(())?;
+    let files = [(path, content), (output.clone(), rendered)]
+        .into_iter()
+        .collect();
+    crate::nginx_render::FileTransaction::apply(config, files)?.commit();
+    Ok(())
 }
 
 pub fn reconcile_http_forwarder(config: &AppConfig) -> Result<()> {
-    migrate_legacy_http_forwarder(config)?;
     let mut names = BTreeSet::new();
     for object in list_objects(config, false)? {
         if !object.enabled {
@@ -761,225 +615,37 @@ pub fn reconcile_http_forwarder(config: &AppConfig) -> Result<()> {
         }
     }
 
-    let mut content = String::from(
-        "# Managed by Router Hub. HTTP requests for enabled sites and HTTP-01 certificate domains are handled here.\n",
-    );
-    if !names.is_empty() {
-        let names = names.into_iter().collect::<Vec<_>>();
-        content.push_str("server {\n    server_name\n");
-        for (index, name) in names.iter().enumerate() {
-            content.push_str("        ");
-            content.push_str(name);
-            if index + 1 == names.len() {
-                content.push(';');
-            }
-            content.push('\n');
-        }
-        content.push_str(
-            "\n    include snippets/listen-http.conf;\n\n    include snippets/server-guard.conf;\n",
-        );
-        content.push_str("    location ^~ /.well-known/acme-challenge/ {\n        alias ");
-        content.push_str(
-            &config
-                .certificates
-                .certs_dir
-                .join("acme-challenge")
-                .to_string_lossy(),
-        );
-        content.push_str("/;\n        default_type text/plain;\n    }\n\n    location / {\n        return 301 https://$host$request_uri;\n    }\n}\n");
-    }
-    write_managed_config_file(config, &config.nginx.http_forwarder_path, &content)
-}
-
-fn migrate_legacy_http_forwarder(config: &AppConfig) -> Result<()> {
-    let legacy = config
-        .nginx
-        .root_dir
-        .join("conf.d/05-known-subdomains-http.conf");
-    if legacy == config.nginx.http_forwarder_path {
-        return Ok(());
-    }
-    let Ok(legacy_metadata) = fs::symlink_metadata(&legacy) else {
-        return Ok(());
-    };
-    if !legacy_metadata.file_type().is_file() {
-        bail!(
-            "legacy nginx HTTP forwarder is not a regular file: {}",
-            legacy.display()
-        );
-    }
-    ensure_no_symlink_ancestors(&config.nginx.root_dir, &legacy)?;
-    match fs::symlink_metadata(&config.nginx.http_forwarder_path) {
-        Ok(metadata) if !metadata.file_type().is_file() => bail!(
-            "managed nginx path is not a regular file: {}",
-            config.nginx.http_forwarder_path.display()
-        ),
-        Ok(_) => fs::remove_file(&legacy)
-            .with_context(|| format!("failed to remove legacy nginx file {}", legacy.display())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            ensure_no_symlink_ancestors(&config.nginx.root_dir, &config.nginx.http_forwarder_path)?;
-            fs::rename(&legacy, &config.nginx.http_forwarder_path).with_context(|| {
-                format!(
-                    "failed to rename legacy nginx file {} to {}",
-                    legacy.display(),
-                    config.nginx.http_forwarder_path.display()
-                )
-            })
-        }
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn read_map_value(
-    config: &AppConfig,
-    path: &Path,
-    header: &str,
-    key: &str,
-) -> Result<Option<String>> {
-    let Some(content) = read_managed_config_file(config, path)? else {
-        return Ok(None);
-    };
-    let lines = content.lines().map(ToString::to_string).collect::<Vec<_>>();
-    let Some((start, end)) = map_block_bounds(&lines, header)? else {
-        return Ok(None);
-    };
-    Ok(lines[start + 1..end].iter().find_map(|line| {
-        (map_entry_key(line) == Some(key)).then(|| {
-            line.split('#')
-                .next()
-                .unwrap_or_default()
-                .split_whitespace()
-                .nth(1)
-                .unwrap_or_default()
-                .trim_end_matches(';')
-                .to_string()
-        })
-    }))
-}
-
-fn request_selector_exists(
-    config: &AppConfig,
-    path: &Path,
-    key: &str,
-    include_managed: bool,
-) -> Result<bool> {
-    let Some(content) = read_managed_config_file(config, path)? else {
-        return Ok(false);
-    };
-    let lines = content.lines().map(ToString::to_string).collect::<Vec<_>>();
-    let Some((start, end)) = map_block_bounds(&lines, "map $request_uri $subfolder_app")? else {
-        return Ok(false);
-    };
-    Ok(lines[start + 1..end].iter().any(|line| {
-        (include_managed || !line.contains("# router-hub-managed:"))
-            && request_selector_matches_key(line, key)
-    }))
-}
-
-fn request_selector_matches_key(line: &str, key: &str) -> bool {
-    let code = line.split('#').next().unwrap_or_default().trim();
-    let Some(selector) = code.split_whitespace().next() else {
-        return false;
-    };
-    if let Some(pattern) = selector
-        .strip_prefix("~*")
-        .or_else(|| selector.strip_prefix('~'))
-    {
-        let pattern = pattern.replace("(?<", "(?P<");
-        return regex::Regex::new(&pattern)
-            .ok()
-            .is_some_and(|pattern| pattern.is_match(&format!("/{key}/")));
-    }
-    selector == format!("/{key}") || selector.starts_with(&format!("/{key}/"))
-}
-
-fn update_map_file<F>(
-    config: &AppConfig,
-    path: &Path,
-    header: &str,
-    additions: &[(String, String)],
-    should_remove: F,
-) -> Result<()>
-where
-    F: Fn(&str) -> bool,
-{
-    let mut lines = read_managed_config_file(config, path)?
-        .unwrap_or_default()
-        .lines()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-    if let Some((start, end)) = map_block_bounds(&lines, header)? {
-        let mut body = lines[start + 1..end]
-            .iter()
-            .filter(|line| !should_remove(line))
-            .cloned()
-            .collect::<Vec<_>>();
-        for (key, entry) in additions {
-            let marker = format!("# router-hub-managed: {key}");
-            if !body
-                .iter()
-                .any(|line| map_entry_key(line) == Some(key.as_str()) || line.contains(&marker))
-            {
-                body.push(format!("    {entry} {marker}"));
-            }
-        }
-        let mut replacement = vec![lines[start].clone()];
-        replacement.extend(body);
-        replacement.push(lines[end].clone());
-        lines.splice(start..=end, replacement);
-    } else if !additions.is_empty() {
-        if !lines.is_empty() && !lines.last().is_some_and(String::is_empty) {
-            lines.push(String::new());
-        }
-        lines.push(format!("{header} {{"));
-        lines.push("    default \"\";".to_string());
-        for (key, entry) in additions {
-            lines.push(format!("    {entry} # router-hub-managed: {key}"));
-        }
-        lines.push("}".to_string());
+    let global = crate::nginx_render::load_global(config)?;
+    let servers = if names.is_empty() {
+        "\"\";".into()
     } else {
-        return Ok(());
-    }
-    let mut content = lines.join("\n");
-    content.push('\n');
-    write_managed_config_file(config, path, &content)
-}
-
-fn map_block_bounds(lines: &[String], header: &str) -> Result<Option<(usize, usize)>> {
-    let Some(start) = lines.iter().position(|line| {
-        let trimmed = line.trim();
-        trimmed.starts_with(header) && trimmed[header.len()..].trim_start().starts_with('{')
-    }) else {
-        return Ok(None);
+        format!("{};", names.into_iter().collect::<Vec<_>>().join(" "))
     };
-    let mut depth = 0i32;
-    for (index, line) in lines.iter().enumerate().skip(start) {
-        let code = line.split('#').next().unwrap_or_default();
-        depth += code.chars().filter(|character| *character == '{').count() as i32;
-        depth -= code.chars().filter(|character| *character == '}').count() as i32;
-        if depth == 0 {
-            return Ok(Some((start, index)));
-        }
-    }
-    bail!("unterminated nginx map block: {header}")
-}
-
-fn map_entry_key(line: &str) -> Option<&str> {
-    let code = line.split('#').next()?.trim();
-    let key = code.split_whitespace().next()?;
-    (!code.is_empty() && key != "default" && key != "hostnames" && key != "}").then_some(key)
-}
-
-fn validate_map_key(value: &str, label: &str) -> Result<String> {
-    if value.is_empty()
-        || value == "default"
-        || value
-            .chars()
-            .any(|character| character.is_whitespace() || ";{}#".contains(character))
-    {
-        bail!("{label} contains invalid nginx map characters");
-    }
-    Ok(value.to_string())
+    let data = [("settings/servers.conf".into(), servers.clone())]
+        .into_iter()
+        .collect();
+    let env = crate::nginx_render::environment(&data)?;
+    let mut context = global.shared;
+    context.entry("acme_challenge_dir").or_insert_with(|| {
+        config
+            .certificates
+            .certs_dir
+            .join("acme-challenge")
+            .to_string_lossy()
+            .into_owned()
+            .into()
+    });
+    let rendered = env
+        .get_template("conf.d/05-http-to-https.conf.jinja")?
+        .render(minijinja::value::Serde(context))?;
+    let files = [
+        (config.nginx.root_dir.join("settings/servers.conf"), servers),
+        (config.nginx.http_forwarder_path.clone(), rendered),
+    ]
+    .into_iter()
+    .collect();
+    crate::nginx_render::FileTransaction::apply(config, files)?.commit();
+    Ok(())
 }
 
 fn read_managed_config_file(config: &AppConfig, path: &Path) -> Result<Option<String>> {
@@ -997,49 +663,6 @@ fn read_managed_config_file(config: &AppConfig, path: &Path) -> Result<Option<St
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error.into()),
     }
-}
-
-fn write_managed_config_file(config: &AppConfig, path: &Path, content: &str) -> Result<()> {
-    ensure_no_symlink_ancestors(&config.nginx.root_dir, path)?;
-    if let Ok(metadata) = fs::symlink_metadata(path) {
-        if !metadata.file_type().is_file() {
-            bail!(
-                "managed nginx path is not a regular file: {}",
-                path.display()
-            );
-        }
-    }
-    atomic_write(path, content.as_bytes())
-}
-
-pub fn template_name(content: &str) -> Option<String> {
-    content.lines().find_map(|line| {
-        let name = line.trim().strip_prefix(TEMPLATE_COMMENT_PREFIX)?.trim();
-        validate_name(name, "template name")
-            .is_ok()
-            .then(|| name.to_string())
-    })
-}
-
-pub fn with_template_comment(template: &str, content: &str) -> Result<String> {
-    validate_name(template, "template name")?;
-    let content = strip_template_comment(content);
-    Ok(format!(
-        "{TEMPLATE_COMMENT_PREFIX} {template}\n{}",
-        content.trim_start()
-    ))
-}
-
-pub fn strip_template_comment(content: &str) -> String {
-    let mut stripped = content
-        .lines()
-        .filter(|line| !line.trim().starts_with(TEMPLATE_COMMENT_PREFIX))
-        .collect::<Vec<_>>()
-        .join("\n");
-    if content.ends_with('\n') {
-        stripped.push('\n');
-    }
-    stripped
 }
 
 pub fn extract_server_names(content: &str) -> Vec<String> {
@@ -1080,129 +703,6 @@ pub fn extract_server_names(content: &str) -> Vec<String> {
         .split_whitespace()
         .map(ToString::to_string)
         .collect()
-}
-
-pub fn list_templates(
-    config: &AppConfig,
-    kind: NginxObjectKind,
-) -> Result<Vec<NginxTemplateEntry>> {
-    let base = config.nginx.templates_dir.join(kind.as_str());
-    let mut templates = Vec::new();
-    for entry in read_dir_if_exists(&base)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_file()
-            || entry.path().extension().and_then(|value| value.to_str()) != Some("conf")
-        {
-            continue;
-        }
-        let metadata = entry.metadata()?;
-        templates.push(NginxTemplateEntry {
-            kind,
-            name: entry
-                .path()
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or_default()
-                .to_string(),
-            size: metadata.len(),
-            modified: metadata.modified().ok().map(DateTime::<Utc>::from),
-        });
-    }
-    templates.sort_by(|left, right| left.name.cmp(&right.name));
-    Ok(templates)
-}
-
-pub fn template_path(config: &AppConfig, kind: NginxObjectKind, name: &str) -> Result<PathBuf> {
-    validate_name(name, "template name")?;
-    let path = config
-        .nginx
-        .templates_dir
-        .join(kind.as_str())
-        .join(config_file_name(name)?);
-    ensure_no_symlink_ancestors(&config.nginx.templates_dir, &path)?;
-    Ok(path)
-}
-
-pub fn read_template(config: &AppConfig, kind: NginxObjectKind, name: &str) -> Result<String> {
-    let path = template_path(config, kind, name)?;
-    ensure_regular_file(&path, "nginx template")?;
-    fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))
-}
-
-pub fn write_template(
-    config: &AppConfig,
-    kind: NginxObjectKind,
-    name: &str,
-    content: &str,
-) -> Result<()> {
-    atomic_write(&template_path(config, kind, name)?, content.as_bytes())
-}
-
-pub fn rename_template(
-    config: &AppConfig,
-    kind: NginxObjectKind,
-    old_name: &str,
-    new_name: &str,
-    content: &str,
-) -> Result<()> {
-    let old_path = template_path(config, kind, old_name)?;
-    let new_path = template_path(config, kind, new_name)?;
-    ensure_regular_file(&old_path, "nginx template")?;
-    if new_path.exists() {
-        bail!("nginx template already exists");
-    }
-    fs::rename(&old_path, &new_path)?;
-    if let Err(error) = atomic_write(&new_path, content.as_bytes()) {
-        let _ = fs::rename(&new_path, &old_path);
-        return Err(error);
-    }
-    Ok(())
-}
-
-pub fn delete_template(config: &AppConfig, kind: NginxObjectKind, name: &str) -> Result<()> {
-    let path = template_path(config, kind, name)?;
-    if path.is_file() {
-        fs::remove_file(path)?;
-    }
-    Ok(())
-}
-
-pub fn list_root_files(config: &AppConfig) -> Result<Vec<NginxFileEntry>> {
-    let mut files = Vec::new();
-    if !config.nginx.root_dir.exists() {
-        return Ok(files);
-    }
-    for entry in WalkDir::new(&config.nginx.root_dir).follow_links(false) {
-        let entry = entry?;
-        let relative = entry.path().strip_prefix(&config.nginx.root_dir)?;
-        if root_file_excluded(relative) {
-            continue;
-        }
-        if entry.file_type().is_file() {
-            let metadata = entry.metadata()?;
-            files.push(NginxFileEntry {
-                path: relative.to_string_lossy().to_string(),
-                size: metadata.len(),
-                modified: metadata.modified().ok().map(DateTime::<Utc>::from),
-            });
-        }
-    }
-    files.sort_by(|left, right| left.path.cmp(&right.path));
-    Ok(files)
-}
-
-pub fn root_file_path(config: &AppConfig, path: &str) -> Result<PathBuf> {
-    let relative = safe_relative_path(path)?;
-    if relative.as_os_str().is_empty() || root_file_excluded(&relative) {
-        bail!("that nginx path is managed by a dedicated API or is not editable");
-    }
-    validate_relative_characters(&relative)?;
-    let target = config.nginx.root_dir.join(&relative);
-    ensure_no_symlink_ancestors(&config.nginx.root_dir, &target)?;
-    if symlink_exists(&target) && fs::symlink_metadata(&target)?.file_type().is_symlink() {
-        bail!("nginx root files may not be symlinks");
-    }
-    Ok(target)
 }
 
 pub fn list_logs(config: &AppConfig) -> Result<Vec<NginxLogEntry>> {
@@ -1273,17 +773,6 @@ pub fn symlink_exists(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok()
 }
 
-fn root_file_excluded(relative: &Path) -> bool {
-    relative
-        .components()
-        .next()
-        .and_then(|component| match component {
-            Component::Normal(value) => value.to_str(),
-            _ => None,
-        })
-        .is_some_and(|value| ROOT_FILE_EXCLUSIONS.contains(&value))
-}
-
 fn validate_relative_characters(path: &Path) -> Result<()> {
     if path
         .to_string_lossy()
@@ -1295,7 +784,7 @@ fn validate_relative_characters(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn ensure_no_symlink_ancestors(base: &Path, target: &Path) -> Result<()> {
+pub(crate) fn ensure_no_symlink_ancestors(base: &Path, target: &Path) -> Result<()> {
     let relative = target.strip_prefix(base)?;
     let mut current = base.to_path_buf();
     for component in relative.components() {
@@ -1320,11 +809,6 @@ fn ensure_regular_file(path: &Path, label: &str) -> Result<()> {
     Ok(())
 }
 
-fn read_dir_if_exists(path: &Path) -> Result<fs::ReadDir> {
-    fs::create_dir_all(path)?;
-    Ok(fs::read_dir(path)?)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1336,7 +820,6 @@ mod tests {
         config.nginx.config_path = root.join("nginx.conf");
         config.nginx.domains_available_dir = root.join("domains-available");
         config.nginx.domains_enabled_dir = root.join("domains-enabled");
-        config.nginx.templates_dir = root.join("templates");
         config.nginx.subdomain_upstream_map_path =
             root.join("conf.d/03_subdomain_upstream_map.conf");
         config.nginx.domain_upstream_map_path = root.join("conf.d/02_domain_upstream_map.conf");
@@ -1461,288 +944,54 @@ mod tests {
     }
 
     #[test]
-    fn renders_named_template_values() {
-        let rendered = render_template(
-            "server_name {{server_name}}; location /{{subfolder}}/ {}",
-            NginxObjectKind::Subfolder,
-            "example.test",
-            "media",
-            &[],
-        );
-        assert_eq!(
-            rendered.unwrap(),
-            "server_name example.test; location /media/ {}"
-        );
-    }
-
-    #[test]
-    fn template_metadata_and_aliases_round_trip() {
-        let rendered = render_template(
-            "server { server_name {{server_name}}; }",
-            NginxObjectKind::Subdomain,
-            "example.test",
-            "app",
-            &["app.example.test".into(), "media.example.test".into()],
-        )
-        .unwrap();
-        let content = with_template_comment("proxy", &rendered).unwrap();
-
-        assert_eq!(template_name(&content).as_deref(), Some("proxy"));
-        assert_eq!(
-            extract_server_names(&content),
-            ["app.example.test", "media.example.test"]
-        );
-        assert_eq!(
-            strip_template_comment(&content),
-            "server { server_name app.example.test media.example.test; }"
-        );
-        assert!(
-            render_template(
-                "server_name {{server_name}};",
-                NginxObjectKind::Domain,
-                "example.test",
-                "example.test",
-                &["example.test; return 204".into()],
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn manages_site_upstream_maps_and_http_forwarder() {
+    fn manages_current_upstream_data_and_renders_maps() {
         let temp = tempdir().unwrap();
         let config = test_config(temp.path());
-        assert_eq!(
-            subfolder_map_key("location ^~ /librarydev/admin {", "library_dev").unwrap(),
-            "librarydev"
-        );
-        assert_eq!(
-            subfolder_map_key("location ^~ /sangraha-dev/admin {", "sangraha-dev").unwrap(),
-            "sangraha-dev"
-        );
-        write_object(
-            &config,
-            NginxObjectKind::Domain,
-            "example.test",
-            "example.test",
-            "server { server_name example.test; }",
-            true,
-        )
-        .unwrap();
-        write_object(
-            &config,
-            NginxObjectKind::Subdomain,
-            "example.test",
-            "app",
-            "server { server_name app.example.test alias.example.test; }",
-            true,
-        )
-        .unwrap();
-        write_object(
-            &config,
-            NginxObjectKind::Subfolder,
-            "example.test",
-            "media",
-            "location /media/ {}",
-            true,
-        )
-        .unwrap();
-        set_enabled(
-            &config,
-            NginxObjectKind::Domain,
-            "example.test",
-            "example.test",
-            true,
-        )
-        .unwrap();
-        set_enabled(
-            &config,
-            NginxObjectKind::Subdomain,
-            "example.test",
-            "app",
-            true,
-        )
-        .unwrap();
-
-        let names = [
-            "app.example.test".to_string(),
-            "alias.example.test".to_string(),
-        ];
+        let kind = NginxObjectKind::Subfolder;
         sync_site_upstream(
             &config,
-            NginxObjectKind::Subdomain,
+            kind,
             "example.test",
-            "app",
+            "media",
             None,
             None,
             &[],
-            &names,
+            &["example.test".into()],
             Some("http://127.0.0.1:8080"),
         )
         .unwrap();
+        assert_eq!(
+            site_upstream_with_key(&config, kind, "example.test", "media", &[], None)
+                .unwrap()
+                .as_deref(),
+            Some("http://127.0.0.1:8080")
+        );
+        assert!(
+            fs::read_to_string(&config.nginx.subfolder_upstream_map_path)
+                .unwrap()
+                .contains("(?:media)(?:-dev)?")
+        );
         sync_site_upstream(
             &config,
-            NginxObjectKind::Domain,
-            "example.test",
-            "example.test",
-            None,
-            None,
-            &[],
-            &["example.test".to_string()],
-            Some("http://127.0.0.1:8083"),
-        )
-        .unwrap();
-        sync_site_upstream(
-            &config,
-            NginxObjectKind::Subfolder,
+            kind,
             "example.test",
             "media",
             None,
             None,
+            &["example.test".into()],
             &[],
-            &[],
-            Some("http://127.0.0.1:8081"),
-        )
-        .unwrap();
-        reconcile_http_forwarder(&config).unwrap();
-
-        let subdomain_map = fs::read_to_string(&config.nginx.subdomain_upstream_map_path).unwrap();
-        assert!(subdomain_map.contains("app.example.test http://127.0.0.1:8080;"));
-        assert!(subdomain_map.contains("alias.example.test http://127.0.0.1:8080;"));
-        assert_eq!(
-            site_upstream_with_key(
-                &config,
-                NginxObjectKind::Subdomain,
-                "example.test",
-                "app",
-                &names,
-                None,
-            )
-            .unwrap()
-            .as_deref(),
-            Some("http://127.0.0.1:8080")
-        );
-        let domain_map = fs::read_to_string(&config.nginx.domain_upstream_map_path).unwrap();
-        assert!(domain_map.contains("example.test http://127.0.0.1:8083;"));
-        assert_eq!(
-            site_upstream_with_key(
-                &config,
-                NginxObjectKind::Domain,
-                "example.test",
-                "example.test",
-                &["example.test".to_string()],
-                None,
-            )
-            .unwrap()
-            .as_deref(),
-            Some("http://127.0.0.1:8083")
-        );
-        let subfolder_map = fs::read_to_string(&config.nginx.subfolder_upstream_map_path).unwrap();
-        assert!(subfolder_map.contains("media http://127.0.0.1:8081;"));
-        assert!(subfolder_map.contains("~^/media(?:/|\\?|$) media;"));
-
-        let forwarder = fs::read_to_string(&config.nginx.http_forwarder_path).unwrap();
-        assert!(forwarder.contains("example.test"));
-        assert!(forwarder.contains("app.example.test"));
-        assert!(forwarder.contains("alias.example.test"));
-
-        sync_site_upstream(
-            &config,
-            NginxObjectKind::Subdomain,
-            "example.test",
-            "app",
             None,
-            None,
-            &names,
-            &["new.example.test".to_string()],
-            Some("https://127.0.0.1:8443"),
         )
         .unwrap();
-        let subdomain_map = fs::read_to_string(&config.nginx.subdomain_upstream_map_path).unwrap();
-        assert!(!subdomain_map.contains("app.example.test http://127.0.0.1:8080;"));
-        assert!(subdomain_map.contains("new.example.test https://127.0.0.1:8443;"));
-
-        fs::write(
-            &config.nginx.subfolder_upstream_map_path,
-            "map $request_uri $subfolder_app {\n    default \"\";\n    ~^/(?<subfolder_from_uri>library(?:dev)?)(?:/|\\?|$) $subfolder_from_uri;\n}\n",
-        )
-        .unwrap();
-        sync_site_upstream(
-            &config,
-            NginxObjectKind::Subfolder,
-            "example.test",
-            "library_dev",
-            Some("librarydev"),
-            Some("librarydev"),
-            &[],
-            &[],
-            Some("http://127.0.0.1:8082"),
-        )
-        .unwrap();
-        let subfolder_map = fs::read_to_string(&config.nginx.subfolder_upstream_map_path).unwrap();
-        assert!(subfolder_map.contains("librarydev http://127.0.0.1:8082;"));
-        assert!(!subfolder_map.contains("~^/librarydev(?:/|\\?|$)"));
-    }
-
-    #[test]
-    fn http_certificate_domain_gets_forwarder_without_site() {
-        let temp = tempdir().unwrap();
-        let mut config = test_config(temp.path());
-        config.paths.data_dir = temp.path().join("state");
-        fs::create_dir_all(&config.paths.data_dir).unwrap();
-        fs::write(
-            config.paths.data_dir.join("certificates.json"),
-            r#"[{"method":"http","domains":["eb5.newhopes.info"]},{"method":"dns","domains":["dns.example.test"]}]"#,
-        ).unwrap();
-        reconcile_http_forwarder(&config).unwrap();
-        let output = fs::read_to_string(&config.nginx.http_forwarder_path).unwrap();
-        assert!(output.contains("eb5.newhopes.info"));
-        assert!(!output.contains("dns.example.test"));
+        assert_eq!(
+            site_upstream_with_key(&config, kind, "example.test", "media", &[], None).unwrap(),
+            None
+        );
         assert!(
-            output.contains(
-                &config
-                    .certificates
-                    .certs_dir
-                    .join("acme-challenge")
-                    .to_string_lossy()
-                    .to_string()
-            )
+            !fs::read_to_string(&config.nginx.subfolder_upstream_map_path)
+                .unwrap()
+                .contains("(?:media)")
         );
-        assert!(output.contains("location ^~ /.well-known/acme-challenge/"));
-        assert!(output.contains("location / {\n        return 301 https://$host$request_uri;"));
-        assert!(!output.contains("snippets/acme-challenge.conf"));
-    }
-
-    #[test]
-    fn migrates_legacy_known_subdomains_forwarder() {
-        let temp = tempdir().unwrap();
-        let config = test_config(temp.path());
-        let legacy = config
-            .nginx
-            .root_dir
-            .join("conf.d/05-known-subdomains-http.conf");
-        fs::create_dir_all(legacy.parent().unwrap()).unwrap();
-        fs::write(&legacy, "server { server_name old.example.test; }").unwrap();
-
-        reconcile_http_forwarder(&config).unwrap();
-
-        assert!(!legacy.exists());
-        assert_eq!(
-            fs::read_to_string(&config.nginx.http_forwarder_path).unwrap(),
-            "# Managed by Router Hub. HTTP requests for enabled sites and HTTP-01 certificate domains are handled here.\n"
-        );
-    }
-
-    #[test]
-    fn root_files_reject_managed_trees_and_symlinks() {
-        let temp = tempdir().unwrap();
-        let config = test_config(temp.path());
-        fs::create_dir_all(temp.path().join("conf.d")).unwrap();
-        unix_fs::symlink("/tmp", temp.path().join("conf.d/link")).unwrap();
-        assert!(root_file_path(&config, "../outside.conf").is_err());
-        assert!(root_file_path(&config, "domains-available/x/root.conf").is_err());
-        assert!(root_file_path(&config, "conf.d/link/escape.conf").is_err());
-        assert!(root_file_path(&config, "conf.d/global.conf").is_ok());
     }
 
     #[test]

@@ -1,0 +1,26 @@
+# Managed example sites for the emulated UI; all commands remain simulated.
+[sites."example.test"]
+kind = "domain"
+domain = "example.test"
+server_name = "example.test"
+upstream = "http://127.0.0.1:8080"
+enabled = true
+enable_lanonly = false
+disable_root = false
+
+[sites."media.example.test"]
+kind = "subdomain"
+domain = "example.test"
+name = "media"
+server_name = "media.example.test"
+upstream = "http://127.0.0.1:8081"
+enabled = true
+enable_lanonly = false
+
+[sites."example.test/app"]
+kind = "subfolder"
+domain = "example.test"
+subfolder = "app"
+upstream = "http://127.0.0.1:8082"
+enabled = true
+enable_lanonly = false

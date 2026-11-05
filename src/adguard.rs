@@ -28,12 +28,6 @@ pub struct RewriteEntry {
     pub answer: String,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProtectionState {
-    pub protection_enabled: bool,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdGuardHomeStatus {
     pub protection_enabled: bool,
@@ -301,16 +295,6 @@ impl AdGuardClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_protection_state_serde() {
-        let state = ProtectionState {
-            protection_enabled: true,
-        };
-        let json = serde_json::to_string(&state).unwrap();
-        let decoded: ProtectionState = serde_json::from_str(&json).unwrap();
-        assert!(decoded.protection_enabled);
-    }
 
     #[test]
     fn test_adguard_client_new() {

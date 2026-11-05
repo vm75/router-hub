@@ -1,0 +1,3 @@
+# Router Hub saves managed site inputs here in the deployed nginx root.
+# See examples/sites.toml for synthetic policy examples. No sites are enabled here.
+[sites]

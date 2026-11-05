@@ -1,0 +1,18 @@
+{% import 'settings/pwa.jinja' as pwa with context %}
+# HTTP-context classification used only by locations with cache_policy=pwa.
+# URI classification runs after a mounted application's prefix is stripped.
+map $uri $pwa_cache_control {
+    default "";
+    ~*^/(sw\.js|service-worker\.js|index\.html|manifest\.(?:webmanifest|json))$ "{{ pwa.shell_cache_control }}";
+    ~*\.(js|css|svg|png|webp|ico|woff2?)$ "{{ pwa.asset_cache_control }}";
+}
+
+map $pwa_cache_control $pwa_pragma {
+    default "";
+    "{{ pwa.shell_cache_control }}" "no-cache";
+}
+
+map $pwa_cache_control $pwa_expires {
+    default "";
+    "{{ pwa.shell_cache_control }}" "0";
+}

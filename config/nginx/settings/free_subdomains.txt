@@ -1,0 +1,3 @@
+# One shared/free suffix per line, most specific first. No deployment suffixes here.
+# Put actual suffixes in nginx.deploy/settings/free_subdomains.txt.
+# Example: shared.example.test

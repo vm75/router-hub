@@ -45,45 +45,6 @@ chmod 0755 /opt/bin/router-hub
 cp "$SCRIPT_DIR/S99router-hub" /opt/etc/init.d/S99router-hub
 chmod 0755 /opt/etc/init.d/S99router-hub
 
-# Bootstrap nginx from the shared config only when no nginx config exists.
-# An existing nginx installation remains authoritative.
-if [ -d "$REPO_DIR/config/nginx" ] &&
-   [ ! -e /opt/etc/nginx/nginx.conf ] && [ ! -L /opt/etc/nginx/nginx.conf ]; then
-    mkdir -p /opt/etc/nginx/conf.d /opt/etc/nginx/domains-available \
-        /opt/etc/nginx/domains-enabled /opt/etc/nginx/templates \
-        /opt/etc/nginx/snippets /opt/var/log/nginx /opt/var/run
-    if [ ! -e /opt/etc/nginx/mime.types ] && [ ! -L /opt/etc/nginx/mime.types ]; then
-        install -m 0644 "$REPO_DIR/config/nginx/mime.types" /opt/etc/nginx/mime.types
-    fi
-    sed \
-        -e 's|{{pid_path}}|/opt/var/run/nginx.pid|g' \
-        -e 's|{{error_log_path}}|/opt/var/log/nginx/error.log|g' \
-        "$REPO_DIR/config/nginx/nginx.conf.template" > /opt/etc/nginx/nginx.conf
-    if [ ! -e /opt/etc/nginx/conf.d/01-global.conf ] && [ ! -L /opt/etc/nginx/conf.d/01-global.conf ]; then
-        install -m 0644 "$REPO_DIR/config/nginx/conf.d/01-global.conf" /opt/etc/nginx/conf.d/01-global.conf
-    fi
-fi
-
-# Install missing shared nginx assets without replacing router-local files.
-if [ -d "$REPO_DIR/config/nginx" ]; then
-    find "$REPO_DIR/config/nginx/templates" "$REPO_DIR/config/nginx/snippets" \
-        -type f -exec sh -c '
-            source_root=$1
-            target_root=/opt/etc/nginx
-            shift
-            for source do
-                relative=${source#"$source_root"/}
-                target=$target_root/$relative
-                if [ ! -e "$target" ] && [ ! -L "$target" ]; then
-                    mkdir -p "$(dirname "$target")"
-                    install -m 0644 "$source" "$target"
-                fi
-            done
-        ' sh "$REPO_DIR/config/nginx" {} +
-    if [ ! -e /opt/etc/nginx/mime.types ] && [ ! -L /opt/etc/nginx/mime.types ]; then
-        install -m 0644 "$REPO_DIR/config/nginx/mime.types" /opt/etc/nginx/mime.types
-    fi
-fi
 if [ ! -f "$CONFIG_DIR/router-hub.toml" ]; then
     cp "$REPO_DIR/config/router-hub.example.toml" "$CONFIG_DIR/router-hub.toml"
     chmod 0600 "$CONFIG_DIR/router-hub.toml"
@@ -91,6 +52,10 @@ if [ ! -f "$CONFIG_DIR/router-hub.toml" ]; then
     sed -i "s/REPLACE-WITH-AT-LEAST-24-RANDOM-CHARACTERS/$TOKEN/" "$CONFIG_DIR/router-hub.toml"
     echo "Created $CONFIG_DIR/router-hub.toml. Review rendered_page and menu_tree before starting."
 fi
+
+# Uses only current Jinja policies and empty site defaults; no configuration migration.
+# The command preserves an existing nginx.conf and respects configured nginx paths.
+/opt/bin/router-hub --config "$CONFIG_DIR/router-hub.toml" init-nginx
 
 if [ -n "$MOSQUITTO_USER" ] && [ -n "$MOSQUITTO_PASS" ]; then
     mkdir -p /opt/etc/mosquitto

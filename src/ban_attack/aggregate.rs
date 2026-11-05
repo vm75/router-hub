@@ -24,7 +24,6 @@ pub struct RuleStatsEntry {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PersistentState {
-    #[serde(default = "state_schema_version")]
     pub schema_version: u32,
     #[serde(default)]
     pub saved_at: Option<DateTime<Utc>>,
@@ -38,16 +37,6 @@ pub struct PersistentState {
     pub subnet_offenders: Vec<SubnetOffenderEntry>,
     #[serde(default)]
     pub rule_stats: Vec<RuleStatsEntry>,
-    // Kept only to import the two historical engine documents. New writes use
-    // the versioned fields above.
-    #[serde(default, skip_serializing)]
-    pub banned_ips: Vec<IpAddr>,
-    #[serde(default, skip_serializing)]
-    pub banned_subnets: Vec<IpNet>,
-}
-
-fn state_schema_version() -> u32 {
-    0
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -101,9 +90,6 @@ pub struct Snapshot {
 
 #[derive(Debug)]
 pub(crate) struct RecordResult {
-    pub ip_count: u64,
-    pub subnet: IpNet,
-    pub subnet_count: u64,
     pub transitions: Vec<BanTransition>,
     pub cleanup_errors: Vec<String>,
 }
@@ -258,9 +244,6 @@ impl Aggregator {
 
         if self.is_covered_by_banned_subnet(ip) {
             return Ok(RecordResult {
-                ip_count,
-                subnet,
-                subnet_count,
                 transitions,
                 cleanup_errors,
             });
@@ -315,9 +298,6 @@ impl Aggregator {
         }
 
         Ok(RecordResult {
-            ip_count,
-            subnet,
-            subnet_count,
             transitions,
             cleanup_errors,
         })
@@ -472,10 +452,6 @@ impl Aggregator {
     }
 
     pub fn persistent_state(&self) -> PersistentState {
-        let mut banned_ips: Vec<_> = self.banned_ips.iter().copied().collect();
-        banned_ips.sort();
-        let mut banned_subnets: Vec<_> = self.banned_subnets.iter().copied().collect();
-        banned_subnets.sort_by_key(|net| net.to_string());
         let mut active_bans: Vec<_> = self.active_bans.values().cloned().collect();
         active_bans.sort_by_key(|ban| ban.network.to_string());
         let mut scores: Vec<_> = self
@@ -524,8 +500,6 @@ impl Aggregator {
             reputation,
             subnet_offenders,
             rule_stats,
-            banned_ips,
-            banned_subnets,
         }
     }
 
@@ -543,7 +517,7 @@ impl Aggregator {
         state: &PersistentState,
         _backend: &dyn BanBackend,
     ) -> Result<(), BackendError> {
-        if state.schema_version > 1 {
+        if state.schema_version != 1 {
             return Err(BackendError(format!(
                 "unsupported ban state schema version {}",
                 state.schema_version
@@ -611,45 +585,6 @@ impl Aggregator {
             let stats = self.rule_stats.entry(entry.name.clone()).or_default();
             stats.match_count = stats.match_count.saturating_add(entry.match_count);
             stats.ban_count = stats.ban_count.saturating_add(entry.ban_count);
-        }
-        if state.schema_version == 0 {
-            for &subnet in &state.banned_subnets {
-                let target = BanTarget::Subnet(subnet);
-                self.banned_subnets.insert(subnet);
-                self.active_bans.insert(
-                    target,
-                    ActiveBan {
-                        network: subnet,
-                        source: "legacy".into(),
-                        reason: "migrated legacy ban".into(),
-                        created_at: now,
-                        expires_at: now + Duration::seconds(self.config.first_ban_seconds as i64),
-                        hit_count: 1,
-                        offense_count: 1,
-                        triggering_rule: None,
-                    },
-                );
-            }
-            for &ip in &state.banned_ips {
-                if self.is_covered_by_banned_subnet(ip) {
-                    continue;
-                }
-                let target = BanTarget::Ip(ip);
-                self.banned_ips.insert(ip);
-                self.active_bans.insert(
-                    target,
-                    ActiveBan {
-                        network: IpNet::from(ip),
-                        source: "legacy".into(),
-                        reason: "migrated legacy ban".into(),
-                        created_at: now,
-                        expires_at: now + Duration::seconds(self.config.first_ban_seconds as i64),
-                        hit_count: 1,
-                        offense_count: 1,
-                        triggering_rule: None,
-                    },
-                );
-            }
         }
         self.rebuild_subnet_counts();
         Ok(())
@@ -1143,8 +1078,6 @@ mod tests {
             reputation: vec![],
             subnet_offenders: vec![],
             rule_stats: vec![],
-            banned_ips: vec![],
-            banned_subnets: vec![],
         };
         let mut aggregator = Aggregator::new(AggregationConfig::default());
 
@@ -1200,7 +1133,7 @@ mod tests {
     }
 
     #[test]
-    fn versioned_restore_does_not_revive_expired_legacy_mirrors() {
+    fn versioned_restore_does_not_revive_expired_bans() {
         let backend = Arc::new(MemoryBanBackend::default());
         let ip: IpAddr = "192.0.2.55".parse().unwrap();
         let now = Utc::now();
@@ -1221,8 +1154,6 @@ mod tests {
             reputation: vec![],
             subnet_offenders: vec![],
             rule_stats: vec![],
-            banned_ips: vec![ip],
-            banned_subnets: vec![],
         };
         let mut aggregator = Aggregator::new(AggregationConfig::default());
 

@@ -1,0 +1,3 @@
+{# Sole owner of access log destinations, shared by server and route scopes. #}
+access_log {{ var_dir | default('/opt/var') }}/log/nginx/access.log f2b_access if={{ '$log_normal_access' if log_enabled | default(true) else '$log_traps_only' }};
+access_log {{ var_dir | default('/opt/var') }}/log/nginx/traps.log f2b_trap if=$any_trap;
