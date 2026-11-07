@@ -25,6 +25,7 @@ init_dir = "../init.d"
 log_dirs = ["../../var/log"]
 
 [nginx]
+inputs_dir = "nginx"
 root_dir = "../nginx"
 config_path = "../nginx/nginx.conf"
 pid_path = "../../var/run/nginx.pid"

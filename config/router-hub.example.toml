@@ -53,6 +53,7 @@ action_timeout_seconds = 30
 log_tail_lines = 300
 
 [nginx]
+inputs_dir = "/opt/etc/router-hub/nginx"
 root_dir = "/opt/etc/nginx"
 config_path = "/opt/etc/nginx/nginx.conf"
 # Optional isolated nginx -p prefix for native Linux integration.

@@ -284,11 +284,11 @@ restarts dnsmasq through the configured service command and arguments.
   ancestors, and nginx managed trees are rejected where applicable.
 - Nginx enablement is represented by the expected relative symlink hierarchy.
   Failed validation or lifecycle actions restore the prior enabled state.
-- Managed nginx inputs live in `settings/sites.toml`; validated policy overrides,
+- Managed nginx inputs live in `<nginx.inputs_dir>/sites.toml`; validated policy overrides,
   aliases, upstreams, and enablement are saved with a rollback guard across site
   validation and reload. Generated comments are output metadata, not imported
   settings. Global defaults and
-  shared parameters live only in `settings/nginx.toml`, using `[global]`,
+  shared parameters live only in `<nginx.inputs_dir>/nginx.toml`, using `[global]`,
   `[site_defaults]`, `[limit_policies.<name>]`, and root-level allowlist arrays.
   Named policies generate separate per-IP request and connection zones. Managed
   locations resolve site/parent policy names and emit both limit directive families
@@ -301,6 +301,14 @@ restarts dnsmasq through the configured service command and arguments.
   subfolder names are fixed, and directory creation rejects symlink traversal. Relative fallback certificate paths resolve below the nginx root.
   Custom server text is
   not rendered as Jinja and is preserved when defaults change.
+- `nginx.inputs_dir` defaults to `/opt/etc/router-hub/nginx`; all persistent
+  render-data fragments are read there. `nginx.root_dir` holds final nginx files,
+  including generated `settings/*.conf` runtime includes. A rollback guard spans
+  both roots during settings saves, validation, and reload. Test mode overrides
+  both paths. `migrate-nginx-inputs` relocates current-format legacy inputs while
+  Router Hub is stopped: destinations must be absent or byte-identical, validation
+  failures restore both trees, and legacy `.conf` files remain usable runtime
+  includes. Legacy TOML and text inputs are removed only within that transaction.
 - Versioned Jinja policies are embedded in the binary. Deployment data fragments
   cannot shadow policy modules. No template/root-file editor or legacy
   configuration conversion is exposed by the service.

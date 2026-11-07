@@ -37,6 +37,17 @@ proxying, preserve query strings, and use the original `$request_uri` to select
 the upstream. Configure upstreams in `settings/domains.conf`,
 `settings/subdomains.conf`, and `settings/subfolders.conf` as appropriate.
 
+Router Hub installs persistent render inputs under `nginx.inputs_dir` (default
+`/opt/etc/router-hub/nginx`). `nginx.toml`, `sites.toml`, upstream map fragments,
+and administrator-owned log/security exception fragments live there. Final nginx
+files and generated `.conf` includes remain under `nginx.root_dir` (default
+`/opt/etc/nginx`). The `settings/` paths below describe bundle/template names;
+source data files are resolved from `inputs_dir` without that prefix at runtime.
+TOML, text lists, and Jinja templates are not installed into nginx's runtime tree.
+Templates remain embedded in Router Hub's binary. See the
+[upgrade procedure](../../docs/migration.md#nginx-input-relocation-in-09) before
+using 0.9 with an existing installation.
+
 ## Site options
 
 [settings/proxy.jinja](settings/proxy.jinja) owns proxy defaults. Templates import
@@ -220,7 +231,7 @@ a fallback server, backend authentication, quiet control paths, private admin an
 rate-limited login routes, and production/development SPA/PWA mounts.
 `kind` selects the template; `upstream` records the corresponding map target.
 The remaining fields are render context. Actual per-site values belong in
-`<nginx.root_dir>/settings/sites.toml`. Router Hub reads this file as the source
+`<nginx.inputs_dir>/sites.toml`. Router Hub reads this file as the source
 of managed site inputs and saves API/UI changes there atomically. Each entry has
 `kind`, `domain`, `server_name`, `upstream`, `enabled`, and policy overrides;
 `name` identifies subdomains and `subfolder` identifies mounts. Deployment keys
@@ -228,7 +239,7 @@ such as `app.example.test` and `example.test/app` can supply the name instead.
 Output paths are derived from site identity; an `output` field is not accepted.
 Managed editors expose settings, and saving regenerates the configuration.
 Generated settings comments are output metadata; managed inputs must be in TOML.
-Shared settings and defaults live only in `settings/nginx.toml`. The `[global]`
+Shared settings and defaults live only in `<nginx.inputs_dir>/nginx.toml`. The `[global]`
 table holds shared nginx options, `[site_defaults]` holds inherited site policy,
 and root-level `allowed_ips` and `free_subdomains` arrays hold the allowlists.
 API/UI saves update this file atomically with generated runtime output; failed
@@ -250,7 +261,7 @@ matching nginx inheritance in existing configurations.
 
 ## Named request and concurrent-request policies
 
-Define reusable policies in `settings/nginx.toml`. All four fields are required;
+Define reusable policies in `<nginx.inputs_dir>/nginx.toml`. All four fields are required;
 unknown fields are rejected. The reserved name `default` always means the
 original Ban Shield policy: `30r/s`, burst 60, immediate processing, 30 concurrent
 requests, using the existing globally shared zones.
@@ -269,7 +280,7 @@ nodelay = true
 connections = 10
 ```
 
-In a managed entry in `settings/sites.toml`:
+In a managed entry in `<nginx.inputs_dir>/sites.toml`:
 
 ```toml
 [sites."app.example.test"]

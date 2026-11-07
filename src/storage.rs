@@ -637,6 +637,7 @@ mod tests {
         config.paths.data_dir = temp.path().join("data");
         config.certificates.certs_dir = temp.path().join("dehydrated/certs");
         config.nginx.root_dir = temp.path().join("nginx");
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
         config.commands.openssl = openssl;
 
         let stores = Stores::load(&config).await.unwrap();
@@ -705,6 +706,7 @@ mod tests {
         config.paths.data_dir = temp.path().join("data");
         config.certificates.certs_dir = temp.path().join("certs");
         config.nginx.root_dir = temp.path().join("nginx");
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
 
         let stores = Stores::load(&config).await.unwrap();
         assert!(!stores.firewall_policy.read().await.enabled);

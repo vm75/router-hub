@@ -631,7 +631,46 @@ const BUNDLE: &[(&str, &str)] = &[
 ];
 
 pub fn global_path(config: &crate::config::AppConfig) -> std::path::PathBuf {
-    config.nginx.root_dir.join("settings/nginx.toml")
+    config.nginx.inputs_dir.join("nginx.toml")
+}
+
+/// Limit managed writes to the configured input and runtime trees.
+pub(crate) fn ensure_managed_path(
+    config: &crate::config::AppConfig,
+    path: &std::path::Path,
+) -> Result<()> {
+    use std::path::Component;
+    if path
+        .components()
+        .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
+    {
+        bail!("managed nginx path must be normalized");
+    }
+    let base = if path.starts_with(&config.nginx.inputs_dir) {
+        &config.nginx.inputs_dir
+    } else {
+        &config.nginx.root_dir
+    };
+    if std::fs::symlink_metadata(base).is_ok_and(|m| m.file_type().is_symlink()) {
+        bail!("managed nginx root is a symlink");
+    }
+    nginx::ensure_no_symlink_ancestors(base, path)
+}
+
+/// Refuse to silently replace legacy persisted inputs with empty defaults.
+pub(crate) fn require_migrated_input(config: &crate::config::AppConfig, name: &str) -> Result<()> {
+    let path = config.nginx.inputs_dir.join(name);
+    ensure_managed_path(config, &path)?;
+    if !path.try_exists()? {
+        let legacy = config.nginx.root_dir.join("settings").join(name);
+        ensure_managed_path(config, &legacy)?;
+        if legacy.try_exists()? {
+            bail!(
+                "legacy nginx inputs found; stop Router Hub and run migrate-nginx-inputs before starting this version"
+            );
+        }
+    }
+    Ok(())
 }
 
 /// Keep render-time filesystem defaults tied to configurable application paths,
@@ -695,7 +734,7 @@ pub fn with_path_defaults(
 
 pub fn load_global(config: &crate::config::AppConfig) -> Result<GlobalSettings> {
     let path = global_path(config);
-    nginx::ensure_no_symlink_ancestors(&config.nginx.root_dir, &path)?;
+    require_migrated_input(config, "nginx.toml")?;
     let stored: NginxSettings = match std::fs::read_to_string(&path) {
         Ok(content) => toml::from_str(&content)?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => NginxSettings::default(),
@@ -733,8 +772,11 @@ pub fn shared_files(
     let mut data = BTreeMap::new();
     for &(name, source) in BUNDLE {
         if name.starts_with("settings/") && !name.ends_with(".jinja") {
-            let path = config.nginx.root_dir.join(name);
-            nginx::ensure_no_symlink_ancestors(&config.nginx.root_dir, &path)?;
+            let path = config
+                .nginx
+                .inputs_dir
+                .join(name.strip_prefix("settings/").unwrap());
+            ensure_managed_path(config, &path)?;
             match std::fs::read_to_string(path) {
                 Ok(content) => {
                     data.insert(name.into(), content);
@@ -858,7 +900,17 @@ pub fn shared_files(
         files.insert(path, content);
     }
     for (name, content) in data {
-        files.insert(config.nginx.root_dir.join(name), content);
+        files.insert(
+            config
+                .nginx
+                .inputs_dir
+                .join(name.strip_prefix("settings/").unwrap()),
+            content.clone(),
+        );
+        // These are concrete nginx includes; text lists and TOML stay in inputs_dir.
+        if name.ends_with(".conf") {
+            files.insert(config.nginx.root_dir.join(name), content);
+        }
     }
     files.insert(global_path(config), encode_global(&settings)?);
     Ok(files)
@@ -876,13 +928,21 @@ impl FileTransaction {
         config: &crate::config::AppConfig,
         files: BTreeMap<std::path::PathBuf, String>,
     ) -> Result<Self> {
+        Self::apply_with_removals(config, files, &[])
+    }
+
+    fn apply_with_removals(
+        config: &crate::config::AppConfig,
+        files: BTreeMap<std::path::PathBuf, String>,
+        removals: &[std::path::PathBuf],
+    ) -> Result<Self> {
         let mut transaction = Self {
             previous: Vec::new(),
             committed: false,
         };
         // Preflight every path before writing any file.
-        for path in files.keys() {
-            nginx::ensure_no_symlink_ancestors(&config.nginx.root_dir, path)?;
+        for path in files.keys().chain(removals) {
+            ensure_managed_path(config, path)?;
             let previous = match std::fs::read(path) {
                 Ok(bytes) => Some(bytes),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
@@ -908,6 +968,9 @@ impl FileTransaction {
         }
         for (path, content) in files {
             nginx::atomic_write(&path, content.as_bytes())?;
+        }
+        for path in removals {
+            std::fs::remove_file(path)?;
         }
         Ok(transaction)
     }
@@ -940,6 +1003,70 @@ impl Drop for FileTransaction {
             }
         }
     }
+}
+
+/// Move current-format legacy inputs without altering active nginx configuration.
+/// Run while Router Hub is stopped. Conflicting destinations are never overwritten.
+pub fn migrate_inputs(config: &crate::config::AppConfig) -> Result<usize> {
+    use std::fs;
+    let mut names = BUNDLE
+        .iter()
+        .filter_map(|(name, _)| {
+            name.strip_prefix("settings/")
+                .filter(|name| !name.ends_with(".jinja"))
+        })
+        .collect::<Vec<_>>();
+    names.extend(["nginx.toml", "sites.toml"]);
+    let mut files = BTreeMap::new();
+    let mut removals = Vec::new();
+    for name in names {
+        let source = config.nginx.root_dir.join("settings").join(name);
+        let target = config.nginx.inputs_dir.join(name);
+        if source == target {
+            bail!("inputs_dir must be separate from legacy nginx settings");
+        }
+        ensure_managed_path(config, &source)?;
+        ensure_managed_path(config, &target)?;
+        let content = match fs::read_to_string(&source) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e.into()),
+        };
+        match fs::read_to_string(&target) {
+            Ok(existing) if existing != content => {
+                bail!("conflicting nginx input: {}", target.display())
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+        files.insert(target, content);
+        // Keep .conf files as live runtime includes, but retire non-runtime inputs.
+        if !name.ends_with(".conf") {
+            removals.push(source);
+        }
+    }
+    let count = files.len();
+    let transaction = FileTransaction::apply_with_removals(config, files, &removals)?;
+    let global = load_global(config)?;
+    for (key, site) in crate::nginx_sites::load(config)?.sites {
+        let name = site.object_name(&key)?;
+        let names = site
+            .server_name
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        render_site(
+            &global,
+            &site.settings,
+            site.kind,
+            &site.domain,
+            &name,
+            &names,
+        )?;
+    }
+    transaction.commit();
+    Ok(count)
 }
 
 /// Initialize only a missing nginx configuration using the current bundle.
@@ -1064,6 +1191,159 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn migration_config(root: &std::path::Path) -> crate::config::AppConfig {
+        let mut config = crate::config::AppConfig::default();
+        config.nginx.root_dir = root.join("nginx");
+        config.nginx.inputs_dir = root.join("router-hub/nginx");
+        std::fs::create_dir_all(config.nginx.root_dir.join("settings")).unwrap();
+        config
+    }
+
+    #[test]
+    fn migration_preserves_policies_and_active_runtime_files() {
+        use std::fs;
+        let temp = tempfile::tempdir().unwrap();
+        let config = migration_config(temp.path());
+        let legacy = config.nginx.root_dir.join("settings");
+        let globals = encode_global(&limits()).unwrap();
+        let sites = r#"[sites.app]
+kind = "subdomain"
+domain = "example.test"
+name = "app"
+enabled = true
+upstream = "http://127.0.0.1:8080"
+limit_policy = "api"
+routes = [{path = "/static/", limit_policy = "assets"}]
+"#;
+        for (name, content) in [
+            ("nginx.toml", globals.as_str()),
+            ("sites.toml", sites),
+            ("allowed_ips.txt", "192.0.2.0/24"),
+            ("domains.conf", "custom.test http://127.0.0.1:8000;"),
+            ("security_trap_allow.conf", "# custom guard exceptions"),
+            ("proxy.jinja", "ignored template"),
+        ] {
+            fs::write(legacy.join(name), content).unwrap();
+        }
+        fs::write(
+            config.nginx.root_dir.join("custom.conf"),
+            "administrator config",
+        )
+        .unwrap();
+        assert!(load_global(&config).is_err());
+        assert!(crate::nginx_sites::load(&config).is_err());
+        assert_eq!(migrate_inputs(&config).unwrap(), 5);
+        assert_eq!(fs::read_to_string(global_path(&config)).unwrap(), globals);
+        assert_eq!(
+            fs::read_to_string(crate::nginx_sites::path(&config)).unwrap(),
+            sites
+        );
+        assert!(!legacy.join("nginx.toml").exists());
+        assert!(!legacy.join("sites.toml").exists());
+        assert!(!legacy.join("allowed_ips.txt").exists());
+        assert!(legacy.join("domains.conf").exists());
+        assert!(!config.nginx.inputs_dir.join("proxy.jinja").exists());
+        assert_eq!(
+            fs::read_to_string(config.nginx.root_dir.join("custom.conf")).unwrap(),
+            "administrator config"
+        );
+        let global = load_global(&config).unwrap();
+        let sites = crate::nginx_sites::load(&config).unwrap();
+        let site = &sites.sites["app"];
+        let output =
+            render_site(&global, &site.settings, site.kind, &site.domain, "app", &[]).unwrap();
+        assert!(output.contains("limit_req zone=rh_req_assets burst=500 nodelay;"));
+        assert!(output.contains("limit_req zone=rh_req_api;"));
+        let before = fs::read(global_path(&config)).unwrap();
+        migrate_inputs(&config).unwrap();
+        assert_eq!(fs::read(global_path(&config)).unwrap(), before);
+    }
+
+    #[test]
+    fn migration_rejects_conflicts_before_changing_any_files() {
+        use std::fs;
+        let temp = tempfile::tempdir().unwrap();
+        let config = migration_config(temp.path());
+        let legacy = config.nginx.root_dir.join("settings");
+        fs::write(legacy.join("nginx.toml"), "[global]\nhttp_port = 8080").unwrap();
+        fs::write(legacy.join("allowed_ips.txt"), "192.0.2.0/24").unwrap();
+        fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
+        fs::write(global_path(&config), "[global]\nhttp_port = 9090").unwrap();
+        assert!(migrate_inputs(&config).is_err());
+        assert!(!config.nginx.inputs_dir.join("allowed_ips.txt").exists());
+        assert!(legacy.join("allowed_ips.txt").exists());
+        assert_eq!(
+            fs::read_to_string(global_path(&config)).unwrap(),
+            "[global]\nhttp_port = 9090"
+        );
+    }
+
+    #[test]
+    fn migration_validation_failure_restores_both_directories() {
+        use std::fs;
+        for invalid in [
+            "invalid TOML [",
+            "[sites.bad]\nkind = 'subdomain'\ndomain = 'example.test'\nname = 'bad'\nlimit_policy = 'missing'",
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let config = migration_config(temp.path());
+            let legacy = config.nginx.root_dir.join("settings");
+            fs::write(legacy.join("nginx.toml"), "[global]\nhttp_port = 8080").unwrap();
+            fs::write(legacy.join("sites.toml"), invalid).unwrap();
+            fs::write(legacy.join("allowed_ips.txt"), "192.0.2.0/24").unwrap();
+            assert!(migrate_inputs(&config).is_err());
+            assert_eq!(
+                fs::read_to_string(legacy.join("sites.toml")).unwrap(),
+                invalid
+            );
+            assert!(legacy.join("nginx.toml").exists());
+            assert!(legacy.join("allowed_ips.txt").exists());
+            assert!(!global_path(&config).exists());
+            assert!(!crate::nginx_sites::path(&config).exists());
+            assert!(!config.nginx.inputs_dir.join("allowed_ips.txt").exists());
+        }
+    }
+
+    #[test]
+    fn transaction_spans_inputs_and_runtime_and_rejects_symlinks() {
+        use std::{fs, os::unix::fs::symlink};
+        let temp = tempfile::tempdir().unwrap();
+        let config = migration_config(temp.path());
+        fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
+        let input = config.nginx.inputs_dir.join("domains.conf");
+        let runtime = config.nginx.root_dir.join("settings/domains.conf");
+        fs::write(&input, "old input").unwrap();
+        fs::write(&runtime, "old runtime").unwrap();
+        let transaction = FileTransaction::apply(
+            &config,
+            [
+                (input.clone(), "new input".into()),
+                (runtime.clone(), "new runtime".into()),
+            ]
+            .into(),
+        )
+        .unwrap();
+        assert_eq!(fs::read_to_string(&input).unwrap(), "new input");
+        assert_eq!(fs::read_to_string(&runtime).unwrap(), "new runtime");
+        drop(transaction);
+        assert_eq!(fs::read_to_string(&input).unwrap(), "old input");
+        assert_eq!(fs::read_to_string(&runtime).unwrap(), "old runtime");
+        let outside = temp.path().join("outside");
+        fs::write(&outside, "outside").unwrap();
+        let link = config.nginx.inputs_dir.join("nginx.toml");
+        symlink(&outside, &link).unwrap();
+        assert!(load_global(&config).is_err());
+        assert!(migrate_inputs(&config).is_err());
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "outside");
+        assert!(
+            FileTransaction::apply(
+                &config,
+                [(temp.path().join("outside.conf"), "bad".into())].into()
+            )
+            .is_err()
+        );
+    }
+
     fn limits() -> GlobalSettings {
         serde_json::from_value(json!({"limit_policies": {
             "assets": {"rate":"100r/s", "burst":500, "nodelay":true, "connections":50},
@@ -1186,6 +1466,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut config = crate::config::AppConfig::default();
         config.nginx.root_dir = temp.path().into();
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
         let mut global = limits();
         global.site_defaults = json!({"limit_policy":"api"}).as_object().unwrap().clone();
         let files = shared_files(&config, &global).unwrap();
@@ -1194,7 +1475,7 @@ mod tests {
             assert!(zones.contains(&format!("$binary_remote_addr zone=rh_req_{name}:1m")));
             assert!(zones.contains(&format!("$binary_remote_addr zone=rh_conn_{name}:1m")));
         }
-        std::fs::create_dir_all(temp.path().join("settings")).unwrap();
+        std::fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
         std::fs::write(global_path(&config), encode_global(&global).unwrap()).unwrap();
         let restored = load_global(&config).unwrap();
         assert_eq!(
@@ -1288,6 +1569,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut config = crate::config::AppConfig::default();
         config.nginx.root_dir = temp.path().into();
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
         std::fs::create_dir(temp.path().join("settings")).unwrap();
         std::fs::write(temp.path().join("settings/allowed_ips.txt"), "192.0.2.0/24").unwrap();
         std::fs::write(
@@ -1365,6 +1647,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut config = crate::config::AppConfig::default();
         config.nginx.root_dir = temp.path().join("nginx");
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
         fs::create_dir_all(&config.nginx.root_dir).unwrap();
         let original = config.nginx.root_dir.join("original.conf");
         let added = config.nginx.root_dir.join("added.conf");
@@ -1382,7 +1665,8 @@ mod tests {
         assert!(!added.exists());
         let outside = temp.path().join("outside");
         fs::create_dir(&outside).unwrap();
-        std::os::unix::fs::symlink(&outside, config.nginx.root_dir.join("settings")).unwrap();
+        std::fs::create_dir_all(config.nginx.inputs_dir.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&outside, &config.nginx.inputs_dir).unwrap();
         assert!(load_global(&config).is_err());
         let files = [(global_path(&config), "bad write".into())]
             .into_iter()
@@ -1402,6 +1686,7 @@ mod tests {
             ..Default::default()
         };
         config.nginx.root_dir = root.into();
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
         config.nginx.config_path = root.join("nginx.conf");
         config.nginx.domain_upstream_map_path = root.join("conf.d/02_domain_upstream_map.conf");
         config.nginx.subdomain_upstream_map_path =
@@ -1409,8 +1694,8 @@ mod tests {
         config.nginx.subfolder_upstream_map_path =
             root.join("conf.d/04_subfolder_upstream_map.conf");
         config.nginx.http_forwarder_path = root.join("conf.d/05-http-to-https.conf");
-        fs::create_dir(root.join("settings")).unwrap();
-        let input = root.join("settings/nginx.toml");
+        fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
+        let input = global_path(&config);
         fs::write(&input, "[global]\nhttp_port = 19080\nhttps_port = 19443\nnginx_daemon = false\nnginx_user = ''\ndefault_certificate_dir = 'certs/example_test'\n").unwrap();
         let mut global = load_global(&config).unwrap();
         global.site_defaults = json!({"enable_streaming": false, "large_upload_max_body_size": "0", "routes": [{"path": "/events", "proxy_transport": "sse"}]}).as_object().unwrap().clone();

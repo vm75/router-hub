@@ -6,7 +6,7 @@ Router Hub is a Rust service for administrators of Asuswrt-Merlin routers. It
 serves a standalone or mounted web UI and a protected Axum API for Entware
 services, nginx configuration, certificates, Wake-on-LAN, firewall bans, and
 optional AdGuard Home integration. Router-sensitive state is kept in TOML and
-atomic JSON files. Managed nginx site inputs live in `settings/sites.toml`;
+atomic JSON files. Managed nginx site inputs live in `<nginx.inputs_dir>/sites.toml`;
 custom nginx objects remain authored configuration files.
 
 ## Repository map

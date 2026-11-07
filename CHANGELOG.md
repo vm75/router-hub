@@ -2,6 +2,20 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.9.0
+
+### Changed
+
+- Separate persistent nginx inputs from runtime configuration. Global settings,
+  managed sites, and administrator-owned render fragments now live under
+  `/opt/etc/router-hub/nginx` by default, configurable with `nginx.inputs_dir`.
+  nginx's tree contains final configuration and runtime includes; Jinja policies
+  remain embedded in the binary.
+- Add `migrate-nginx-inputs` for current-format installations. It rejects
+  conflicting destinations, validates copied settings, rolls back failures,
+  and preserves active runtime includes and custom nginx configuration. The
+  router installer stops Router Hub and runs this migration before initialization.
+
 ## 0.8.2
 
 ### Added

@@ -40,6 +40,7 @@ fi
 if [[ ! -e "$lab/nginx/nginx.conf" && ! -L "$lab/nginx/nginx.conf" ]]; then
     python3 "$repo_root/scripts/render-nginx-config.py" \
         "$repo_root/config/nginx" "$lab/nginx" \
+        --inputs-dir "$lab/router-hub/nginx" \
         --var-dir "$lab/var" --pid-path "$lab/run/nginx.pid" \
         --error-log-path "$lab/var/log/nginx/error.log" \
         --acme-directory "$lab/certs/acme-challenge" \
@@ -102,6 +103,7 @@ init_dir = "$repo_root/data/linux/init.d"
 log_dirs = ["$lab/logs"]
 
 [nginx]
+inputs_dir = "$lab/router-hub/nginx"
 root_dir = "$lab/nginx"
 config_path = "$lab/nginx/nginx.conf"
 prefix_path = "$lab/nginx"

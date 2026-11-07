@@ -79,14 +79,14 @@ impl Site {
 }
 
 pub fn path(config: &AppConfig) -> PathBuf {
-    config.nginx.root_dir.join("settings/sites.toml")
+    config.nginx.inputs_dir.join("sites.toml")
 }
 
 pub fn load(config: &AppConfig) -> Result<Sites> {
     let path = path(config);
-    nginx::ensure_no_symlink_ancestors(&config.nginx.root_dir, &path)?;
+    nginx_render::require_migrated_input(config, "sites.toml")?;
     let mut sites: Sites = match fs::read_to_string(&path) {
-        Ok(content) => toml::from_str(&content).context("invalid nginx settings/sites.toml")?,
+        Ok(content) => toml::from_str(&content).context("invalid managed nginx sites.toml")?,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Sites::default(),
         Err(error) => return Err(error.into()),
     };
@@ -236,7 +236,8 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut config = AppConfig::default();
         config.nginx.root_dir = temp.path().to_path_buf();
-        std::fs::create_dir_all(config.nginx.root_dir.join("settings")).unwrap();
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
+        std::fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
 
         // Write a sites.toml where subdomain does NOT have `name` field
         let initial_toml = r#"
@@ -287,7 +288,8 @@ enabled = true
             let temp = tempfile::tempdir().unwrap();
             let mut config = AppConfig::default();
             config.nginx.root_dir = temp.path().into();
-            std::fs::create_dir_all(config.nginx.root_dir.join("settings")).unwrap();
+            config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
+            std::fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
             let domain = Site {
                 kind: NginxObjectKind::Domain,
                 domain: "api.example.test".into(),
@@ -353,7 +355,8 @@ enabled = true
         let temp = tempfile::tempdir().unwrap();
         let mut config = AppConfig::default();
         config.nginx.root_dir = temp.path().into();
-        std::fs::create_dir_all(config.nginx.root_dir.join("settings")).unwrap();
+        config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
+        std::fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
         let original = r#"
 [sites."subdomain/example.test/api"]
 kind = "domain"

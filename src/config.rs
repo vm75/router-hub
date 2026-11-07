@@ -102,6 +102,7 @@ impl AppConfig {
         self.services.init_dir = fixture_root.join("etc/init.d");
         self.services.log_dirs = vec![fixture_root.join("var/log")];
         self.nginx.root_dir = fixture_root.join("etc/nginx");
+        self.nginx.inputs_dir = fixture_root.join("etc/router-hub/nginx");
         self.nginx.config_path = fixture_root.join("etc/nginx/nginx.conf");
         self.nginx.pid_path = fixture_root.join("var/run/nginx.pid");
         self.nginx.domains_available_dir = fixture_root.join("etc/nginx/domains-available");
@@ -173,6 +174,7 @@ impl AppConfig {
             &mut self.asus_ui.menu_tree,
             &mut self.services.init_dir,
             &mut self.nginx.root_dir,
+            &mut self.nginx.inputs_dir,
             &mut self.nginx.config_path,
             &mut self.nginx.pid_path,
             &mut self.nginx.domains_available_dir,
@@ -303,7 +305,9 @@ impl AppConfig {
     }
 
     pub fn ensure_directories(&self) -> Result<()> {
+        crate::nginx_render::ensure_managed_path(self, &self.nginx.inputs_dir)?;
         for path in [
+            &self.nginx.inputs_dir,
             &self.paths.data_dir,
             &self.paths.runtime_dir,
             &self.certificates.certs_dir,
@@ -505,6 +509,8 @@ impl Default for ServicesConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct NginxConfig {
     pub root_dir: PathBuf,
+    /// Persistent managed inputs, separate from nginx runtime configuration.
+    pub inputs_dir: PathBuf,
     pub config_path: PathBuf,
     /// Optional nginx -p prefix, useful for an isolated native Linux instance.
     pub prefix_path: Option<PathBuf>,
@@ -528,6 +534,7 @@ impl Default for NginxConfig {
     fn default() -> Self {
         Self {
             root_dir: "/opt/etc/nginx".into(),
+            inputs_dir: "/opt/etc/router-hub/nginx".into(),
             config_path: "/opt/etc/nginx/nginx.conf".into(),
             prefix_path: None,
             pid_path: "/opt/var/run/nginx.pid".into(),
@@ -749,6 +756,7 @@ mod tests {
                 log_dirs = ["../../var/log/nginx"]
                 [nginx]
                 root_dir = "../nginx"
+                inputs_dir = "nginx"
                 config_path = "/absolute/nginx.conf"
                 prefix_path = "../nginx-prefix"
             "#,
@@ -767,6 +775,10 @@ mod tests {
             vec![temp.path().join("var/log/nginx")]
         );
         assert_eq!(config.nginx.root_dir, temp.path().join("etc/nginx"));
+        assert_eq!(
+            config.nginx.inputs_dir,
+            temp.path().join("etc/router-hub/nginx")
+        );
         assert_eq!(
             config.nginx.config_path,
             PathBuf::from("/absolute/nginx.conf")

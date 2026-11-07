@@ -95,6 +95,8 @@ an explicit `[commands].dehydrated` path and restart Router Hub.
 Linux setup requires Python Jinja2 (available via `requirements.txt` in the virtual environment), nginx, and openssl. For a new lab it renders
 only the current Jinja bundle, generates a temporary fallback TLS certificate,
 and records its loopback listeners and runtime paths in
-`nginx/settings/nginx.toml`. HTTP uses port 8080 and HTTPS uses port 8443.
-Existing lab configurations are preserved; setup performs no conversion.
+`router-hub/nginx/nginx.toml`. HTTP uses port 8080 and HTTPS uses port 8443.
+Existing lab configurations are preserved. Before upgrading an existing lab,
+set `nginx.inputs_dir` to its `router-hub/nginx` directory and follow the
+[input relocation procedure](migration.md#nginx-input-relocation-in-09).
 The smoke test uses a separate temporary directory under `/tmp`.

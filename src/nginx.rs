@@ -428,10 +428,10 @@ pub fn validate_site_upstream(upstream: Option<&str>) -> Result<()> {
 }
 
 fn upstream_data_path(config: &AppConfig, kind: NginxObjectKind) -> PathBuf {
-    config.nginx.root_dir.join(match kind {
-        NginxObjectKind::Domain => "settings/domains.conf",
-        NginxObjectKind::Subdomain => "settings/subdomains.conf",
-        NginxObjectKind::Subfolder => "settings/subfolders.conf",
+    config.nginx.inputs_dir.join(match kind {
+        NginxObjectKind::Domain => "domains.conf",
+        NginxObjectKind::Subdomain => "subdomains.conf",
+        NginxObjectKind::Subfolder => "subfolders.conf",
     })
 }
 
@@ -526,10 +526,12 @@ pub fn sync_site_upstream(
         }
     }
     let mut data = std::collections::BTreeMap::new();
-    let data_name = path
-        .strip_prefix(&config.nginx.root_dir)?
-        .to_string_lossy()
-        .into_owned();
+    let data_name = format!(
+        "settings/{}",
+        path.strip_prefix(&config.nginx.inputs_dir)?
+            .to_string_lossy()
+    );
+    let runtime_data_path = config.nginx.root_dir.join(&data_name);
     data.insert(data_name, content.clone());
     let global = crate::nginx_render::load_global(config)?;
     data.insert(
@@ -552,9 +554,13 @@ pub fn sync_site_upstream(
         ),
     };
     let rendered = env.get_template(source)?.render(())?;
-    let files = [(path, content), (output.clone(), rendered)]
-        .into_iter()
-        .collect();
+    let files = [
+        (path, content.clone()),
+        (runtime_data_path, content),
+        (output.clone(), rendered),
+    ]
+    .into_iter()
+    .collect();
     crate::nginx_render::FileTransaction::apply(config, files)?.commit();
     Ok(())
 }
@@ -639,6 +645,10 @@ pub fn reconcile_http_forwarder(config: &AppConfig) -> Result<()> {
         .get_template("conf.d/05-http-to-https.conf.jinja")?
         .render(minijinja::value::Serde(context))?;
     let files = [
+        (
+            config.nginx.inputs_dir.join("servers.conf"),
+            servers.clone(),
+        ),
         (config.nginx.root_dir.join("settings/servers.conf"), servers),
         (config.nginx.http_forwarder_path.clone(), rendered),
     ]
@@ -649,7 +659,7 @@ pub fn reconcile_http_forwarder(config: &AppConfig) -> Result<()> {
 }
 
 fn read_managed_config_file(config: &AppConfig, path: &Path) -> Result<Option<String>> {
-    ensure_no_symlink_ancestors(&config.nginx.root_dir, path)?;
+    crate::nginx_render::ensure_managed_path(config, path)?;
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_file() => {
             Ok(Some(fs::read_to_string(path).with_context(|| {
@@ -817,6 +827,7 @@ mod tests {
     fn test_config(root: &Path) -> AppConfig {
         let mut config = AppConfig::default();
         config.nginx.root_dir = root.to_path_buf();
+        config.nginx.inputs_dir = root.join("inputs");
         config.nginx.config_path = root.join("nginx.conf");
         config.nginx.domains_available_dir = root.join("domains-available");
         config.nginx.domains_enabled_dir = root.join("domains-enabled");

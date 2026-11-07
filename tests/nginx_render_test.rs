@@ -24,6 +24,7 @@ async fn native_jinja_output_passes_real_nginx_validation() {
     let root = temp.path();
     let mut config = AppConfig::default();
     config.nginx.root_dir = root.into();
+    config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
     config.nginx.config_path = root.join("nginx.conf");
     config.nginx.pid_path = root.join("var/run/nginx.pid");
     config.nginx.log_dir = root.join("var/log/nginx");
@@ -188,8 +189,8 @@ async fn native_jinja_output_passes_real_nginx_validation() {
     if let Some(fixture) = std::env::var_os("ROUTER_HUB_NGINX_FIXTURE") {
         fs::create_dir_all(root.join("settings")).unwrap();
         fs::copy(
-            PathBuf::from(fixture).join("settings/sites.toml"),
-            root.join("settings/sites.toml"),
+            PathBuf::from(fixture).join("../router-hub/nginx/sites.toml"),
+            router_hub::nginx_sites::path(&config),
         )
         .unwrap();
         let sites = router_hub::nginx_sites::load(&config).unwrap();
@@ -259,6 +260,7 @@ async fn bootstrap_is_empty_current_format_and_preserves_existing_configuration(
     let root = temp.path();
     let mut config = AppConfig::default();
     config.nginx.root_dir = root.into();
+    config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
     config.nginx.config_path = root.join("nginx.conf");
     config.nginx.pid_path = root.join("var/run/nginx.pid");
     config.nginx.log_dir = root.join("var/log/nginx");
@@ -270,7 +272,7 @@ async fn bootstrap_is_empty_current_format_and_preserves_existing_configuration(
     config.nginx.http_forwarder_path = root.join("conf.d/05-http-to-https.conf");
     config.certificates.certs_dir = root.join("certificates");
     config.commands.openssl = openssl;
-    fs::create_dir_all(root.join("settings")).unwrap();
+    fs::create_dir_all(&config.nginx.inputs_dir).unwrap();
     fs::write(
         nginx_render::global_path(&config),
         "[global]\nhttp_port = 18081\nhttps_port = 18444\n",
@@ -284,6 +286,10 @@ async fn bootstrap_is_empty_current_format_and_preserves_existing_configuration(
     assert!(root.join("certs/default/fullchain.pem").is_file());
     assert!(root.join("mime.types").is_file());
     assert!(!root.join("templates").exists());
+    assert!(nginx_render::global_path(&config).is_file());
+    assert!(!root.join("settings/nginx.toml").exists());
+    assert!(!root.join("settings/allowed_ips.txt").exists());
+    assert!(config.nginx.inputs_dir.join("allowed_ips.txt").is_file());
     let paths = ["client_body", "proxy", "fastcgi", "uwsgi", "scgi"]
         .iter()
         .map(|name| format!("{name}_temp_path {}/{}-temp;", root.display(), name))

@@ -58,6 +58,8 @@ enum Command {
     CheckConfig,
     /// Bootstrap an empty current-format nginx tree only when nginx.conf is missing.
     InitNginx,
+    /// Move current-format nginx inputs into inputs_dir; run while the service is stopped.
+    MigrateNginxInputs,
     RenderUi,
     MountUi,
     UnmountUi,
@@ -85,6 +87,11 @@ fn main() -> Result<()> {
     match cli.command.unwrap_or(Command::Serve) {
         Command::CheckConfig => {
             println!("configuration is valid: {}", cli.config.display());
+            Ok(())
+        }
+        Command::MigrateNginxInputs => {
+            let count = nginx_render::migrate_inputs(&config)?;
+            println!("migrated {count} nginx input files; runtime configuration preserved");
             Ok(())
         }
         Command::InitNginx => {
@@ -151,6 +158,8 @@ fn main() -> Result<()> {
 }
 
 async fn serve(config: AppConfig) -> Result<()> {
+    nginx_render::require_migrated_input(&config, "nginx.toml")?;
+    nginx_render::require_migrated_input(&config, "sites.toml")?;
     config.ensure_directories()?;
     let stores = Stores::load(&config).await?;
     let firewall = FirewallManager::new(config.clone(), stores.clone()).await?;

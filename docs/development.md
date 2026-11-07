@@ -43,7 +43,7 @@ nginx policy and loopback tests. `make test-linux` exercises the API with real
 nginx, including managed-site persistence, regeneration, and HTTPS.
 
 The emulated nginx examples are managed inputs in
-`test-fixtures/etc/nginx/settings/sites.toml`. Test mode still writes fixture
+`test-fixtures/etc/router-hub/nginx/sites.toml`. Test mode still writes fixture
 files when you save settings; the ASUS page is generated at startup and ignored
 by Git.
 

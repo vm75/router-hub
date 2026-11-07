@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('bundle', type=Path)
 parser.add_argument('output', type=Path)
+parser.add_argument('--inputs-dir', required=True, type=Path)
 parser.add_argument('--var-dir', required=True)
 parser.add_argument('--pid-path', required=True)
 parser.add_argument('--error-log-path', required=True)
@@ -42,6 +43,14 @@ for path in args.bundle.rglob('*'):
         'snippets/restrict.conf.jinja', 'snippets/security-headers.conf')
     if not runtime or path.suffix == '.md' or relative.parts[0] == 'settings' and path.suffix == '.jinja':
         continue
+    if relative.parts[0] == 'settings':
+        target = args.inputs_dir / relative.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists() and not target.is_symlink():
+            shutil.copyfile(path, target)
+        # Only final nginx includes belong in the runtime tree.
+        if path.suffix != '.conf':
+            continue
     target = root / str(relative).removesuffix('.jinja')
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists() or target.is_symlink():
@@ -51,7 +60,7 @@ for path in args.bundle.rglob('*'):
         target.write_text(content)
     else:
         shutil.copyfile(path, target)
-state = root / 'settings/nginx.toml'
+state = args.inputs_dir / 'nginx.toml'
 if not state.exists() and not state.is_symlink():
     values = '\n'.join(f'{key} = {json.dumps(value)}' for key, value in settings.items())
     state.write_text(f'allowed_ips = []\nfree_subdomains = []\n\n[global]\n{values}\n\n[site_defaults]\n')

@@ -1,9 +1,46 @@
 # Upgrading older Router Hub installations
 
 Current releases read versioned ban state and current nginx settings only. They do
-not convert older documents. Back up the installed binary, Router Hub configuration
+not convert older document schemas. Back up the installed binary, Router Hub configuration
 and state directory, and the nginx configuration tree before upgrading. Use the
 paths configured on your installation; router and native Linux paths can differ.
+
+## Nginx input relocation in 0.9
+
+Version 0.9 moves current-format nginx inputs from
+`<nginx.root_dir>/settings/` to `<nginx.inputs_dir>/`, which defaults to
+`/opt/etc/router-hub/nginx`. The router installer stops Router Hub and runs the
+relocation command. For a manual binary upgrade:
+
+1. Back up Router Hub's configuration, nginx's tree, and the old binary, then
+   stop Router Hub. nginx may keep serving its existing runtime configuration.
+2. Install the new binary and set `[nginx].inputs_dir` if using a non-default
+   layout. Keep it separate from the legacy settings directory. For Linux,
+   select a writable path alongside the service configuration.
+3. Run the new binary with the same service configuration:
+
+   ```sh
+   router-hub --config /opt/etc/router-hub/router-hub.toml migrate-nginx-inputs
+   ```
+
+4. Review the relocated `nginx.toml`, `sites.toml`, and `.conf`/`.txt` data
+   fragments. Start Router Hub and save Global settings to regenerate and validate
+   the combined runtime tree before reloading a running nginx.
+
+The command handles only known current-format inputs. It preserves file contents,
+rejects differing destination files, validates settings and named-policy references,
+and rolls back a failed migration. Resolve conflicts explicitly using your backup;
+there is no force-overwrite option. Re-running a completed migration is safe.
+Legacy `.toml` and `.txt` inputs are removed after successful validation, while
+legacy `.conf` files stay in place as active nginx includes. Regeneration updates
+those includes from the new input directory. Custom nginx objects, certificates,
+unknown files, and Jinja files are untouched. Jinja policies remain embedded;
+on-disk template copies are not used by Router Hub.
+
+Startup and input reads reject unmigrated legacy TOML files when the new inputs
+are missing, rather than treating the installation as empty. Back up the new
+input directory and custom nginx files thereafter. To downgrade, restore the
+matching legacy inputs and binary from the pre-upgrade backup.
 
 ## Versions older than 0.7.2
 
@@ -32,12 +69,12 @@ the current Jinja bundle. Prepare and validate nginx separately before switching
 Router Hub versions.
 
 - Remove the obsolete `nginx.templates_dir` option from `router-hub.toml`.
-- Use `settings/nginx.toml` for shared settings under `[global]`, site defaults
+- Use `<nginx.inputs_dir>/nginx.toml` for shared settings under `[global]`, site defaults
   under `[site_defaults]`, and top-level `allowed_ips` and `free_subdomains` lists.
   Copy any entries from `allowed_ips.txt` and `free_subdomains.txt` into these
   lists; strip comments. The fragments are generated outputs after saving.
   Copy any separately stored global JSON settings manually into the TOML schema.
-- Put managed site inputs in `settings/sites.toml` using the
+- Put managed site inputs in `<nginx.inputs_dir>/sites.toml` using the
   [current examples](../config/nginx/examples/sites.toml). Remove `output` fields;
   output paths are derived from site identity. Preserve upstreams, hostnames,
   enablement and per-site settings. Copy settings from generated `router-hub-settings` comments when needed,

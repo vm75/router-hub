@@ -56,6 +56,7 @@ printf '%s\n' '{"enabled":false,"observe_only":false,"rules":[],"allowlist":[]}'
 
 python3 "$repo_root/scripts/render-nginx-config.py" \
     "$repo_root/config/nginx" "$lab/nginx" \
+    --inputs-dir "$lab/router-hub/nginx" \
     --var-dir "$lab/var" --pid-path "$lab/run/nginx.pid" \
     --error-log-path "$lab/var/log/nginx/error.log" \
     --acme-directory "$lab/certs/acme-challenge" \
@@ -111,6 +112,7 @@ init_dir = "$lab/init.d"
 log_dirs = ["$lab/logs"]
 
 [nginx]
+inputs_dir = "$lab/router-hub/nginx"
 root_dir = "$lab/nginx"
 config_path = "$lab/nginx/nginx.conf"
 prefix_path = "$lab/nginx"
@@ -213,7 +215,7 @@ curl --silent --show-error --fail-with-body -X POST \
     "$api/api/nginx/objects/domain" >/dev/null
 [[ -f "$lab/nginx/domains-available/linux.test/root.conf" ]]
 get /api/nginx/objects/domain/linux.test/linux.test | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["settings"]["client_max_body_size"] == "2M", x'
-python3 - "$lab/nginx/settings/sites.toml" <<'PYSITES'
+python3 - "$lab/router-hub/nginx/sites.toml" <<'PYSITES'
 import sys, tomllib
 with open(sys.argv[1], 'rb') as stream:
     sites = tomllib.load(stream)['sites']

@@ -40,6 +40,9 @@ done
 [ -f "$BINARY" ] || { echo "Binary not found: $BINARY" >&2; exit 1; }
 
 mkdir -p /opt/bin /opt/etc/init.d "$CONFIG_DIR" "$DATA_DIR" /opt/var/log/nginx /opt/var/run/router-hub
+if [ -x /opt/etc/init.d/S99router-hub ]; then
+    /opt/etc/init.d/S99router-hub stop
+fi
 cp "$BINARY" /opt/bin/router-hub
 chmod 0755 /opt/bin/router-hub
 cp "$SCRIPT_DIR/S99router-hub" /opt/etc/init.d/S99router-hub
@@ -53,7 +56,10 @@ if [ ! -f "$CONFIG_DIR/router-hub.toml" ]; then
     echo "Created $CONFIG_DIR/router-hub.toml. Review rendered_page and menu_tree before starting."
 fi
 
-# Uses only current Jinja policies and empty site defaults; no configuration migration.
+# Relocate current-format inputs while Router Hub is stopped.
+/opt/bin/router-hub --config "$CONFIG_DIR/router-hub.toml" migrate-nginx-inputs
+
+# Uses only embedded current Jinja policies and preserves existing runtime files.
 # The command preserves an existing nginx.conf and respects configured nginx paths.
 /opt/bin/router-hub --config "$CONFIG_DIR/router-hub.toml" init-nginx
 

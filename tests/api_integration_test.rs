@@ -19,6 +19,7 @@ async fn setup_test_app() -> (axum::Router, AppState, tempfile::TempDir) {
     config.commands.dehydrated = temp.path().join("dehydrated/dehydrated");
     config.certificates.certs_dir = temp.path().join("dehydrated/certs");
     config.nginx.root_dir = temp.path().join("nginx");
+    config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
     config.nginx.config_path = config.nginx.root_dir.join("nginx.conf");
     config.nginx.pid_path = config.nginx.root_dir.join("nginx.pid");
     config.nginx.domains_available_dir = config.nginx.root_dir.join("domains-available");
@@ -651,6 +652,38 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
         Some(true)
     );
     assert_eq!(persisted["allowed_ips"][0].as_str(), Some("192.0.2.0/24"));
+    assert!(
+        !state
+            .config
+            .nginx
+            .root_dir
+            .join("settings/nginx.toml")
+            .exists()
+    );
+    assert!(
+        !state
+            .config
+            .nginx
+            .root_dir
+            .join("settings/sites.toml")
+            .exists()
+    );
+    assert!(
+        !state
+            .config
+            .nginx
+            .root_dir
+            .join("settings/allowed_ips.txt")
+            .exists()
+    );
+    assert!(
+        state
+            .config
+            .nginx
+            .inputs_dir
+            .join("allowed_ips.txt")
+            .exists()
+    );
     assert_eq!(
         persisted["limit_policies"]["assets"]["burst"].as_integer(),
         Some(500)
@@ -891,6 +924,7 @@ async fn test_nginx_settings_validation_failure_restores_all_files() {
     config.certificates.certs_dir = temp.path().join("dehydrated/certs");
     config.paths.runtime_dir = temp.path().join("runtime");
     config.nginx.root_dir = temp.path().join("nginx");
+    config.nginx.inputs_dir = temp.path().join("router-hub/nginx");
     config.nginx.config_path = config.nginx.root_dir.join("nginx.conf");
     config.nginx.pid_path = config.nginx.root_dir.join("nginx.pid");
     config.nginx.domains_available_dir = config.nginx.root_dir.join("domains-available");
@@ -918,6 +952,8 @@ async fn test_nginx_settings_validation_failure_restores_all_files() {
     std::fs::create_dir_all(globals_path.parent().unwrap()).unwrap();
     std::fs::write(&globals_path, original_globals).unwrap();
 
+    let input_map = config.nginx.inputs_dir.join("domains.conf");
+    std::fs::write(&input_map, "# original custom input map\n").unwrap();
     let stores = Stores::load(&config).await.unwrap();
     let firewall = FirewallManager::new(config.clone(), stores.clone())
         .await
@@ -946,6 +982,18 @@ async fn test_nginx_settings_validation_failure_restores_all_files() {
     assert_eq!(
         std::fs::read_to_string(&globals_path).unwrap(),
         original_globals
+    );
+    assert_eq!(
+        std::fs::read_to_string(input_map).unwrap(),
+        "# original custom input map\n"
+    );
+    assert!(
+        !state
+            .config
+            .nginx
+            .inputs_dir
+            .join("allowed_ips.txt")
+            .exists()
     );
     assert!(
         !state
@@ -1438,10 +1486,10 @@ async fn emulated_fixture_sites_survive_shared_settings_regeneration() {
     use serde_json::json;
     let (app, state, _temp) = setup_test_app().await;
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("test-fixtures/etc/nginx");
-    let settings_dir = state.config.nginx.root_dir.join("settings");
+    let settings_dir = state.config.nginx.inputs_dir.clone();
     std::fs::create_dir_all(&settings_dir).unwrap();
     std::fs::copy(
-        fixture.join("settings/sites.toml"),
+        fixture.join("../router-hub/nginx/sites.toml"),
         settings_dir.join("sites.toml"),
     )
     .unwrap();
