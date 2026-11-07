@@ -1653,6 +1653,7 @@
           <aside class="route-policy-guide" aria-label="Route policy help and examples">
             <h4>Override settings for part of an app</h4>
             <p>Each object selects a path and overrides only the settings you provide. Other values inherit the site's effective settings. For a subfolder mounted at <code>/music/</code>, a policy for <code>/api</code> applies to <code>/music/api</code>.</p>
+            <h4>Assign a request budget</h4><p>Define named limit policies in Global settings, then set <code>"limit_policy":"assets"</code> on a route. Omission inherits from the parent, including nested children; <code>"default"</code> restores the original Ban Shield budget. A policy replaces both base limits. Different names use independent per-IP accounting; the same name shares a budget across sites. The existing <code>rate_limit</code> still adds a supplemental request limit only where specified.</p>
             <h4>Choose how a path matches</h4>
             <p><code>match</code> defaults to <code>"prefix"</code> and covers paths starting with the supplied path. Use <code>"exact"</code> for one URL, <code>"regex"</code> for a case-sensitive pattern, or <code>"regex_i"</code> for a case-insensitive pattern. Query strings are not part of the path match.</p>
             <h4>Keep administration on the LAN</h4>
@@ -2031,6 +2032,7 @@
     async function loadNginxStatus() { try { const s = await api('/nginx/status'); document.getElementById('nginx-status').innerHTML = `${status(s.running)} <span title="Config: ${esc(s.config_path)} · Root: ${esc(s.root_dir)}">Config <code>${esc(s.config_path)}</code></span>` } catch (e) { document.getElementById('nginx-status').textContent = e.message } }
     function openNginxReference() { document.getElementById('nginx-reference-modal').showModal() }
     const nginxPolicyFields = [
+      ['limit_policy', 'Limit policy name', 'text', 'default'],
       ['enable_lanonly', 'LAN only', 'bool', true], ['enable_subfolders', 'Enable subfolders (domain)', 'bool', true],
       ['disable_root', 'Return 404 at domain root', 'bool', true], ['enable_large_upload', 'Large uploads', 'bool', false],
       ['enable_longlived', 'Long-lived connections', 'bool', false], ['enable_streaming', 'Stream responses', 'bool', false],
@@ -2048,6 +2050,7 @@
       ['spa_fallback', 'SPA fallback URI', 'text', ''], ['rewrite_to', 'Rewrite URI', 'text', ''], ['cors_origin', 'CORS origin', 'text', '']
     ];
     const nginxSettingHelp = {
+      limit_policy: 'Named request and concurrent-request budget from Global settings. Blank inherits; default restores Ban Shield 30r/s, burst 60, immediate, 30 concurrent. Different names have independent per-IP budgets; reusing a name shares its budget.',
       enable_lanonly: 'Allow only clients listed in Global settings → Allowed client IPs / CIDRs. A parent domain’s LAN restriction also applies to its subfolders.',
       enable_subfolders: 'Domain only: load enabled child apps at paths such as /music/. Subdomains are configured separately.',
       disable_root: 'Domain only: return 404 for requests outside enabled subfolders and ACME routes. Set No to expose the root app’s upstream and proxy settings.',
@@ -2211,12 +2214,12 @@
     async function editNginxSettings() {
       try {
         const settings = await api('/nginx/settings');
-        openEditor('Global nginx settings', `<form id="nginx-settings-form" class="form"><h3>Shared settings</h3><div class="form-grid">${nginxSettingsFields(nginxSharedFields, settings.shared)}</div><h3>Default site settings</h3><p class="muted">Managed sites inherit these values unless they set an override. Custom configurations retain their authored content.</p><div class="form-grid">${nginxSettingsFields(nginxPolicyFields, settings.site_defaults, {}, 'default_')}${nginxRoutesField(settings.site_defaults, 'default_routes')}</div><div class="field">${nginxFieldHeading('allowed_ips', 'Allowed client IPs / CIDRs, one per line', 'nginx-setting-allowed_ips')}<textarea class="input" id="nginx-setting-allowed_ips" name="allowed_ips">${esc(settings.allowed_ips.join('\n'))}</textarea></div><div class="field">${nginxFieldHeading('free_subdomains', 'Shared / free domain suffixes, one per line', 'nginx-setting-free_subdomains')}<textarea class="input" id="nginx-setting-free_subdomains" name="free_subdomains">${esc(settings.free_subdomains.join('\n'))}</textarea></div></form>`, async () => {
+        openEditor('Global nginx settings', `<form id="nginx-settings-form" class="form"><h3>Shared settings</h3><div class="form-grid">${nginxSettingsFields(nginxSharedFields, settings.shared)}</div><div class="field"><label for="nginx-limit-policies">Limit policies (JSON object)</label><textarea class="input" id="nginx-limit-policies" name="limit_policies" spellcheck="false">${esc(JSON.stringify(settings.limit_policies || {}, null, 2))}</textarea><p class="hint">Example: {"assets": {"rate":"100r/s","burst":500,"nodelay":true,"connections":30}}. Use different names for independent per-IP budgets; the same name shares a budget across sites. Up to 16 policies, 2 MiB shared memory each.</p></div><h3>Default site settings</h3><p class="muted">Managed sites inherit these values unless they set an override. Custom configurations retain their authored content.</p><div class="form-grid">${nginxSettingsFields(nginxPolicyFields, settings.site_defaults, {}, 'default_')}${nginxRoutesField(settings.site_defaults, 'default_routes')}</div><div class="field">${nginxFieldHeading('allowed_ips', 'Allowed client IPs / CIDRs, one per line', 'nginx-setting-allowed_ips')}<textarea class="input" id="nginx-setting-allowed_ips" name="allowed_ips">${esc(settings.allowed_ips.join('\n'))}</textarea></div><div class="field">${nginxFieldHeading('free_subdomains', 'Shared / free domain suffixes, one per line', 'nginx-setting-free_subdomains')}<textarea class="input" id="nginx-setting-free_subdomains" name="free_subdomains">${esc(settings.free_subdomains.join('\n'))}</textarea></div></form>`, async () => {
           try {
             const f = document.getElementById('nginx-settings-form'), lines = key => f.elements[key].value.split('\n').map(s => s.trim()).filter(Boolean);
             const defaults = nginxReadSettings(f, nginxPolicyFields, 'default_');
             if (f.elements.default_routes.value.trim()) defaults.routes = JSON.parse(f.elements.default_routes.value);
-            await api('/nginx/settings', { method: 'PUT', body: JSON.stringify({ shared: { ...nginxReadSettings(f, nginxSharedFields), nginx_user: f.elements.nginx_user.value.trim() }, site_defaults: defaults, allowed_ips: lines('allowed_ips'), free_subdomains: lines('free_subdomains') }) });
+            await api('/nginx/settings', { method: 'PUT', body: JSON.stringify({ shared: { ...nginxReadSettings(f, nginxSharedFields), nginx_user: f.elements.nginx_user.value.trim() }, site_defaults: defaults, limit_policies: JSON.parse(f.elements.limit_policies.value || '{}'), allowed_ips: lines('allowed_ips'), free_subdomains: lines('free_subdomains') }) });
             closeEditor(); toast('Nginx settings saved'); loadNginx();
           } catch (e) { toast(e.message, true) }
         });

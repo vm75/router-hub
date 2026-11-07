@@ -20,4 +20,6 @@
 {% set spa_fallback = route.spa_fallback | default(parent.spa_fallback) %}
 {% set rewrite_to = route.rewrite_to | default('') %}
 {% set cors_origin = route.cors_origin | default(parent.cors_origin) %}
-{% set rate_limit = route.rate_limit | default(none) %}
+{% set rate_limit = route.rate_limit | default(parent.rate_limit) %}
+
+{% set limit_policy = route.limit_policy | default(parent.limit_policy) %}

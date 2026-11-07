@@ -2,6 +2,21 @@
 
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
+## 0.8.2
+
+### Added
+
+- Add named nginx request-rate and concurrent-request policies with persistent
+  site defaults, nested route overrides, and independent per-IP budgets.
+  Expose policy editing through the API and UI, retain existing default and
+  supplemental limits, and document a bounded static-asset policy example.
+
+### Tests
+
+- Cover policy validation, inheritance, persistence, and regeneration. Validate
+  rendered nginx configurations and isolated asset bursts, independent budgets,
+  delayed processing, excess traffic, and LAN/security guards.
+
 ## 0.8.1
 
 ### Fixed

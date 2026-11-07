@@ -199,7 +199,8 @@ plus these options (also usable as site defaults unless noted):
 | `spa_fallback` | Empty | Retry upstream 404s at this application URI, e.g. `/index.html` |
 | `rewrite_to` | Empty | Rewrite this route to a fixed application URI |
 | `cors_origin` | Empty | Opt-in CORS response headers; never enabled merely by SSE |
-| `rate_limit` | None | Route-only `{zone, burst}`; retain the global limit too |
+| `limit_policy` | `default` | Named base request and concurrent-request policy; inherits through nested routes |
+| `rate_limit` | None | Supplemental route `{zone, burst}`; retain the effective base request limit |
 
 SSE disables upgrade headers, response buffering, caching and chunked transfer;
 its connection/session idle defaults are 300 seconds. WebSockets remain available
@@ -243,8 +244,94 @@ value. This runtime decision is not a configurable privilege override.
 only this parent is configurable. It is created before nginx validation and
 symlink traversal is rejected.
 The examples use explicit limits and timeouts instead of changed defaults.
-`rewrite_to` and `rate_limit` apply only where configured, rather than being
-copied implicitly into child policies.
+`rewrite_to` applies only where configured. Supplemental `rate_limit` remains
+in effect in nested children unless they specify another supplemental limit,
+matching nginx inheritance in existing configurations.
+
+## Named request and concurrent-request policies
+
+Define reusable policies in `settings/nginx.toml`. All four fields are required;
+unknown fields are rejected. The reserved name `default` always means the
+original Ban Shield policy: `30r/s`, burst 60, immediate processing, 30 concurrent
+requests, using the existing globally shared zones.
+
+```toml
+[limit_policies.assets]
+rate = "100r/s"
+burst = 500
+nodelay = true
+connections = 30
+
+[limit_policies.protected]
+rate = "10r/s"
+burst = 20
+nodelay = true
+connections = 10
+```
+
+In a managed entry in `settings/sites.toml`:
+
+```toml
+[sites."app.example.test"]
+kind = "subdomain"
+domain = "example.test"
+name = "app"
+server_name = "app.example.test"
+upstream = "http://127.0.0.1:8080"
+enabled = true
+enable_lanonly = false
+limit_policy = "protected"
+routes = [
+  {path = "/static/", limit_policy = "assets"},
+  {path = "/login", match = "exact", rate_limit = {zone = "wplogin", burst = 3}},
+]
+```
+
+Adapt the route path to the application's actual static files. No app, domain,
+or path has special treatment. You can also set `limit_policy` in
+`[site_defaults]`. Omission inherits global site defaults, then the site, then
+the effective parent route; an explicit name replaces **both** base limits.
+Nested children inherit the selected name. Use `limit_policy = "default"` to
+restore the original shared budgets. Empty strings, nulls, unknown names and
+partial policies are rejected. There is no unlimited policy.
+
+Each name allocates separate request and connection zones, keyed by client IP.
+Assignments of the **same name share both budgets**, even across different sites;
+use different names with identical values for independent budgets. Static requests
+assigned `assets` do not consume `protected` or the legacy global request or
+connection budgets. Counters are shared between workers. The existing route-only
+`rate_limit` adds a supplemental request zone alongside the effective policy,
+including in nested children; existing login zone names remain unchanged.
+Locations explicitly emit both directive families because nginx otherwise
+replaces inherited [`limit_req`](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html#limit_req)
+and [`limit_conn`](https://nginx.org/en/docs/http/ngx_http_limit_conn_module.html#limit_conn) independently. LAN restrictions,
+security traps, authentication and forwarding settings still apply.
+
+`rate` accepts integer `1..100000` followed by `r/s` or `r/m`. `burst` accepts
+`0..100000` (zero means no excess queue). With `nodelay = true`, accepted bursts
+run immediately but still consume budget; with `false`, excess requests wait at
+the sustained rate. `connections` accepts `1..65535` and limits active requests
+with fully read headers; HTTP/2 streams count separately. Request-limit rejection
+remains HTTP 429; connection-limit rejection retains nginx's HTTP 503 default.
+There are at most 16 named policies, with names of 1–32 ASCII letters, digits or
+underscores, and two 1 MiB shared-memory zones per policy. Choose bounds suitable
+for the router's available memory and concurrency.
+
+The UI exposes the policy JSON object in Global settings, a policy name in site
+and default-site settings, and `limit_policy` in the route JSON editor. The
+`GET/PUT /api/nginx/settings` payload uses `limit_policies` with the same object
+fields. Site API `settings` accepts `limit_policy` and nested routes. Inputs are
+persisted and re-rendered together; deleting a policy still referenced by saved
+sites (including disabled sites) fails validation. Existing authored custom
+nginx configurations retain their content and can continue using legacy zones.
+
+Worker capacity is separate: two workers with `worker_connections = 64` have
+limited client/upstream socket capacity. Raising it alone cannot resolve HTTP
+429s. Check error logs for `limiting requests`, `limiting connections`, and
+`worker_connections are not enough` to distinguish these cases. The isolated
+policy test sends 340 asset requests sequentially to avoid confusing socket
+capacity with policy enforcement. These host tests do not establish router
+firmware compatibility.
 
 ## Access logging and Home Assistant checks
 

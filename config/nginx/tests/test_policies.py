@@ -1,4 +1,5 @@
 """Integration coverage for route policies and reviewed healthcheck log suppression."""
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -37,6 +38,8 @@ class Backend(BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.records.append((self.path, dict(self.headers)))
+        if self.path.startswith('/hold'):
+            time.sleep(0.7)
         if self.path == '/quiet/error' or 'broken=1' in self.path:
             self.close_connection = True
             return
@@ -62,7 +65,7 @@ class Backend(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def fixture(empty_filter=False):
+def fixture(empty_filter=False, limits=False):
     with tempfile.TemporaryDirectory(prefix='router-hub-policies-') as tmp, ThreadingHTTPServer(('127.0.0.1', 0), Backend) as backend:
         dest = Path(tmp)
         upstream = f'http://127.0.0.1:{backend.server_port}'
@@ -88,7 +91,14 @@ def fixture(empty_filter=False):
         )
         context = dict(var_dir=str(dest / 'var'), router_ip='127.0.0.1', http_port=free_port(),
                        https_port=free_port(), acme_challenge_dir=str(dest / 'acme'))
-        for folder in ('var/log/nginx', 'var/run', 'certs/default', 'acme', 'module.d', 'conf.d', 'snippets', 'settings', 'ban-shield'):
+        if limits:
+            context['limit_policies'] = {
+                'protected': dict(rate='1r/m', burst=0, nodelay=True, connections=30),
+                'assets': dict(rate='1r/m', burst=400, nodelay=True, connections=30),
+                'delayed': dict(rate='2r/s', burst=2, nodelay=False, connections=30),
+                'concurrent': dict(rate='100r/s', burst=100, nodelay=True, connections=2),
+            }
+        for folder in ('var/log/nginx' , 'var/run', 'certs/default', 'acme', 'module.d', 'conf.d', 'snippets', 'settings', 'ban-shield'):
             (dest / folder).mkdir(parents=True, exist_ok=True)
         for name in ('nginx.conf.jinja', 'resolver.conf.jinja', 'mime.types', 'dhparams.pem'):
             (dest / name.removesuffix('.jinja')).write_text(env.get_template(name).render(**context))
@@ -132,6 +142,16 @@ def fixture(empty_filter=False):
                                dict(path='/quiet-spa', access_log=False, spa_fallback='/index.html', hide_etag=True),
                                dict(path='/api/updates', proxy_transport='sse', access_log=False),
                            ])
+            if limits:
+                options.update(limit_policy='protected', routes=[
+                    dict(path='/assets/', limit_policy='assets', children=[
+                        dict(path='/assets/private', enable_lanonly=True),
+                        dict(path='/assets/nested/'),
+                    ]),
+                    dict(path='/delay/', limit_policy='delayed'),
+                    dict(path='/hold', limit_policy='concurrent'),
+                    dict(path='/login', limit_policy='assets', rate_limit=dict(zone='wplogin', burst=1), children=[dict(path='/login/nested')]),
+                ])
             (directory / 'root.conf').write_text(env.get_template('templates/subdomain.conf.jinja').render(**options))
         directory = enabled / 'mounted'
         (directory / 'subfolders-enabled').mkdir(parents=True)
@@ -198,6 +218,31 @@ def request(port, path, host='policy.example.test', method='GET', ua='TestClient
 
 @unittest.skipUnless(shutil.which('nginx') and shutil.which('openssl'), 'nginx and openssl required')
 class Policies(unittest.TestCase):
+    def test_named_budgets_and_guards(self):
+        with fixture(limits=True) as (dest, port):
+            # Sequential requests stay well below the fixture's worker capacity.
+            self.assertTrue(all(request(port, '/assets/nested/module.js')[0] == 200 for _ in range(340)))
+            self.assertEqual(request(port, '/api')[0], 200)
+            self.assertEqual(request(port, '/api')[0], 429)
+            statuses = [request(port, '/assets/module.js')[0] for _ in range(80)]
+            self.assertIn(429, statuses)
+            self.assertEqual(request(port, '/assets/private', source='127.0.0.4')[0], 403)
+            with self.assertRaises((http.client.RemoteDisconnected, ConnectionResetError)):
+                request(port, '/assets/.env')
+            start = time.monotonic()
+            self.assertEqual(request(port, '/delay/one')[0], 200)
+            self.assertEqual(request(port, '/delay/two')[0], 200)
+            self.assertGreater(time.monotonic() - start, 0.4)
+            # A different IP has an independent base and supplemental budget.
+            statuses = [request(port, '/login/nested', source='127.0.0.3')[0] for _ in range(3)]
+            self.assertEqual(statuses, [200, 200, 429])
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                statuses = list(pool.map(lambda _: request(port, '/hold')[0], range(3)))
+            self.assertEqual(sorted(statuses), [200, 200, 503])
+        self.assertIn('rh_req_assets', LOGS['error.log'])
+        self.assertIn('rh_conn_concurrent', LOGS['error.log'])
+        self.assertNotIn('worker_connections are not enough', LOGS['error.log'])
+
     def test_healthcheck_filter_logging_and_failures(self):
         with fixture() as (dest, port):
             self.assertEqual(request(port, '/Sessions', HA_HOST, ua=HA_UA)[0], 200)

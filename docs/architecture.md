@@ -289,7 +289,12 @@ restarts dnsmasq through the configured service command and arguments.
   validation and reload. Generated comments are output metadata, not imported
   settings. Global defaults and
   shared parameters live only in `settings/nginx.toml`, using `[global]`,
-  `[site_defaults]`, and root-level allowlist arrays. Text allowlist fragments are generated from TOML. Runtime user,
+  `[site_defaults]`, `[limit_policies.<name>]`, and root-level allowlist arrays.
+  Named policies generate separate per-IP request and connection zones. Managed
+  locations resolve site/parent policy names and emit both limit directive families
+  explicitly, with legacy supplemental request limits retained. Different names
+  provide independent accounting; reusing a name shares accounting across sites.
+  Text allowlist fragments are generated from TOML. Runtime user,
   daemon mode and temporary parent are saved inputs rather than edits to generated
   nginx text. The effective UID determines whether a worker-user directive is
   emitted: non-root omits it; root uses the configured user or `nobody`. Temporary

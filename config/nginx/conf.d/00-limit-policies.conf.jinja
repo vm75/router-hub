@@ -1,0 +1,5 @@
+# Managed named per-IP budgets; each name has independent accounting.
+{% for name, budget in limit_policies | default({}) | dictsort %}
+limit_req_zone $binary_remote_addr zone=rh_req_{{ name }}:1m rate={{ budget.rate }};
+limit_conn_zone $binary_remote_addr zone=rh_conn_{{ name }}:1m;
+{% endfor %}

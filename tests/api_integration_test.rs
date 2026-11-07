@@ -634,7 +634,7 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
             );
         }
     }
-    let globals = json!({"shared":{"http_port":8080,"https_port":8443,"var_dir":state.config.nginx.log_dir.parent().unwrap().parent().unwrap(),"acme_challenge_dir":state.config.certificates.certs_dir.join("acme-challenge")}, "site_defaults":{"enable_streaming":true,"enable_lanonly":false}, "allowed_ips":["192.0.2.0/24"], "free_subdomains":["shared.example.test"]});
+    let globals = json!({"shared":{"http_port":8080,"https_port":8443,"var_dir":state.config.nginx.log_dir.parent().unwrap().parent().unwrap(),"acme_challenge_dir":state.config.certificates.certs_dir.join("acme-challenge")}, "limit_policies":{"assets":{"rate":"100r/s","burst":500,"nodelay":true,"connections":50}}, "site_defaults":{"enable_streaming":true,"enable_lanonly":false,"limit_policy":"assets"}, "allowed_ips":["192.0.2.0/24"], "free_subdomains":["shared.example.test"]});
     let (status, result) = nginx_request(&app, "PUT", "/settings", globals.clone()).await;
     assert_eq!(status, StatusCode::OK, "{result}");
     assert_eq!(
@@ -651,10 +651,33 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
         Some(true)
     );
     assert_eq!(persisted["allowed_ips"][0].as_str(), Some("192.0.2.0/24"));
+    assert_eq!(
+        persisted["limit_policies"]["assets"]["burst"].as_integer(),
+        Some(500)
+    );
     let payload = json!({"domain":"example.test", "name":"example.test", "server_names":["example.test","www.example.test"], "settings":{"disable_root":false}, "upstream":"http://127.0.0.1:8081", "enabled":true});
     let (status, domain) = nginx_request(&app, "POST", "/objects/domain", payload).await;
     assert_eq!(status, StatusCode::OK, "{domain}");
     assert_eq!(domain["object"]["managed"], true);
+    assert!(
+        domain["content"]
+            .as_str()
+            .unwrap()
+            .contains("limit_req zone=rh_req_assets burst=500 nodelay;")
+    );
+    assert!(
+        domain["content"]
+            .as_str()
+            .unwrap()
+            .contains("limit_conn rh_conn_assets 50;")
+    );
+    let mut removed = globals.clone();
+    removed["limit_policies"] = json!({});
+    assert_eq!(
+        nginx_request(&app, "PUT", "/settings", removed).await.0,
+        StatusCode::BAD_REQUEST
+    );
+
     assert!(
         domain["content"]
             .as_str()
@@ -670,7 +693,7 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
     let domain_data =
         std::fs::read_to_string(state.config.nginx.root_dir.join("settings/domains.conf")).unwrap();
     assert!(domain_data.contains("www.example.test http://127.0.0.1:8081;"));
-    let folder = json!({"domain":"example.test", "name":"media", "settings":{"enable_streaming":false,"enable_large_upload":true,"large_upload_max_body_size":"0"}, "upstream":"http://127.0.0.1:8082", "enabled":true});
+    let folder = json!({"domain":"example.test", "name":"media", "settings":{"enable_streaming":false,"enable_large_upload":true,"large_upload_max_body_size":"0","limit_policy":"assets"}, "upstream":"http://127.0.0.1:8082", "enabled":true});
     let (status, folder) = nginx_request(&app, "POST", "/objects/subfolder", folder).await;
     assert_eq!(status, StatusCode::OK, "{folder}");
     assert!(
@@ -685,6 +708,25 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
             .unwrap()
             .contains("proxy_buffering off;")
     );
+    // A policy used explicitly by a saved site cannot be removed, even if defaults stop using it.
+    let mut removed = globals.clone();
+    removed["limit_policies"] = json!({});
+    removed["site_defaults"]
+        .as_object_mut()
+        .unwrap()
+        .remove("limit_policy");
+    assert_eq!(
+        nginx_request(&app, "PUT", "/settings", removed).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (_, saved_folder) = nginx_request(
+        &app,
+        "GET",
+        "/objects/subfolder/example.test/media",
+        json!(null),
+    )
+    .await;
+    assert_eq!(saved_folder["settings"]["limit_policy"], "assets");
     let custom = "server { server_name raw.example.test; # {{untouched}}\n return 204; }";
     let payload = json!({"domain":"example.test", "name":"raw", "content":custom});
     assert_eq!(
@@ -694,7 +736,7 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
         StatusCode::OK
     );
     // Global edits rerender inherited settings while preserving per-site false/zero and custom content.
-    let globals = json!({"shared":{"http_port":8080,"https_port":8443},"site_defaults":{"enable_lanonly":true,"enable_streaming":true},"allowed_ips":["198.51.100.0/24"],"free_subdomains":[]});
+    let globals = json!({"shared":{"http_port":8080,"https_port":8443},"limit_policies":{"assets":{"rate":"100r/s","burst":500,"nodelay":true,"connections":50}},"site_defaults":{"enable_lanonly":true,"enable_streaming":true},"allowed_ips":["198.51.100.0/24"],"free_subdomains":[]});
     let (status, response) = nginx_request(&app, "PUT", "/settings", globals).await;
     assert_eq!(status, StatusCode::OK, "{response}");
     let (_, domain) = nginx_request(
@@ -718,6 +760,13 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
     )
     .await;
     assert_eq!(folder["settings"]["enable_streaming"], false);
+    assert_eq!(folder["settings"]["limit_policy"], "assets");
+    assert!(
+        folder["content"]
+            .as_str()
+            .unwrap()
+            .contains("limit_req zone=rh_req_assets burst=500 nodelay;")
+    );
     assert!(
         !folder["content"]
             .as_str()

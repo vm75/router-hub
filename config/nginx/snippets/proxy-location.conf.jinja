@@ -51,10 +51,18 @@ proxy_hide_header ETag;
 {% if policy.disable_proxy_redirect %}
 proxy_redirect off;
 {% endif %}
-{% if policy.rate_limit %}
-# Local limits replace inherited limits, so retain the general limit explicitly.
+{# Emit both effective limits: nginx replaces each inherited directive family. #}
+{% if policy.limit_policy == 'default' %}
 limit_req zone=global_rate burst=60 nodelay;
-limit_req zone={{ policy.rate_limit.zone }} burst={{ policy.rate_limit.burst }} nodelay;
+limit_conn per_client_conn 30;
+{% else %}
+{% set budget = limit_policies[policy.limit_policy] %}
+limit_req zone=rh_req_{{ policy.limit_policy }}{% if budget.burst %} burst={{ budget.burst }}{% endif %}{% if budget.nodelay %} nodelay{% endif %};
+limit_conn rh_conn_{{ policy.limit_policy }} {{ budget.connections }};
+{% endif %}
+{% if policy.rate_limit %}
+# Supplemental limit adds to the effective base budget, as before.
+limit_req zone={{ policy.rate_limit.zone }}{% if policy.rate_limit.burst | default(0) %} burst={{ policy.rate_limit.burst }}{% endif %} nodelay;
 {% endif %}
 {% set log_enabled = policy.access_log %}
 {% include 'ban-shield/access-logging.conf.jinja' %}

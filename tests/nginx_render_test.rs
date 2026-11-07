@@ -83,6 +83,7 @@ async fn native_jinja_output_passes_real_nginx_validation() {
             .as_object()
             .unwrap()
             .clone(),
+        limit_policies: serde_json::from_value(json!({"assets":{"rate":"100r/s","burst":500,"nodelay":true,"connections":50},"api":{"rate":"5r/m","burst":0,"nodelay":false,"connections":3}})).unwrap(),
         allowed_ips: vec!["127.0.0.1".into()],
         ..Default::default()
     };
@@ -155,7 +156,8 @@ async fn native_jinja_output_passes_real_nginx_validation() {
                 (if bits & 32 != 0 { "pwa" } else { "inherit" }).into(),
             );
             if bits == 63 {
-                settings.insert("routes".into(), json!([{"path":"/admin","enable_lanonly":true,"spa_fallback":"","children":[{"path":"/admin/quiet","access_log":false}]},{"path":"/events","proxy_transport":"sse"}]));
+                settings.insert("limit_policy".into(), json!("assets"));
+                settings.insert("routes".into(), json!([{"path":"/admin","limit_policy":"api","rate_limit":{"zone":"wplogin","burst":3},"enable_lanonly":true,"spa_fallback":"","children":[{"path":"/admin/quiet","access_log":false}]},{"path":"/events","proxy_transport":"sse"}]));
                 settings.insert("spa_fallback".into(), json!("/index.html"));
             }
             let content =

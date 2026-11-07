@@ -12,11 +12,47 @@ use crate::{models::NginxObjectKind, nginx};
 pub type Settings = Map<String, Value>;
 pub const SETTINGS_PREFIX: &str = "# router-hub-settings: ";
 
+/// Named budgets are shared per client IP across every assignment of that name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LimitPolicy {
+    pub rate: String,
+    pub burst: u32,
+    pub nodelay: bool,
+    pub connections: u32,
+}
+
+fn policy_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 32
+        && name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+}
+
+fn validate_limit_references(
+    settings: &Settings,
+    profiles: &BTreeMap<String, LimitPolicy>,
+) -> Result<()> {
+    if let Some(name) = settings.get("limit_policy").and_then(Value::as_str) {
+        if name != "default" && !profiles.contains_key(name) {
+            bail!("unknown limit_policy: {name}");
+        }
+    }
+    for key in ["routes", "children"] {
+        if let Some(routes) = settings.get(key).and_then(Value::as_array) {
+            for route in routes {
+                validate_limit_references(route.as_object().unwrap(), profiles)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GlobalSettings {
     pub shared: Settings,
     pub site_defaults: Settings,
+    pub limit_policies: BTreeMap<String, LimitPolicy>,
     pub allowed_ips: Vec<String>,
     pub free_subdomains: Vec<String>,
 }
@@ -29,6 +65,7 @@ struct NginxSettings {
     free_subdomains: Option<Vec<String>>,
     global: Settings,
     site_defaults: Settings,
+    limit_policies: BTreeMap<String, LimitPolicy>,
 }
 
 fn encode_global(settings: &GlobalSettings) -> Result<String> {
@@ -37,6 +74,7 @@ fn encode_global(settings: &GlobalSettings) -> Result<String> {
         free_subdomains: Some(settings.free_subdomains.clone()),
         global: settings.shared.clone(),
         site_defaults: settings.site_defaults.clone(),
+        limit_policies: settings.limit_policies.clone(),
     })?)
 }
 
@@ -95,6 +133,7 @@ fn validate_policy(settings: &Settings, route: bool, depth: usize) -> Result<()>
             quantity(value, "smhdw")
         } else {
             match key.as_str() {
+                "limit_policy" => value.as_str().is_some_and(policy_name),
                 "proxy_transport" => matches!(value.as_str(), Some("websocket" | "http" | "sse")),
                 "cache_policy" => matches!(
                     value.as_str(),
@@ -174,6 +213,28 @@ fn validate_routes(value: &Value, depth: usize) -> Result<()> {
 impl GlobalSettings {
     pub fn validate(&self) -> Result<()> {
         validate_site(&self.site_defaults)?;
+        if self.limit_policies.len() > 16 {
+            bail!("at most 16 limit policies are allowed");
+        }
+        for (name, policy) in &self.limit_policies {
+            let rate = policy
+                .rate
+                .strip_suffix("r/s")
+                .or_else(|| policy.rate.strip_suffix("r/m"));
+            if name == "default"
+                || !policy_name(name)
+                || !rate.is_some_and(|s| {
+                    !s.is_empty()
+                        && s.bytes().all(|c| c.is_ascii_digit())
+                        && s.parse::<u32>().is_ok_and(|n| (1..=100000).contains(&n))
+                })
+                || policy.burst > 100000
+                || !(1..=65535).contains(&policy.connections)
+            {
+                bail!("invalid limit policy: {name}");
+            }
+        }
+        validate_limit_references(&self.site_defaults, &self.limit_policies)?;
         for (key, value) in &self.shared {
             let valid = match key.as_str() {
                 "http_port" | "https_port" => {
@@ -326,6 +387,11 @@ pub fn render_site(
     let mut context = global.shared.clone();
     context.extend(global.site_defaults.clone());
     context.extend(settings.clone());
+    validate_limit_references(&context, &global.limit_policies)?;
+    context.insert(
+        "limit_policies".into(),
+        serde_json::to_value(&global.limit_policies)?,
+    );
     context.insert("domain".into(), domain.into());
     context.insert("subfolder".into(), name.into());
     context.insert(
@@ -346,6 +412,10 @@ pub fn render_site(
 
 // Generated list of versioned inputs. Deployment folders and examples are excluded.
 const BUNDLE: &[(&str, &str)] = &[
+    (
+        "conf.d/00-limit-policies.conf.jinja",
+        include_str!("../config/nginx/conf.d/00-limit-policies.conf.jinja"),
+    ),
     (
         "ban-shield/access-logging.conf.jinja",
         include_str!("../config/nginx/ban-shield/access-logging.conf.jinja"),
@@ -635,6 +705,7 @@ pub fn load_global(config: &crate::config::AppConfig) -> Result<GlobalSettings> 
         GlobalSettings {
             shared: stored.global,
             site_defaults: stored.site_defaults,
+            limit_policies: stored.limit_policies,
             allowed_ips: stored.allowed_ips.unwrap_or_default(),
             free_subdomains: stored.free_subdomains.unwrap_or_default(),
         },
@@ -678,6 +749,7 @@ pub fn shared_files(
     // Saved managed targets override generated map fragments; retain custom rows.
     for (key, site) in crate::nginx_sites::load(config)?.sites {
         let name = site.object_name(&key)?;
+        validate_limit_references(&site.settings, &settings.limit_policies)?;
         let names = site
             .server_name
             .split_whitespace()
@@ -721,6 +793,10 @@ pub fn shared_files(
     let env = environment(&data)?;
     // SAFETY: geteuid has no arguments or memory safety requirements.
     let mut context = runtime_context(&settings, unsafe { libc::geteuid() == 0 });
+    context.insert(
+        "limit_policies".into(),
+        serde_json::to_value(&settings.limit_policies)?,
+    );
     context.insert(
         "pid_path".into(),
         config.nginx.pid_path.to_string_lossy().into_owned().into(),
@@ -819,6 +895,7 @@ impl FileTransaction {
             GlobalSettings {
                 shared: settings.global.clone(),
                 site_defaults: settings.site_defaults,
+                limit_policies: settings.limit_policies,
                 allowed_ips: settings.allowed_ips.unwrap_or_default(),
                 free_subdomains: settings.free_subdomains.unwrap_or_default(),
             }
@@ -986,6 +1063,175 @@ pub async fn bootstrap(config: &crate::config::AppConfig) -> Result<bool> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn limits() -> GlobalSettings {
+        serde_json::from_value(json!({"limit_policies": {
+            "assets": {"rate":"100r/s", "burst":500, "nodelay":true, "connections":50},
+            "api": {"rate":"5r/m", "burst":0, "nodelay":false, "connections":3}
+        }}))
+        .unwrap()
+    }
+
+    #[test]
+    fn named_limits_resolve_nested_policies_and_supplements() {
+        let global = limits();
+        let settings = json!({"limit_policy":"assets", "routes":[
+            {"path":"/api", "limit_policy":"api", "rate_limit":{"zone":"wplogin","burst":3}, "children":[
+                {"path":"/api/nested"}, {"path":"/api/default", "limit_policy":"default"}
+            ]}
+        ]}).as_object().unwrap().clone();
+        let rendered = render_site(
+            &global,
+            &settings,
+            NginxObjectKind::Subdomain,
+            "example.test",
+            "app",
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            rendered
+                .matches("limit_req zone=rh_req_assets burst=500 nodelay;")
+                .count(),
+            1
+        );
+        assert_eq!(rendered.matches("limit_req zone=rh_req_api;").count(), 2);
+        assert_eq!(rendered.matches("limit_conn rh_conn_api 3;").count(), 2);
+        assert_eq!(
+            rendered
+                .matches("limit_req zone=wplogin burst=3 nodelay;")
+                .count(),
+            3
+        );
+        assert_eq!(
+            rendered
+                .matches("limit_req zone=global_rate burst=60 nodelay;")
+                .count(),
+            1
+        );
+        let defaults = render_site(
+            &GlobalSettings::default(),
+            &Settings::new(),
+            NginxObjectKind::Subdomain,
+            "example.test",
+            "app",
+            &[],
+        )
+        .unwrap();
+        assert!(defaults.contains("limit_conn per_client_conn 30;"));
+        assert!(defaults.contains("limit_req zone=global_rate burst=60 nodelay;"));
+        let mut inherited = global.clone();
+        inherited.site_defaults = json!({"limit_policy":"api"}).as_object().unwrap().clone();
+        let output = render_site(
+            &inherited,
+            &Settings::new(),
+            NginxObjectKind::Subfolder,
+            "example.test",
+            "app",
+            &[],
+        )
+        .unwrap();
+        assert!(output.contains("limit_req zone=rh_req_api;"));
+    }
+
+    #[test]
+    fn invalid_limit_policies_and_references_are_rejected() {
+        for policy in [
+            json!({"rate":"0r/s","burst":1,"nodelay":true,"connections":1}),
+            json!({"rate":"1r/s;bad","burst":1,"nodelay":true,"connections":1}),
+            json!({"rate":"1r/s","burst":100001,"nodelay":true,"connections":1}),
+            json!({"rate":"1r/s","burst":1,"nodelay":true,"connections":0}),
+        ] {
+            let global: GlobalSettings =
+                serde_json::from_value(json!({"limit_policies":{"test":policy}})).unwrap();
+            assert!(global.validate().is_err());
+        }
+        for name in ["default", "bad;", ""] {
+            let mut global = limits();
+            global
+                .limit_policies
+                .insert(name.into(), global.limit_policies["api"].clone());
+            assert!(global.validate().is_err());
+        }
+        for value in [
+            json!({"limit_policy":null}),
+            json!({"limit_policy":{}}),
+            json!({"limit_policy":"bad;"}),
+        ] {
+            assert!(validate_site(value.as_object().unwrap()).is_err());
+        }
+        let settings = json!({"routes":[{"path":"/parent","children":[{"path":"/parent/child","limit_policy":"missing"}]}]}).as_object().unwrap().clone();
+        assert!(
+            render_site(
+                &limits(),
+                &settings,
+                NginxObjectKind::Subfolder,
+                "example.test",
+                "app",
+                &[]
+            )
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<GlobalSettings>(
+                json!({"limit_policies":{"test":{"rate":"1r/s","burst":1,"connections":1}}})
+            )
+            .is_err()
+        );
+        assert!(serde_json::from_value::<GlobalSettings>(json!({"limit_policies":{"test":{"rate":"1r/s","burst":1,"nodelay":true,"connections":1,"unknown":true}}})).is_err());
+    }
+
+    #[test]
+    fn named_limit_persistence_and_zone_accounting() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut config = crate::config::AppConfig::default();
+        config.nginx.root_dir = temp.path().into();
+        let mut global = limits();
+        global.site_defaults = json!({"limit_policy":"api"}).as_object().unwrap().clone();
+        let files = shared_files(&config, &global).unwrap();
+        let zones = &files[&temp.path().join("conf.d/00-limit-policies.conf")];
+        for name in ["assets", "api"] {
+            assert!(zones.contains(&format!("$binary_remote_addr zone=rh_req_{name}:1m")));
+            assert!(zones.contains(&format!("$binary_remote_addr zone=rh_conn_{name}:1m")));
+        }
+        std::fs::create_dir_all(temp.path().join("settings")).unwrap();
+        std::fs::write(global_path(&config), encode_global(&global).unwrap()).unwrap();
+        let restored = load_global(&config).unwrap();
+        assert_eq!(
+            serde_json::to_value(&restored.limit_policies).unwrap(),
+            serde_json::to_value(&global.limit_policies).unwrap()
+        );
+        assert_eq!(
+            shared_files(&config, &restored).unwrap()
+                [&temp.path().join("conf.d/00-limit-policies.conf")],
+            *zones
+        );
+        let site = crate::nginx_sites::Site {
+            kind: NginxObjectKind::Subdomain,
+            domain: "example.test".into(),
+            name: Some("app".into()),
+            server_name: "app.example.test".into(),
+            subfolder: None,
+            upstream: Some("http://127.0.0.1:8080".into()),
+            enabled: false,
+            settings: json!({"limit_policy":"assets"})
+                .as_object()
+                .unwrap()
+                .clone(),
+        };
+        crate::nginx_sites::save(&config, site.kind, &site.domain, "app", Some(site.clone()))
+            .unwrap()
+            .commit();
+        let saved = crate::nginx_sites::find(&config, site.kind, &site.domain, "app")
+            .unwrap()
+            .unwrap();
+        assert_eq!(saved.settings["limit_policy"], "assets");
+        assert!(!saved.enabled);
+        let mut removed = restored.clone();
+        removed.limit_policies.remove("assets");
+        removed.validate().unwrap();
+        assert!(shared_files(&config, &removed).is_err());
+    }
 
     #[test]
     fn renders_every_base_combination_and_preserves_false_and_zero() {
