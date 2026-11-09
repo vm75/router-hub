@@ -1,4 +1,5 @@
 pub mod adguard;
+pub mod analytics;
 pub mod api;
 pub mod asus_ui;
 pub mod auth;

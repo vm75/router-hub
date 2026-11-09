@@ -1,4 +1,5 @@
 pub mod adguard;
+pub mod analytics;
 pub mod certificates;
 pub mod firewall;
 pub mod nginx;
@@ -79,6 +80,14 @@ pub fn router() -> Router<AppState> {
         .route("/runtime", get(runtime))
         .route("/dashboard", get(dashboard))
         .route("/system/usage", get(system::usage))
+        .route("/analytics/status", get(analytics::status))
+        .route("/analytics/history", get(analytics::history))
+        .route(
+            "/analytics/config",
+            get(analytics::get_config).put(analytics::update_config),
+        )
+        .route("/analytics/ai/preview", get(analytics::preview_ai_payload))
+        .route("/analytics/ai/analyze", post(analytics::analyze))
         .route("/services", get(services::list))
         .route("/services/{name}/{action}", post(services::action))
         .route("/services/{name}/logs", get(services::logs))

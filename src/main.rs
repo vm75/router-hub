@@ -1,4 +1,5 @@
 mod adguard;
+mod analytics;
 mod api;
 mod asus_ui;
 mod auth;
@@ -28,6 +29,7 @@ use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::{
+    analytics::AnalyticsManager,
     asus_ui::{install_menu_entry, render_ui_file},
     config::{AppConfig, Platform},
     firewall::FirewallManager,
@@ -162,6 +164,10 @@ async fn serve(config: AppConfig) -> Result<()> {
     nginx_render::require_migrated_input(&config, "sites.toml")?;
     config.ensure_directories()?;
     let stores = Stores::load(&config).await?;
+    // Initialize analytics before the ban engine so its non-blocking ingress is
+    // available from the first security event. With the default settings this
+    // creates no periodic analytics work and sends no external requests.
+    let analytics = AnalyticsManager::initialize(config.clone()).await?;
     let firewall = FirewallManager::new(config.clone(), stores.clone()).await?;
     let state = AppState::new(config.clone(), stores, firewall.clone());
 
@@ -182,6 +188,7 @@ async fn serve(config: AppConfig) -> Result<()> {
     }
 
     firewall.start().await;
+    analytics.start(firewall.clone());
     spawn_firewall_reconcile_signal(firewall.clone());
     spawn_reconfigure_signal();
     state.start_certificate_renewal_loop();

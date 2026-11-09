@@ -664,6 +664,7 @@ impl Worker {
     }
 
     fn emit(&mut self, event: EngineEvent) {
+        crate::analytics::record_engine_event(&event);
         match event {
             EngineEvent::Match => {
                 self.health.last_match_at = Some(Utc::now());
