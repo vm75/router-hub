@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guest provisioning script for AArch64 Router Hub lab on Alpine Linux.
+# Guest provisioning script for AArch64 Maestro lab on Alpine Linux.
 set -eu
 
 [ "$(id -u)" = "0" ] || { echo "Error: Must run as root inside the Alpine VM." >&2; exit 1; }
@@ -9,7 +9,7 @@ case "$LAB_OFFLINE" in
     *) echo 'Error: LAB_OFFLINE must be 0 or 1.' >&2; exit 1 ;;
 esac
 if [ "$LAB_OFFLINE" = 1 ]; then
-    export ROUTER_HUB_DEFER_START=1
+    export MAESTRO_DEFER_START=1
 fi
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" 2>/dev/null && pwd || echo "")
@@ -54,8 +54,8 @@ mkdir -p \
     /etc/router-lab \
     /usr/local/libexec/router-lab \
     /opt/etc/wireguard \
-    /opt/etc/router-hub \
-    /opt/var/lib/router-hub \
+    /opt/etc/maestro \
+    /opt/var/lib/maestro \
     /tmp/var/wwwext
 
 echo "=== Step 2: Bootstrap Entware ==="
@@ -184,16 +184,16 @@ chmod 0644 /www/state.js
 
 ln -sf /tmp/var/wwwext/user20.asp /www/user20.asp
 
-echo "=== Step 6: Configure Router Hub settings ==="
+echo "=== Step 6: Configure Maestro settings ==="
 # Seed disabled firewall policy
-for dir in /opt/etc/router-hub /opt/var/lib/router-hub; do
+for dir in /opt/etc/maestro /opt/var/lib/maestro; do
     if [ ! -f "$dir/firewall-policy.json" ]; then
         cp "$FILES_DIR/firewall-policy.json" "$dir/firewall-policy.json"
         chmod 0600 "$dir/firewall-policy.json"
     fi
 done
 
-if [ ! -f /opt/etc/router-hub/router-hub.toml ]; then
+if [ ! -f /opt/etc/maestro/maestro.toml ]; then
     OPENSSL_BIN=$(command -v openssl || echo "/usr/bin/openssl")
     IP_BIN=$(command -v ip || echo "/sbin/ip")
     AUTH_TOKEN=$(openssl rand -hex 24)
@@ -201,17 +201,17 @@ if [ ! -f /opt/etc/router-hub/router-hub.toml ]; then
     sed -e "s|__AUTH_TOKEN__|$AUTH_TOKEN|" \
         -e "s|__OPENSSL_BIN__|$OPENSSL_BIN|" \
         -e "s|__IP_BIN__|$IP_BIN|" \
-        "$FILES_DIR/router-hub.toml.template" > /opt/etc/router-hub/router-hub.toml
-    chmod 0600 /opt/etc/router-hub/router-hub.toml
-    printf 'auth_token=%s\n' "$AUTH_TOKEN" > /opt/etc/router-hub/auth-token.txt
-    chmod 0600 /opt/etc/router-hub/auth-token.txt
-    echo "Generated /opt/etc/router-hub/router-hub.toml"
+        "$FILES_DIR/maestro.toml.template" > /opt/etc/maestro/maestro.toml
+    chmod 0600 /opt/etc/maestro/maestro.toml
+    printf 'auth_token=%s\n' "$AUTH_TOKEN" > /opt/etc/maestro/auth-token.txt
+    chmod 0600 /opt/etc/maestro/auth-token.txt
+    echo "Generated /opt/etc/maestro/maestro.toml"
 fi
 
-echo "=== Step 7: Install Router Hub IPK ==="
+echo "=== Step 7: Install Maestro IPK ==="
 IPK_FILE="${PACKAGE:-}"
 if [ -z "$IPK_FILE" ]; then
-    for candidate in "$SCRIPT_DIR"/../../dist/router-hub_*_aarch64-3.10.ipk; do
+    for candidate in "$SCRIPT_DIR"/../../dist/maestro_*_aarch64-3.10.ipk; do
         if [ -f "$candidate" ] && { [ -z "$IPK_FILE" ] || [ "$candidate" -nt "$IPK_FILE" ]; }; then
             IPK_FILE="$candidate"
         fi
@@ -228,16 +228,16 @@ if [ -n "$IPK_FILE" ] && [ -f "$IPK_FILE" ]; then
     (cd "$(dirname "$IPK_FILE")" && sha256sum -c "$(basename "$IPK_FILE").sha256")
     echo "Installing IPK..."
     /opt/bin/opkg install "$IPK_FILE"
-    echo "Router Hub package installation complete."
+    echo "Maestro package installation complete."
     echo "Upgrading nginx..."
-    /opt/bin/router-hub upgrade-nginx
+    /opt/bin/maestro upgrade-nginx
 else
     if [ "$LAB_OFFLINE" = 1 ]; then
-        echo 'Error: No Router Hub IPK found; build it with make ipk before initializing the lab.' >&2
+        echo 'Error: No Maestro IPK found; build it with make ipk before initializing the lab.' >&2
         exit 1
     fi
     echo "Notice: No IPK file found to install yet."
-    echo "To install manually later, run: /opt/bin/opkg install <router-hub_*.ipk>"
+    echo "To install manually later, run: /opt/bin/opkg install <maestro_*.ipk>"
 fi
 
 echo ""

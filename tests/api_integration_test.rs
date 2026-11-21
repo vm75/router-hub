@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode, header},
 };
-use router_hub::{
+use maestro::{
     api, config::AppConfig, firewall::FirewallManager, state::AppState, storage::Stores,
 };
 use tempfile::tempdir;
@@ -95,7 +95,7 @@ async fn test_unauthenticated_endpoints() {
     assert_eq!(resp.headers()[header::CONTENT_TYPE], "image/svg+xml");
 
     let req = Request::builder()
-        .uri("/router-hub.svg")
+        .uri("/maestro.svg")
         .body(Body::empty())
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -503,7 +503,7 @@ async fn test_firewall_policy_api() {
     // Enable firewall policy with a valid rule
     let mut policy = state.stores.firewall_policy.read().await.clone();
     policy.enabled = true;
-    policy.rules.push(router_hub::models::BanRule {
+    policy.rules.push(maestro::models::BanRule {
         id: uuid::Uuid::new_v4(),
         name: "ssh".into(),
         enabled: true,
@@ -645,14 +645,17 @@ async fn test_services_api() {
             .all(|service| service["enabled"].as_bool() == Some(true))
     );
 
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/services/S99router-hub/disable")
-        .header(auth_header.0, auth_header.1)
-        .body(Body::empty())
-        .unwrap();
-    let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    // The new service and legacy init-script alias must both be protected.
+    for service in ["S99maestro", "S99router-hub"] {
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/services/{service}/disable"))
+            .header(auth_header.0, auth_header.1)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
 
     for (action, expected_command) in [
         ("restart", "restart"),
@@ -736,7 +739,7 @@ async fn test_nginx_jinja_settings_objects_actions_and_logs_api() {
         globals
     );
     let persisted: toml::Value = toml::from_str(
-        &std::fs::read_to_string(router_hub::nginx_render::global_path(&state.config)).unwrap(),
+        &std::fs::read_to_string(maestro::nginx_render::global_path(&state.config)).unwrap(),
     )
     .unwrap();
     assert_eq!(persisted["global"]["http_port"].as_integer(), Some(8080));
@@ -1041,7 +1044,7 @@ async fn test_nginx_settings_validation_failure_restores_all_files() {
     config.ensure_directories().unwrap();
     std::fs::write(&config.nginx.config_path, "original").unwrap();
     let original_globals = "# Operator settings\n[global]\nhttp_port = 19080\n";
-    let globals_path = router_hub::nginx_render::global_path(&config);
+    let globals_path = maestro::nginx_render::global_path(&config);
     std::fs::create_dir_all(globals_path.parent().unwrap()).unwrap();
     std::fs::write(&globals_path, original_globals).unwrap();
 
@@ -1407,7 +1410,7 @@ async fn test_nginx_settings_reload_failure_restores_all_files() {
         previous
     );
     assert_eq!(
-        std::fs::read_to_string(router_hub::nginx_render::global_path(&state.config)).unwrap(),
+        std::fs::read_to_string(maestro::nginx_render::global_path(&state.config)).unwrap(),
         "[global]\n"
     );
     assert!(
@@ -1422,7 +1425,7 @@ async fn test_nginx_settings_reload_failure_restores_all_files() {
 
 #[tokio::test]
 async fn managed_sites_persist_inputs_and_regenerate_without_metadata() {
-    use router_hub::{models::NginxObjectKind, nginx, nginx_sites};
+    use maestro::{models::NginxObjectKind, nginx, nginx_sites};
     use serde_json::json;
     let (app, state, _temp) = setup_test_app().await;
     let (status, result) = nginx_request(&app, "POST", "/objects/domain", json!({"domain":"saved.test","name":"saved.test","settings":{"disable_root":true},"upstream":"http://127.0.0.1:8080"})).await;
@@ -1531,7 +1534,7 @@ async fn managed_sites_persist_inputs_and_regenerate_without_metadata() {
 
 #[tokio::test]
 async fn managed_site_inputs_roll_back_when_nginx_rejects_an_update() {
-    use router_hub::{command::CommandRunner, models::NginxObjectKind, nginx, nginx_sites};
+    use maestro::{command::CommandRunner, models::NginxObjectKind, nginx, nginx_sites};
     use serde_json::json;
     let (_app, mut state, _temp) = setup_test_app().await;
     state.runner = CommandRunner::new(false);
@@ -1560,7 +1563,7 @@ async fn managed_site_inputs_roll_back_when_nginx_rejects_an_update() {
         "rollback.test",
     )
     .unwrap();
-    let mut global = router_hub::nginx_render::load_global(&state.config).unwrap();
+    let mut global = maestro::nginx_render::load_global(&state.config).unwrap();
     global.listener_profiles.insert(
         "moved".into(),
         serde_json::from_value(json!({
@@ -1568,9 +1571,9 @@ async fn managed_site_inputs_roll_back_when_nginx_rejects_an_update() {
         }))
         .unwrap(),
     );
-    router_hub::nginx_render::FileTransaction::apply(
+    maestro::nginx_render::FileTransaction::apply(
         &state.config,
-        router_hub::nginx_render::shared_files(&state.config, &global).unwrap(),
+        maestro::nginx_render::shared_files(&state.config, &global).unwrap(),
     )
     .unwrap()
     .commit();
@@ -1639,13 +1642,12 @@ async fn emulated_fixture_sites_survive_shared_settings_regeneration() {
         settings_dir.join("sites.toml"),
     )
     .unwrap();
-    let sites = router_hub::nginx_sites::load(&state.config).unwrap();
+    let sites = maestro::nginx_sites::load(&state.config).unwrap();
     assert_eq!(sites.sites.len(), 3);
     for (key, site) in &sites.sites {
         let name = site.object_name(key).unwrap();
         let source =
-            router_hub::nginx::available_path(&state.config, site.kind, &site.domain, &name)
-                .unwrap();
+            maestro::nginx::available_path(&state.config, site.kind, &site.domain, &name).unwrap();
         let relative = source.strip_prefix(&state.config.nginx.root_dir).unwrap();
         std::fs::create_dir_all(source.parent().unwrap()).unwrap();
         std::fs::copy(fixture.join(relative), &source).unwrap();
@@ -1669,14 +1671,14 @@ async fn emulated_fixture_sites_survive_shared_settings_regeneration() {
             response["content"]
                 .as_str()
                 .unwrap()
-                .starts_with(router_hub::nginx_render::SETTINGS_PREFIX)
+                .starts_with(maestro::nginx_render::SETTINGS_PREFIX)
         );
     }
 }
 
 #[tokio::test]
 async fn test_disable_managed_subdomain_without_explicit_name() {
-    use router_hub::{models::NginxObjectKind, nginx, nginx_sites};
+    use maestro::{models::NginxObjectKind, nginx, nginx_sites};
     use serde_json::json;
     let (app, state, _temp) = setup_test_app().await;
 

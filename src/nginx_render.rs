@@ -717,7 +717,7 @@ pub(crate) fn require_migrated_input(config: &crate::config::AppConfig, name: &s
         ensure_managed_path(config, &legacy)?;
         if legacy.try_exists()? {
             bail!(
-                "legacy nginx inputs found; stop Router Hub and run migrate-nginx-inputs before starting this version"
+                "legacy nginx inputs found; stop Maestro and run migrate-nginx-inputs before starting this version"
             );
         }
     }
@@ -1154,7 +1154,7 @@ impl Drop for FileTransaction {
 }
 
 /// Move current-format legacy inputs without altering active nginx configuration.
-/// Run while Router Hub is stopped. Conflicting destinations are never overwritten.
+/// Run while Maestro is stopped. Conflicting destinations are never overwritten.
 pub fn migrate_inputs(config: &crate::config::AppConfig) -> Result<usize> {
     use std::fs;
     let mut names = BUNDLE

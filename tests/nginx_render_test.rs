@@ -1,5 +1,5 @@
 //! Validate the Rust renderer's complete output with an actual, isolated nginx.
-use router_hub::{
+use maestro::{
     command::CommandRunner,
     config::AppConfig,
     models::NginxObjectKind,
@@ -190,10 +190,10 @@ async fn native_jinja_output_passes_real_nginx_validation() {
         fs::create_dir_all(root.join("settings")).unwrap();
         fs::copy(
             PathBuf::from(fixture).join("../router-hub/nginx/sites.toml"),
-            router_hub::nginx_sites::path(&config),
+            maestro::nginx_sites::path(&config),
         )
         .unwrap();
-        let sites = router_hub::nginx_sites::load(&config).unwrap();
+        let sites = maestro::nginx_sites::load(&config).unwrap();
         let mut entries: Vec<_> = sites.sites.iter().collect();
         entries.sort_by_key(|(_, site)| site.kind != NginxObjectKind::Domain);
         for (key, site) in entries {

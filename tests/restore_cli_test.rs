@@ -23,7 +23,7 @@ fn restore_works_with_corrupt_configuration_and_test_mode_leaves_destination_unt
     tar.into_inner().unwrap().finish().unwrap();
 
     let command = || {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_router-hub"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_maestro"));
         command
             .arg("--config")
             .arg(&config)
@@ -63,7 +63,7 @@ fn update_dehydrated_cli_simulates_in_test_mode() {
         "[commands]\ndehydrated = \"/opt/var/lib/router-hub/dehydrated/dehydrated\"\n",
     )
     .unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_router-hub"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_maestro"));
     command
         .arg("--config")
         .arg(&config)

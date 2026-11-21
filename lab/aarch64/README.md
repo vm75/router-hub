@@ -1,6 +1,6 @@
-# AArch64 Router Hub Lab
+# AArch64 Maestro Lab
 
-This lab boots an AArch64 Alpine Linux guest in QEMU, provisions simulated Asuswrt firmware interfaces and Entware, installs the standard Router Hub AArch64 musl IPK, and exercises the live router web interface and WireGuard toggling.
+This lab boots an AArch64 Alpine Linux guest in QEMU, provisions simulated Asuswrt firmware interfaces and Entware, installs the standard Maestro AArch64 musl IPK, and exercises the live router web interface and WireGuard toggling.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ This lab boots an AArch64 Alpine Linux guest in QEMU, provisions simulated Asusw
 | -------------- | -------------------------------------------------------------------- |
 | Guest OS       | Alpine Linux AArch64 (musl libc, OpenRC)                             |
 | Entware        | Generic AArch64 Entware (`/opt`, glibc tools)                        |
-| Router Hub     | Static AArch64 musl release IPK (`router-hub_*_aarch64-3.10.ipk`)    |
+| Maestro     | Static AArch64 musl release IPK (`maestro_*_aarch64-3.10.ipk`)    |
 | Web Root       | BusyBox httpd serving `/www` on HTTP 8080; stunnel provides HTTPS 8443 |
 | Firmware Mocks | `/bin/nvram`, `/usr/local/libexec/router-lab/service`, syslog reader |
 | WireGuard      | Linux kernel WireGuard via Entware `wg` and `wg-quick`               |
@@ -111,7 +111,7 @@ Network port forwards:
 
 - Host `127.0.0.1:8080` forwards to guest `:8080` (ASUS HTTP)
 - Host `127.0.0.1:8443` forwards to guest `:8443` (ASUS HTTPS)
-- Host `127.0.0.1:3030` forwards to guest `:3030` (Router Hub API)
+- Host `127.0.0.1:3030` forwards to guest `:3030` (Maestro API)
 
 These ports match the generated UI API URL and allowed browser origins.
 Guest ports 80 and 443 remain available for Entware NGINX. HTTPS uses a
@@ -141,12 +141,12 @@ mount -t 9p -o trans=virtio,version=9p2000.L,ro router-hub /mnt/router-hub
 sh /mnt/router-hub/lab/aarch64/provision.sh
 ```
 
-Provisioning selects the most recently modified Router Hub IPK in the shared
+Provisioning selects the most recently modified Maestro IPK in the shared
 `dist/` directory and requires its matching `.sha256` file. Select a specific
 package when needed:
 
 ```sh
-PACKAGE=/mnt/router-hub/dist/router-hub_VERSION-1_aarch64-3.10.ipk \
+PACKAGE=/mnt/router-hub/dist/maestro_VERSION-1_aarch64-3.10.ipk \
   sh /mnt/router-hub/lab/aarch64/provision.sh
 ```
 
@@ -165,20 +165,20 @@ The provisioning script:
 4. Installs the `/bin/nvram` mock, `/usr/local/libexec/router-lab/service` mock, and syslog fallback.
 5. Installs `wireguard-tools` and `wg-quick`, configures `/opt/etc/wireguard/wgs1.conf`, and sets up short-name links.
 6. Launches BusyBox httpd with Basic Auth on port 8080, adds a stunnel TLS listener on 8443, and seeds `/www/require/modules/menuTree.js` and `/www/state.js`.
-7. Seeds `/opt/etc/router-hub/firewall-policy.json` (disabled) and generates `/opt/etc/router-hub/router-hub.toml`.
-8. Validates the SHA-256 checksum and installs `router-hub_*_aarch64-3.10.ipk` via Entware `opkg`.
+7. Seeds `/opt/etc/maestro/firewall-policy.json` (disabled) and generates `/opt/etc/maestro/maestro.toml`.
+8. Validates the SHA-256 checksum and installs `maestro_*_aarch64-3.10.ipk` via Entware `opkg`.
 
 During ISO installation, provisioning runs with `LAB_OFFLINE=1`: OpenRC service
 starts and kernel interface probes are deferred, and the package setup hook uses
-`ROUTER_HUB_DEFER_START=1` to initialize configuration without stopping or starting
-Router Hub. Normal manual provisioning keeps its existing service-start behavior.
+`MAESTRO_DEFER_START=1` to initialize configuration without stopping or starting
+Maestro. Normal manual provisioning keeps its existing service-start behavior.
 
 Provisioning configures `/root/.bashrc` to display access details when root opens
 an interactive shell. Alpine's default ash login also displays the same banner,
 once per shell. It reads the current saved files each time:
 
 - ASUS httpd Basic Auth credentials (saved in `/etc/router-lab/httpd-credentials.txt`).
-- Router Hub API token (saved in `/opt/etc/router-hub/auth-token.txt`).
+- Maestro API token (saved in `/opt/etc/maestro/auth-token.txt`).
 
 The banner also lists the host browser URLs. Credentials and URLs are no longer
 printed in the provisioning completion message. Rerun provisioning to add the
@@ -187,8 +187,8 @@ banner to an existing guest.
 For an existing lab, shut down and relaunch QEMU with the updated `run.sh` to
 apply the new guest port forwards, then rerun provisioning from the shared
 project. It moves the mock HTTP service to 8080 and installs HTTPS on 8443,
-preserving existing Basic Auth credentials and Router Hub settings. Existing
-Router Hub configurations need `https://127.0.0.1:8443` added to
+preserving existing Basic Auth credentials and Maestro settings. Existing
+Maestro configurations need `https://127.0.0.1:8443` added to
 `server.allowed_origins` if using the HTTPS page. The API remains on HTTP 3030;
 for HTTPS browser use, configure `asus_ui.api_base_url` to an HTTPS API reverse
 proxy and allow its origin as needed.
@@ -198,7 +198,7 @@ proxy and allow its origin as needed.
 1. Open your host browser to `http://127.0.0.1:8080/user20.asp`.
 2. Log in as root in the guest to see the access banner, then sign in to httpd
    with those credentials (`user=lab`).
-3. Confirm Router Hub renders live system metrics (CPU, RAM, uptime, network interfaces).
+3. Confirm Maestro renders live system metrics (CPU, RAM, uptime, network interfaces).
 4. Navigate to the WireGuard section:
    - Click to turn WireGuard on.
    - In the guest console, run `/opt/bin/wg show wgs1` and verify the interface and assigned IP (`10.77.0.1/24`) are active.

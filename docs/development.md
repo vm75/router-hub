@@ -20,7 +20,7 @@
 make run
 ```
 
-Open <http://127.0.0.1:3030> with the test token `router-hub-test-token`.
+Open <http://127.0.0.1:3030> with the fixture test token `router-hub-test-token`.
 Fixture-backed test mode simulates external commands, skips ASUS menu changes,
 and does not send Wake-on-LAN packets.
 
@@ -58,7 +58,7 @@ Shortcuts are available through `make check`, `make test`, `make fmt`,
 
 Run `make ipk` to build the AArch64 musl release binary and package the Entware
 IPK using the version in `Cargo.toml`. The package and its SHA-256 checksum are
-written to `dist/router-hub_<version>-1_aarch64-3.10.ipk` and `.ipk.sha256`.
+written to `dist/maestro_<version>-1_aarch64-3.10.ipk` and `.ipk.sha256`.
 This uses the same cross-compilation toolchain as `make release`.
 
 With the Python environment active, run `make test-nginx` for the bundled
@@ -97,7 +97,7 @@ For the optional browser workflow check, install Node 22+ and Chromium, build
 with `cargo build`, then run:
 
 ```sh
-node scripts/test-nginx-ui.mjs target/debug/router-hub /usr/sbin/chromium
+node scripts/test-nginx-ui.mjs target/debug/maestro /usr/sbin/chromium
 ```
 
 The script starts a temporary test-mode server and checks normal form controls,
@@ -110,7 +110,7 @@ mobile screenshot. Browser and live-nginx checks require loopback socket access.
 
 To exercise the dehydrated command and DNS hook against Let's Encrypt staging,
 use the temporary test harness. It uses the same `--cron --accept-terms
---config` invocation as Router Hub and leaves router certificate data untouched:
+--config` invocation as Maestro and leaves router certificate data untouched:
 
 ```sh
 DEHYDRATED=/path/to/dehydrated \
@@ -119,7 +119,7 @@ DEHYDRATED=/path/to/dehydrated \
 ```
 
 Use repeated `--env KEY=VALUE` options when you want the hook settings written
-into the temporary dehydrated config, as they are by Router Hub. The harness
+into the temporary dehydrated config, as they are by Maestro. The harness
 uses the staging CA by default and supports `--method http`, `--hook`,
 `--force`, and `--keep`.
 

@@ -1,4 +1,4 @@
-# Router Hub
+# Maestro
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
@@ -8,7 +8,7 @@
 
 Manage your router from a standalone page or inside the ASUS menu. Written in
 Rust, with an offline-capable UI, no database, and no frontend build step.
-Router Hub coordinates your installed Entware tools. The modular feature registry
+Maestro coordinates your installed Entware tools. The modular feature registry
 organizes the UI into Dashboard, Services, Web, Security, and Network groups;
 existing feature URLs and API calls remain compatible.
 
@@ -40,13 +40,13 @@ compatibility still needs testing on matching hardware and firmware. Legacy MIPS
 support is not promised.
 
 1. Back up your configuration and persistent state. For an existing installation,
-   read the [migration guide](docs/migration.md) first; existing nginx configuration
+   read the [Maestro migration guide](docs/maestro-migration.md) first; existing nginx configuration
    must be ported to the current bundle before deployment.
 2. For a new install, download the matching `.ipk` and checksum from
    [GitHub Releases](https://github.com/vm75/router-hub/releases), verify the
    checksum, then run `/opt/bin/opkg install /tmp/<package>.ipk` as root.
-   The IPK installs Router Hub, initializes configuration, and starts the
-   service; it preserves existing settings on subsequent installs.
+   The IPK installs Maestro, initializes configuration, and starts the
+   service. Migrating an existing Router Hub IPK requires the separate [rebrand migration](docs/maestro-migration.md); **do not install the new package over the legacy package**.
 
    Alternatively, download the matching tarball and checksum from
    [GitHub Releases](https://github.com/vm75/router-hub/releases).
@@ -54,29 +54,30 @@ support is not promised.
 3. **For tarball installs only**, from the extracted package run as root on the router:
 
    ```sh
-   ./scripts/install-merlin.sh ./router-hub
+   ./scripts/install-merlin.sh ./maestro
    ```
 
-   The installer creates a token and configuration on first install, preserves
-   existing configuration, installs startup hooks, and restarts Router Hub.
-4. Review `/opt/etc/router-hub/router-hub.toml` after either installation method: set your bind address,
+   The installer creates a token and configuration on first install, can adopt
+   legacy Router Hub configuration without moving stored state, installs startup
+   hooks, and restarts Maestro.
+4. Review `/opt/etc/maestro/maestro.toml` after either installation method: set your bind address,
    allowed origins, ASUS page/menu, API URL, and service paths. The shipped
    values are examples. Restart after changes:
 
    ```sh
-   /opt/etc/init.d/S99router-hub restart
+   /opt/etc/init.d/S99maestro restart
    ```
 
 5. Open the configured ASUS menu entry, or
    `http://<router-ip>:3030/#token=<auth-token>` using the token from your TOML.
 
-On an existing router install, `/opt/bin/router-hub upgrade` checks the latest
+On an existing router install, `/opt/bin/maestro upgrade` checks the latest
 stable GitHub release, verifies its IPK checksum, and attempts `opkg install`.
 It creates a backup first; use `--no-backup` to skip it.
 Use `--download-only` to stage a verified package under `/tmp` and print a
 manual install command. Upgrade is unavailable in Linux and test modes.
 
-Similarly, `/opt/bin/router-hub upgrade-nginx` (or `update-nginx`) checks the
+Similarly, `/opt/bin/maestro upgrade-nginx` (or `update-nginx`) checks the
 latest custom Entware NGINX IPK release bundle on GitHub, verifies checksums,
 and installs the matching packages (`nginx-ssl`, `nginx-mod-brotli`,
 `nginx-mod-stream`, and `nginx-mod-headers-more`). By default it selects the
@@ -87,9 +88,9 @@ Selecting an older release requires `--allow-downgrade`. Successful router
 upgrades activate the new NGINX master using NGINX's live binary-upgrade signals,
 and preserve prior binary/module files in a private `/tmp` recovery directory.
 
-Create a backup separately with `router-hub backup`; see
+Create a backup separately with `maestro backup`; see
 [backup instructions](docs/installation.md#backups). Use
-`router-hub restore <archive>` while services are stopped to recover a backup;
+`maestro restore <archive>` while services are stopped to recover a backup;
 `--root <directory>` restores into a separate tree for inspection.
 
 See [installation](docs/installation.md) for verified download commands, source
@@ -103,7 +104,7 @@ With **Rust 1.85+**, from a checkout:
 make run
 ```
 
-Open <http://127.0.0.1:3030> and use the test token `router-hub-test-token`.
+Open <http://127.0.0.1:3030> and use the fixture test token `router-hub-test-token`.
 This uses fixture data, simulates external commands, skips ASUS menu changes,
 and does not send Wake-on-LAN packets.
 
@@ -111,7 +112,7 @@ For testing against real services, follow the [Linux integration guide](docs/lin
 
 ## Configure and use
 
-Start with the [example TOML](config/router-hub.example.toml) for paths,
+Start with the [example TOML](config/maestro.example.toml) for paths,
 authentication, commands, and integration settings. Then use the UI to manage
 services, sites, certificates, saved devices, and firewall policy.
 
@@ -130,11 +131,12 @@ security, nginx settings, and firewall tuning.
 | --- | --- |
 | [Installation](docs/installation.md) | Packages, source builds, installer options, service commands |
 | [Configuration](docs/configuration.md) | TOML sections, nginx settings, Ban Shield tuning, operational notes |
-| [Upgrading](docs/migration.md) | Migration steps and nginx compatibility |
+| [Upgrading](docs/maestro-migration.md) | Rebrand steps and Router Hub coexistence/rollback |
+| [Legacy migrations](docs/migration.md) | Historical nginx and storage compatibility |
 | [Development](docs/development.md) | Prerequisites, local checks, certificate tests, API overview |
 | [Linux integration](docs/linux.md) | Real-service lab setup and smoke tests |
 | [Architecture](docs/architecture.md) | Components, data flows, persistence, invariants |
-| [CI and releases](docs/releases.md) | Router Hub publishing and manual NGINX IPK build/release workflow |
+| [CI and releases](docs/releases.md) | Maestro publishing and manual NGINX IPK build/release workflow |
 | [Nginx bundle](config/nginx/README.md) | Site options, route policies, templates, validation |
 | [Changelog](CHANGELOG.md) | Release history |
 

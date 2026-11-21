@@ -414,9 +414,9 @@ pub struct PathsConfig {
 impl Default for PathsConfig {
     fn default() -> Self {
         Self {
-            data_dir: "/opt/var/lib/router-hub".into(),
-            runtime_dir: "/opt/var/run/router-hub".into(),
-            log_file: "/opt/var/log/router-hub.log".into(),
+            data_dir: "/opt/var/lib/maestro".into(),
+            runtime_dir: "/opt/var/run/maestro".into(),
+            log_file: "/opt/var/log/maestro.log".into(),
             hosts_add: "/jffs/configs/hosts.add".into(),
             dnsmasq_conf_add: "/jffs/configs/dnsmasq.conf.add".into(),
             jffs_scripts_dir: "/jffs/scripts".into(),
@@ -464,7 +464,7 @@ impl Default for CommandsConfig {
             ipset: "/opt/sbin/ipset".into(),
             iptables: "/usr/sbin/iptables".into(),
             ip6tables: "/usr/sbin/ip6tables".into(),
-            dehydrated: "/opt/var/lib/router-hub/dehydrated/dehydrated".into(),
+            dehydrated: "/opt/var/lib/maestro/dehydrated/dehydrated".into(),
             dehydrated_dns01_hook: None,
             openssl: "/usr/sbin/openssl".into(),
             logread: "/opt/sbin/logread".into(),
@@ -550,7 +550,7 @@ impl Default for NginxConfig {
     fn default() -> Self {
         Self {
             root_dir: "/opt/etc/nginx".into(),
-            inputs_dir: "/opt/etc/router-hub/nginx".into(),
+            inputs_dir: "/opt/etc/maestro/nginx".into(),
             config_path: "/opt/etc/nginx/nginx.conf".into(),
             prefix_path: None,
             pid_path: "/opt/var/run/nginx.pid".into(),
@@ -587,13 +587,13 @@ pub struct CertificatesConfig {
 }
 
 fn default_dns01_hook() -> PathBuf {
-    "/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh".into()
+    "/opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh".into()
 }
 
 impl Default for CertificatesConfig {
     fn default() -> Self {
         Self {
-            certs_dir: "/opt/var/lib/router-hub/dehydrated/certs".into(),
+            certs_dir: "/opt/var/lib/maestro/dehydrated/certs".into(),
             renew_interval_hours: 12,
             renew_before_days: 30,
             command_timeout_seconds: 3600,
@@ -646,8 +646,8 @@ impl Default for FirewallRuntimeConfig {
         Self {
             poll_interval_ms: 1000,
             cleanup_interval_seconds: 60,
-            set_name_v4: "router_hub_bans4".into(),
-            set_name_v6: "router_hub_bans6".into(),
+            set_name_v4: "maestro_bans4".into(),
+            set_name_v6: "maestro_bans6".into(),
             subnet_prefix_v4: 24,
             subnet_prefix_v6: 64,
             ip_failures: 4,
@@ -733,11 +733,11 @@ mod tests {
         assert_eq!(config.server.port, 3030);
         assert_eq!(
             config.commands.dehydrated,
-            Path::new("/opt/var/lib/router-hub/dehydrated/dehydrated")
+            Path::new("/opt/var/lib/maestro/dehydrated/dehydrated")
         );
         assert_eq!(
             config.certificates.dns01_hook,
-            Path::new("/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh")
+            Path::new("/opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh")
         );
         assert_eq!(config.firewall.subnet_prefix_v4, 24);
         assert_eq!(config.firewall.subnet_prefix_v6, 64);

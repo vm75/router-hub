@@ -44,5 +44,5 @@ mount_into "$TARGET/mnt/router-hub" --bind "$REPOSITORY"
 # The live ISO has working DHCP/DNS; the installed guest has not booted yet.
 rm -f "$TARGET/etc/resolv.conf"
 cp /etc/resolv.conf "$TARGET/etc/resolv.conf"
-chroot "$TARGET" /usr/bin/env LAB_OFFLINE=1 ROUTER_HUB_DEFER_START=1 \
+chroot "$TARGET" /usr/bin/env LAB_OFFLINE=1 MAESTRO_DEFER_START=1 \
     /bin/sh /mnt/router-hub/lab/aarch64/provision.sh

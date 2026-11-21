@@ -1,4 +1,4 @@
-//! `ban-attack` module for Router Hub.
+//! `ban-attack` module for Maestro.
 //!
 //! It tails configured files, screens rules with `regex-automata`'s hybrid
 //! lazy DFA, extracts named captures only after a match, aggregates failures by

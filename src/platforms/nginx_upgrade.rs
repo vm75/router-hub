@@ -576,7 +576,7 @@ impl UpgradeLock {
             .create(true)
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW)
-            .open("/tmp/.router-hub-nginx-upgrade.lock")
+            .open("/tmp/.maestro-nginx-upgrade.lock")
             .context("unable to open NGINX upgrade lock")?;
         ensure!(
             unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
@@ -960,7 +960,7 @@ pub async fn run(
     };
     let opkg_available = check_opkg_architecture()?;
     let client = reqwest::Client::builder()
-        .user_agent(concat!("router-hub/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("maestro/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(120))
         .build()?;
 
@@ -1145,7 +1145,7 @@ pub async fn run(
             .join(" ")
     );
 
-    // Download-only still makes a backup, like router-hub upgrade.
+    // Download-only still makes a backup, like maestro upgrade.
     if !options.no_backup {
         backup::run(config, config_path, None)
             .await

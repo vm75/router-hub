@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Optional browser regression test. Node 22+ and Chromium; no npm dependencies.
-// All writes target a temporary, explicitly verified test-mode Router Hub.
+// All writes target a temporary, explicitly verified test-mode Maestro.
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
@@ -10,9 +10,9 @@ import {createServer} from 'node:net';
 import {once} from 'node:events';
 import {Script} from 'node:vm';
 
-const lab=await mkdtemp(join(tmpdir(),'router-hub-ui-'));
-const token='router-hub-ui-test-token';
-const binary=resolve(process.argv[2] || 'target/debug/router-hub');
+const lab=await mkdtemp(join(tmpdir(),'maestro-ui-'));
+const token='maestro-ui-test-token';
+const binary=resolve(process.argv[2] || 'target/debug/maestro');
 const chromium=process.argv[3] || '/usr/sbin/chromium';
 let hub, browser, socket, failed=true;
 const sleep=ms => new Promise(resolve => setTimeout(resolve,ms));
@@ -36,8 +36,8 @@ const config='test_mode = true\n'+table('server',{bind:'127.0.0.1',port,auth_tok
 
 try {
   await mkdir(nginx,{recursive:true}); await writeFile(join(nginx,'nginx.conf'),'events {} http {}\n');
-  await writeFile(join(lab,'router-hub.toml'),config);
-  hub=spawn(binary,['--config',join(lab,'router-hub.toml'),'serve'],{stdio:['ignore','ignore','pipe']});
+  await writeFile(join(lab,'maestro.toml'),config);
+  hub=spawn(binary,['--config',join(lab,'maestro.toml'),'serve'],{stdio:['ignore','ignore','pipe']});
   let hubErrors=''; hub.stderr.on('data',data => hubErrors+=data.toString());
   await waitFor(async()=>{if(hub.exitCode !== null) throw new Error(hubErrors); return (await fetch(base+'/healthz')).ok;},'test API startup');
   assert.equal((await api('/runtime')).test_mode,true);
@@ -66,7 +66,7 @@ try {
   };
   const wait=expression=>waitFor(()=>evaluate(expression),expression);
   await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable');
-  await call('Network.setCookie',{name:'router-hub-token',value:token,url:base});
+  await call('Network.setCookie',{name:'maestro-token',value:token,url:base});
   await call('Page.navigate',{url:base});
   await wait('typeof editNginxSettings === "function" && document.readyState === "complete"');
   assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#rh-nav > .rh-group > .rh-tab')).map(el => el.dataset.group)"),

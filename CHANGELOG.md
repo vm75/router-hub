@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+### Changed
+
+- Rebrand the Rust application as **Maestro** (binary, CLI, UI, IPK, service, release assets, new-install configuration and documentation).
+- Keep existing API paths and legacy firewall identifiers stable while adding Maestro static asset endpoints.
+- Provide a one-time, non-destructive Router Hub configuration adoption path. The new Entware package conflicts with the old package and requires a controlled migration; no automatic cross-package upgrade is attempted.
+- Preserve the existing SVG/PNG artwork under renamed filenames for replacement separately.
+
 Router Hub follows [Semantic Versioning](https://semver.org/).
 
 ## 0.10.5

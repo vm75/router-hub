@@ -65,11 +65,11 @@
       worker_connections: 'Maximum simultaneous connections per worker. Proxied traffic uses connections to both clients and backends.',
       resolver_addr: 'DNS server nginx uses to resolve backend hostnames. It must be reachable from the nginx host.',
       resolver_validity: 'How long nginx caches DNS answers before refreshing them, such as 30s.',
-      var_dir: 'Base directory for generated access and security logs. Router Hub’s main configuration separately controls nginx’s PID and error-log paths.',
+      var_dir: 'Base directory for generated access and security logs. Maestro’s main configuration separately controls nginx’s PID and error-log paths.',
       acme_challenge_dir: 'Directory containing HTTP-01 challenge files. It must match the certificate issuer’s challenge directory and be readable by nginx.',
       default_certificate_dir: 'Certificate directory for the unknown-host TLS server. Requires fullchain.pem and privkey.pem. Relative paths resolve beneath the nginx root.',
       nginx_daemon: 'Defaults to Yes on Asuswrt-Merlin, Linux, and in test mode. No keeps nginx in the foreground and prevents init.d startup scripts from continuing. Disable only for a foreground supervisor.',
-      nginx_user: 'When Router Hub runs as root, workers use this account or nobody if blank. When Router Hub runs as non-root, the generated configuration omits the user directive.',
+      nginx_user: 'When Maestro runs as root, workers use this account or nobody if blank. When Maestro runs as non-root, the generated configuration omits the user directive.',
       temp_dir: 'Writable parent for nginx’s client-body, proxy, fastcgi, uwsgi, and scgi temporary folders. Only the parent folder is configurable.',
       pwa_shell_cache_control: 'Cache-Control header for PWA app-shell files. The default prevents stale shell files from being stored.',
       pwa_asset_cache_control: 'Cache-Control header for static PWA assets. Long-lived caching requires versioned asset URLs so application updates are picked up.',
@@ -380,7 +380,7 @@
               </div>
             </div>
             <div class="notice nginx-wan-notice">
-              The experimental managed adapter controls only owned TCP-80 rules, requires iptables, ip6tables and ipset, and blocks WAN IPv6 TCP 80. Verify firmware rule ordering before deployment. Its timed kernel gate limits WAN access after a crash; local nginx cleanup requires Router Hub startup recovery. External mode does not toggle your WAN rules.
+              The experimental managed adapter controls only owned TCP-80 rules, requires iptables, ip6tables and ipset, and blocks WAN IPv6 TCP 80. Verify firmware rule ordering before deployment. Its timed kernel gate limits WAN access after a crash; local nginx cleanup requires Maestro startup recovery. External mode does not toggle your WAN rules.
             </div>
           </div>
 

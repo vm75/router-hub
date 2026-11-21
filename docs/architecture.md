@@ -4,7 +4,7 @@
 
 ## Purpose and scope
 
-Router Hub is one Rust executable. This document records the current module
+Maestro is one Rust executable. This document records the current module
 boundaries, request and background flows, persistence model, and safety
 invariants that are easy to violate during maintenance. It is not a deployment
 guide or an aspirational redesign.
@@ -13,11 +13,13 @@ guide or an aspirational redesign.
 
 An administrator uses either the standalone page served by Axum or the same UI
 rendered into a writable Asuswrt `user<n>.asp` extension page. At startup,
-Router Hub replaces a configured ASUS menu while retaining its index for the
+Maestro replaces a configured ASUS menu while retaining its index for the
 firmware-provided icon. The service talks to
 configured
 router programs and files: Entware init scripts, nginx, dehydrated/OpenSSL,
 ipset/iptables, NVRAM, and optionally an AdGuard Home HTTP API.
+
+Legacy firewall chain prefixes and ownership markers remain `ROUTER_HUB_*` and `router-hub:ban-attack` on purpose for safe in-place upgrades.
 
 ## Components
 
@@ -154,14 +156,14 @@ or renews definitions marked for automatic renewal.
 When certs_dir/lock exists, the loop and certificate API skip issue/renew
 operations until an authenticated clear action removes the lock. Issuance writes the matching
 `<name>.cfg` and `<name>.txt` files first, then invokes dehydrated's `--cron`
-command; Router Hub's loop replaces a separate cron installation. Successful
+command; Maestro's loop replaces a separate cron installation. Successful
 standard dehydrated output is deployed into nginx's certificate directory under
 the nginx mutation lock. Validation and reload failures restore the previous
 deployed files; custom hooks without standard output retain deployment ownership. The default
-DNS-01 hook script (`dehydrated-dns01-hook.sh`) is installed along with Router Hub at
-`/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh` and can be overridden globally
+DNS-01 hook script (`dehydrated-dns01-hook.sh`) is installed along with Maestro at
+`/opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh` and can be overridden globally
 in configuration or per certificate. On install, the latest official dehydrated executable is downloaded
-to `/opt/var/lib/router-hub/dehydrated/dehydrated`. An explicit management action (or `update-dehydrated` CLI)
+to `/opt/var/lib/maestro/dehydrated/dehydrated`. An explicit management action (or `update-dehydrated` CLI)
 can atomically replace the dehydrated executable with the official GitHub raw script; hook files are left untouched.
 
 ## Ban-attack engine
@@ -268,10 +270,10 @@ Reconciliation verifies or creates compatible sets and owned chains, updates
 bounded staging sets with `ipset restore`, swapping them into place, and
 destroying the staging sets. It is used at startup, every 60 seconds while
 enabled, on an explicit worker request, and after `SIGUSR1`. The installer
-appends a token-free `S99router-hub reconcile` action to
+appends a token-free `S99maestro reconcile` action to
 `/jffs/scripts/post-mount` and a background retry loop to
 `/jffs/scripts/firewall-start` to re-apply hooks when Asuswrt rebuilds its
-firewall; `S99router-hub` sends `SIGUSR1` to the running process. A bounded 2 MiB
+firewall; `S99maestro` sends `SIGUSR1` to the running process. A bounded 2 MiB
 stdin limit and five-second default command deadline apply to backend commands;
 timed-out children are killed and reaped.
 
@@ -291,7 +293,7 @@ defaults when optional files are absent. Matching dehydrated certificate
 definitions are imported into `certificates.json`; deployed nginx certificates
 without a definition are inferred from their DNS subject names and imported
 with automatic renewal disabled. Existing JSON definitions with the same name
-retain their Router Hub settings. The colocated domain file is preferred, with
+retain their Maestro settings. The colocated domain file is preferred, with
 `DOMAINS_TXT` as a fallback. Firewall policy can fall back to the
 configured router policy location. Writes use a temporary sibling file and
 rename, so readers see either the previous or complete new document.
@@ -305,7 +307,7 @@ bans, and all restored targets are reconciled into the backend before
 allowlist exceptions are applied.
 
 On Asuswrt only, firewall policy persistence retains the fallback/mirror
-at `/opt/etc/router-hub/firewall-policy.json`. The Linux platform only
+at `/opt/etc/maestro/firewall-policy.json`. The Linux platform only
 loads and saves `data_dir/firewall-policy.json` to avoid touching host
 or router data.
 
@@ -325,7 +327,7 @@ and syncs the parent directory; failed writes remove only the temporary file.
 Nginx site reconciliation creates only dot-delimited AdGuard rewrites. Domains
 containing an underscore are rejected before an add, and existing underscore
 entries are excluded from startup deduplication, the rewrite editor, and nginx
-disable cleanup; Router Hub does not remove those legacy entries.
+disable cleanup; Maestro does not remove those legacy entries.
 
 The authenticated AdGuard hosts API reads and atomically replaces the
 configured `paths.hosts_add` file (default `/jffs/configs/hosts.add`). Each
@@ -364,12 +366,12 @@ restarts dnsmasq through the configured service command and arguments.
   subfolder names are fixed, and directory creation rejects symlink traversal. Relative fallback certificate paths resolve below the nginx root.
   Custom server text is
   not rendered as Jinja and is preserved when defaults change.
-- `nginx.inputs_dir` defaults to `/opt/etc/router-hub/nginx`; all persistent
+- `nginx.inputs_dir` defaults to `/opt/etc/maestro/nginx`; all persistent
   render-data fragments are read there. `nginx.root_dir` holds final nginx files,
   including generated `settings/*.conf` runtime includes. A rollback guard spans
   both roots during settings saves, validation, and reload. Test mode overrides
   both paths. `migrate-nginx-inputs` relocates current-format legacy inputs while
-  Router Hub is stopped: destinations must be absent or byte-identical, validation
+  Maestro is stopped: destinations must be absent or byte-identical, validation
   failures restore both trees, and legacy `.conf` files remain usable runtime
   includes. Legacy TOML and text inputs are removed only within that transaction.
 - Versioned Jinja policies are embedded in the binary. Deployment data fragments
@@ -390,12 +392,12 @@ restarts dnsmasq through the configured service command and arguments.
   checks each resolved IP with a bounded ping.
 - The UI remains a single self-contained HTML/ASP asset and must work without
   a frontend package manager or third-party CDN.
-- Router Hub service (`S99router-hub`) cannot be disabled via API request, init
+- Maestro service (`S99maestro`) cannot be disabled via API request, init
   script, or UI action to ensure management engine availability.
 
 ## Security and trust boundaries
 
-Router Hub is administrator-only; it has no users or RBAC. The API token is
+Maestro is administrator-only; it has no users or RBAC. The API token is
 embedded in the extension page and therefore must be treated as a credential by
 anyone who can read that page. Raw nginx configuration, dehydrated hook paths,
 hook environment values, and configured credentials are trusted administrator

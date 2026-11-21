@@ -15,19 +15,19 @@ fi
 
 # A complete lab needs the local release package before creating a new disk.
 PACKAGE=""
-for candidate in "$REPO_DIR"/dist/router-hub_*_aarch64-3.10.ipk; do
+for candidate in "$REPO_DIR"/dist/maestro_*_aarch64-3.10.ipk; do
     if [[ -f "$candidate" && ( -z "$PACKAGE" || "$candidate" -nt "$PACKAGE" ) ]]; then
         PACKAGE="$candidate"
     fi
 done
 if [[ -z "$PACKAGE" || ! -f "$PACKAGE.sha256" ]]; then
-    echo 'Error: Build the Router Hub IPK and checksum with make ipk before make init-lab.' >&2
+    echo 'Error: Build the Maestro IPK and checksum with make ipk before make init-lab.' >&2
     exit 1
 fi
 (cd "$(dirname "$PACKAGE")" && sha256sum -c "$(basename "$PACKAGE").sha256")
 if ! tar -xzOf "$PACKAGE" ./data.tar.gz | \
-    tar -xzOf - ./opt/libexec/router-hub/setup-merlin.sh | \
-    grep -F 'ROUTER_HUB_DEFER_START' >/dev/null; then
+    tar -xzOf - ./opt/libexec/maestro/setup-merlin.sh | \
+    grep -F 'MAESTRO_DEFER_START' >/dev/null; then
     echo 'Error: Rebuild the IPK with make ipk; this package cannot defer service startup during provisioning.' >&2
     exit 1
 fi

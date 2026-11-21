@@ -118,8 +118,8 @@ pub async fn action(
         "status" | "check" => "check",
         _ => return Err(ApiError::bad_request("unsupported service action")),
     };
-    if action == "disable" && is_router_hub_service(&name) {
-        return Err(ApiError::bad_request("Router Hub cannot be disabled"));
+    if action == "disable" && is_maestro_service(&name) {
+        return Err(ApiError::bad_request("Maestro cannot be disabled"));
     }
     if action == "enable" && state.config.test_mode {
         return Ok(Json(CommandResult {
@@ -136,10 +136,10 @@ pub async fn action(
         return Ok(Json(rename_service(&state, &path, &name, true)?));
     }
 
-    // Router Hub cannot synchronously restart its own init script: rc.func's
-    // `killall router-hub` terminates this API process. Run the init script in a
+    // Maestro cannot synchronously restart its own init script: rc.func's
+    // `killall maestro` terminates this API process. Run the init script in a
     // new session so it survives the server shutdown and can complete the restart.
-    if action == "restart" && is_router_hub_service(&name) && !state.config.test_mode {
+    if action == "restart" && is_maestro_service(&name) && !state.config.test_mode {
         let mut command = Command::new(&path);
 
         command
@@ -363,8 +363,8 @@ fn rename_service(
     })
 }
 
-fn is_router_hub_service(name: &str) -> bool {
-    name.ends_with("router-hub")
+fn is_maestro_service(name: &str) -> bool {
+    name.ends_with("maestro") || name.ends_with("router-hub")
 }
 
 fn is_adguard_home_service(name: &str) -> bool {
@@ -403,14 +403,15 @@ fn log_candidates(state: &AppState, name: &str) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_adguard_home_service, is_nginx_service, is_router_hub_service};
+    use super::{is_adguard_home_service, is_maestro_service, is_nginx_service};
 
     #[test]
     fn recognizes_router_hub_service_by_suffix() {
-        assert!(is_router_hub_service("S99router-hub"));
-        assert!(is_router_hub_service("S10router-hub"));
-        assert!(is_router_hub_service("K42router-hub"));
-        assert!(!is_router_hub_service("S99other-service"));
+        assert!(is_maestro_service("S99maestro"));
+        assert!(is_maestro_service("S99router-hub"));
+        assert!(is_maestro_service("S10router-hub"));
+        assert!(is_maestro_service("K42router-hub"));
+        assert!(!is_maestro_service("S99other-service"));
     }
 
     #[test]

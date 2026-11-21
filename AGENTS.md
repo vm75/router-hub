@@ -1,8 +1,8 @@
-# Router Hub agent guide
+# Maestro agent guide
 
 ## Project overview
 
-Router Hub is a Rust service for administrators of Asuswrt-Merlin routers. It
+Maestro is a Rust service for administrators of Asuswrt-Merlin routers. It
 serves a standalone or mounted web UI and a protected Axum API for Entware
 services, nginx configuration, certificates, Wake-on-LAN, firewall bans, and
 optional AdGuard Home integration. Router-sensitive state is kept in TOML and
@@ -73,7 +73,7 @@ production routers automatically.
 The standalone Entware NGINX builder has a **manual-only** GitHub Actions
 workflow (`.github/workflows/build-nginx.yml`). Its uniquely tagged
 `nginx-v*` GitHub Releases must always be created with `--latest=false`;
-stable Router Hub releases remain Latest for the router-only upgrade command.
+stable Maestro releases remain Latest for the router-only upgrade command.
 Do not introduce automatic NGINX build triggers or router deployment.
 
 ## Engineering constraints
@@ -88,7 +88,7 @@ Do not introduce automatic NGINX build triggers or router deployment.
 - Preserve atomic JSON and nginx writes, path/symlink protections, token authentication, and bounded log reads.
 - Do not claim router compatibility without an actual matching architecture and firmware test.
 - Keep the self-contained UI offline-capable; do not add a frontend package manager or CDN dependency. Edit `web/src/`, then regenerate `web/index.html` with `python3 scripts/build-web-ui.py`.
-- On `refactor/modular-architecture`, do not trigger CI until Phase 1 steps 1–3 are implemented. Stop at the M1 feature-parity gate before the rebrand or Server Man integration.
+- Phase 1 was merged as v0.10.5. Phase 1.5 rebrands the application to Maestro on `refactor/rebrand-maestro`. Preserve legacy installed configuration, state, NGINX inputs and firewall identities. Keep the existing Go `vm75/server-man` as a Phase 2 reference; do not port its features in Phase 1.5.
 
 ## Documentation routing
 

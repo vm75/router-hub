@@ -16,9 +16,9 @@ python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ requir
     exit 2
 }
 nginx_bin=$(command -v nginx)
-lab=$(mktemp -d "${TMPDIR:-/tmp}/router-hub-linux.XXXXXX")
+lab=$(mktemp -d "${TMPDIR:-/tmp}/maestro-linux.XXXXXX")
 hub_pid=
-keep_lab=${ROUTER_HUB_KEEP_LINUX_LAB:-0}
+keep_lab=${MAESTRO_KEEP_LINUX_LAB:-${ROUTER_HUB_KEEP_LINUX_LAB:-0}}
 
 cleanup() {
     local result=$?
@@ -56,7 +56,7 @@ printf '%s\n' '{"enabled":false,"observe_only":false,"rules":[],"allowlist":[]}'
 
 python3 "$repo_root/scripts/render-nginx-config.py" \
     "$repo_root/config/nginx" "$lab/nginx" \
-    --inputs-dir "$lab/router-hub/nginx" \
+    --inputs-dir "$lab/maestro/nginx" \
     --var-dir "$lab/var" --pid-path "$lab/run/nginx.pid" \
     --error-log-path "$lab/var/log/nginx/error.log" \
     --acme-directory "$lab/certs/acme-challenge" \
@@ -69,11 +69,11 @@ cat > "$lab/nginx/conf.d/00-linux-default.conf" <<EOF
 server {
     server_name 127.0.0.1;
     listen 127.0.0.1:$nginx_port;
-    location / { return 200 'router-hub linux nginx'; }
+    location / { return 200 'maestro linux nginx'; }
 }
 EOF
 
-cat > "$lab/router-hub.toml" <<EOF
+cat > "$lab/maestro.toml" <<EOF
 platform = "linux"
 test_mode = false
 
@@ -87,7 +87,7 @@ daemonize = false
 [paths]
 data_dir = "$lab/data"
 runtime_dir = "$lab/run"
-log_file = "$lab/logs/router-hub.log"
+log_file = "$lab/logs/maestro.log"
 hosts_add = "$lab/hosts.add"
 dnsmasq_conf_add = "$lab/dnsmasq.conf.add"
 wireguard_conf = "$lab/wireguard/wglab.conf"
@@ -105,14 +105,14 @@ ping = "/bin/ping"
 
 [asus_ui]
 enabled = false
-rendered_page = "$lab/router-hub.asp"
+rendered_page = "$lab/maestro.asp"
 
 [services]
 init_dir = "$lab/init.d"
 log_dirs = ["$lab/logs"]
 
 [nginx]
-inputs_dir = "$lab/router-hub/nginx"
+inputs_dir = "$lab/maestro/nginx"
 root_dir = "$lab/nginx"
 config_path = "$lab/nginx/nginx.conf"
 prefix_path = "$lab/nginx"
@@ -141,9 +141,9 @@ EOF
 
 cd "$repo_root"
 cargo build --quiet --locked
-bin="$repo_root/target/debug/router-hub"
-"$bin" --config "$lab/router-hub.toml" --linux-mode check-config
-"$bin" --config "$lab/router-hub.toml" --linux-mode serve >"$lab/logs/router-hub.stdout" 2>&1 &
+bin="$repo_root/target/debug/maestro"
+"$bin" --config "$lab/maestro.toml" --linux-mode check-config
+"$bin" --config "$lab/maestro.toml" --linux-mode serve >"$lab/logs/maestro.stdout" 2>&1 &
 hub_pid=$!
 
 api="http://127.0.0.1:$api_port"
@@ -154,15 +154,15 @@ for _ in $(seq 1 80); do
         break
     fi
     if ! kill -0 "$hub_pid" 2>/dev/null; then
-        cat "$lab/logs/router-hub.stdout" >&2
-        echo "Router Hub exited before becoming ready" >&2
+        cat "$lab/logs/maestro.stdout" >&2
+        echo "Maestro exited before becoming ready" >&2
         exit 1
     fi
     sleep 0.25
 done
 if [[ "$ready" != true ]]; then
-    cat "$lab/logs/router-hub.stdout" >&2
-    echo "Router Hub did not become ready" >&2
+    cat "$lab/logs/maestro.stdout" >&2
+    echo "Maestro did not become ready" >&2
     exit 1
 fi
 
@@ -186,7 +186,7 @@ get /api/firewall | python3 -c 'import json,sys; x=json.load(sys.stdin); assert 
 post /api/nginx/test | real_result
 post /api/nginx/start | real_result
 get /api/nginx/status | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["running"] is True, x'
-[[ $(curl --silent --fail "http://127.0.0.1:$nginx_port/") == "router-hub linux nginx" ]]
+[[ $(curl --silent --fail "http://127.0.0.1:$nginx_port/") == "maestro linux nginx" ]]
 
 # Regeneration must retain the lab's non-root runtime options and listener ports.
 get /api/nginx/settings > "$lab/nginx-settings.json"
@@ -202,7 +202,7 @@ curl --silent --show-error --fail-with-body -X PUT \
     -H "Content-Type: application/json" \
     --data-binary "@$lab/nginx-settings.json" "$api/api/nginx/settings" >/dev/null
 post /api/nginx/test | real_result
-[[ $(curl --silent --fail "http://127.0.0.1:$nginx_port/") == "router-hub linux nginx" ]]
+[[ $(curl --silent --fail "http://127.0.0.1:$nginx_port/") == "maestro linux nginx" ]]
 
 # Exercise the settings-only managed-site workflow against real nginx.
 # Managed hosts use their own certificate folder; keep this entirely self-signed.
@@ -215,7 +215,7 @@ curl --silent --show-error --fail-with-body -X POST \
     "$api/api/nginx/objects/domain" >/dev/null
 [[ -f "$lab/nginx/domains-available/linux.test/root.conf" ]]
 get /api/nginx/objects/domain/linux.test/linux.test | python3 -c 'import json,sys; x=json.load(sys.stdin); assert x["settings"]["client_max_body_size"] == "2M", x'
-python3 - "$lab/router-hub/nginx/sites.toml" <<'PYSITES'
+python3 - "$lab/maestro/nginx/sites.toml" <<'PYSITES'
 import sys, tomllib
 with open(sys.argv[1], 'rb') as stream:
     sites = tomllib.load(stream)['sites']
@@ -245,4 +245,4 @@ post /api/nginx/test | real_result
 post /api/nginx/reload | real_result
 post /api/nginx/stop | real_result
 
-echo "PASS: native Linux router-hub uses real nginx, filesystem, auth, metrics and API"
+echo "PASS: native Linux maestro uses real nginx, filesystem, auth, metrics and API"

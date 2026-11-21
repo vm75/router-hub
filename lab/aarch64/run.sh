@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host launcher for the AArch64 Router Hub Alpine lab.
+# Host launcher for the AArch64 Maestro Alpine lab.
 set -euo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -192,12 +192,12 @@ if [[ -n "$ISO" ]]; then
 fi
 
 cat <<EOF
-Starting AArch64 Router Hub Lab
+Starting AArch64 Maestro Lab
   Disk:     $DISK
   UEFI:     $AARCH64_UEFI
   Forwards: 127.0.0.1:${PORT_HTTP} -> guest:8080 (ASUS HTTP)
             127.0.0.1:${PORT_HTTPS} -> guest:8443 (ASUS HTTPS)
-            127.0.0.1:${PORT_API}  -> guest:3030 (Router Hub API)
+            127.0.0.1:${PORT_API}  -> guest:3030 (Maestro API)
 EOF
 
 if [[ -n "$ISO" ]]; then

@@ -39,8 +39,8 @@ class ReleasePolicyTests(unittest.TestCase):
         return subprocess.check_output(["git", *args], text=True, stderr=subprocess.DEVNULL).strip()
 
     def write_version(self, version, locked=None):
-        Path("Cargo.toml").write_text(f'[package]\nname = "router-hub"\nversion = "{version}"\n')
-        Path("Cargo.lock").write_text(f'[[package]]\nname = "router-hub"\nversion = "{locked or version}"\n')
+        Path("Cargo.toml").write_text(f'[package]\nname = "maestro"\nversion = "{version}"\n')
+        Path("Cargo.lock").write_text(f'[[package]]\nname = "maestro"\nversion = "{locked or version}"\n')
 
     def test_new_stable_version_and_semantic_ordering(self):
         self.git("tag", "v0.9.99")

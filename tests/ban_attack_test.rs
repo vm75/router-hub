@@ -1,7 +1,7 @@
 use std::{fs, net::IpAddr, sync::Arc, thread, time::Duration};
 
 use ipnet::IpNet;
-use router_hub::ban_attack::{
+use maestro::ban_attack::{
     AggregationConfig, BanEngine, BanTarget, Config, FileConfig, FirewallConfig, IpSetConfig,
     MemoryBanBackend, PersistentState, RuleConfig, StartAt,
 };

@@ -10,7 +10,7 @@ const html=readFileSync('web/index.html','utf8');
 assert.equal((html.match(/<script>/g)||[]).length,1);
 assert.equal((html.match(/<style>/g)||[]).length,1);
 const js=html.split('<script>')[1].split('</script>')[0];
-new Script(js,{filename:'composed-router-hub.js'});
+new Script(js,{filename:'composed-maestro.js'});
 for(const view of ['dashboard','services','nginx','certificates','wol','firewall','adguard','wireguard']) {
   assert.ok(html.includes('id="view-'+view+'"'),'missing '+view+' view');
   assert.ok(js.includes("load"+({nginx:'Nginx',wol:'Wol',adguard:'Adguard',wireguard:'Wireguard',firewall:'Firewall',dashboard:'Dashboard',services:'Services',certificates:'Certificates'}[view])),'missing '+view+' logic');

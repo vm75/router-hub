@@ -7,7 +7,7 @@ use crate::config::AppConfig;
 
 const UI: &str = include_str!("../../web/index.html");
 const ASP_TEMPLATE: &str = include_str!("../../config/asus-wrt.asp.template");
-const LOGO_SVG: &str = include_str!("../../router-hub.svg");
+const LOGO_SVG: &str = include_str!("../../maestro.svg");
 
 pub fn render_ui(config: &AppConfig) -> String {
     render_ui_with_token(config, None)
@@ -27,11 +27,11 @@ fn render_ui_with_token(config: &AppConfig, token: Option<&str>) -> String {
         "data:image/svg+xml;base64,{}",
         BASE64.encode(LOGO_SVG.as_bytes())
     );
-    UI.replace("__ROUTER_HUB_VERSION__", env!("CARGO_PKG_VERSION"))
-        .replace("__ROUTER_HUB_VERSION_JSON__", &version_json)
-        .replace("__ROUTER_HUB_API_BASE_JSON__", &api_base_json)
-        .replace("__ROUTER_HUB_TOKEN_JSON__", &token_json)
-        .replace("__ROUTER_HUB_LOGO_DATA_URI__", &logo_data_uri)
+    UI.replace("__MAESTRO_VERSION__", env!("CARGO_PKG_VERSION"))
+        .replace("__MAESTRO_VERSION_JSON__", &version_json)
+        .replace("__MAESTRO_API_BASE_JSON__", &api_base_json)
+        .replace("__MAESTRO_TOKEN_JSON__", &token_json)
+        .replace("__MAESTRO_LOGO_DATA_URI__", &logo_data_uri)
 }
 
 pub fn render_asus_ui(config: &AppConfig) -> String {
@@ -40,10 +40,7 @@ pub fn render_asus_ui(config: &AppConfig) -> String {
     let contents = fragment_between(&rendered_ui, "<body class=\"rh-page\">", "</body>");
 
     ASP_TEMPLATE
-        .replace(
-            "<!-- router-hub-head -->",
-            &format!("<style>{styles}</style>"),
-        )
+        .replace("<!-- maestro-head -->", &format!("<style>{styles}</style>"))
         .replace("<!-- contents -->", contents)
 }
 
@@ -86,6 +83,7 @@ pub fn install_menu_entry(config: &AppConfig) -> Result<()> {
     if !menu_index.starts_with("menu_")
         || menu_index == "menu_RouterHub"
         || menu_index == "menu_Router_Hub"
+        || menu_index == "menu_Maestro"
         || !menu_index
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_')
@@ -99,16 +97,22 @@ pub fn install_menu_entry(config: &AppConfig) -> Result<()> {
             config.asus_ui.menu_tree.display()
         )
     })?;
-    for index in ["menu_RouterHub", "menu_Router_Hub"] {
-        let marker = format!("{{\nmenuName: \"Router Hub\",\nindex: \"{index}\",");
+    for (index, label) in [
+        ("menu_RouterHub", "Router Hub"),
+        ("menu_Router_Hub", "Router Hub"),
+        ("menu_Maestro", "Maestro"),
+    ] {
+        let marker = format!("{{\nmenuName: \"{label}\",\nindex: \"{index}\",");
         if let Some(start) = menu_tree.find(&marker) {
             if let Some(end) = menu_tree[start..].find("\n},\n") {
                 menu_tree.replace_range(start..start + end + 4, "");
             }
         }
     }
-    let settings_child = format!("{{url: \"{page}\", tabName: \"Router Hub\"}},\n");
+    let settings_child = format!("{{url: \"{page}\", tabName: \"Maestro\"}},\n");
     menu_tree = menu_tree.replacen(&settings_child, "", 1);
+    let legacy_settings_child = format!("{{url: \"{page}\", tabName: \"Router Hub\"}},\n");
+    menu_tree = menu_tree.replacen(&legacy_settings_child, "", 1);
 
     let index_marker = format!("index: \"{menu_index}\"");
     let index = menu_tree.find(&index_marker).ok_or_else(|| {
@@ -126,7 +130,7 @@ pub fn install_menu_entry(config: &AppConfig) -> Result<()> {
         .map(|offset| index + offset + 4)
         .ok_or_else(|| anyhow::anyhow!("malformed {} menu", menu_index))?;
     let entry = format!(
-        "{{\nmenuName: \"Router Hub\",\nindex: \"{menu_index}\",\ntab: [\n{{url: \"{page}\", tabName: \"__INHERIT__\"}},\n{{url: \"NULL\", tabName: \"__INHERIT__\"}}\n]\n}},\n"
+        "{{\nmenuName: \"Maestro\",\nindex: \"{menu_index}\",\ntab: [\n{{url: \"{page}\", tabName: \"__INHERIT__\"}},\n{{url: \"NULL\", tabName: \"__INHERIT__\"}}\n]\n}},\n"
     );
     menu_tree.replace_range(start..end, &entry);
     fs::write(&config.asus_ui.menu_tree, menu_tree).with_context(|| {
@@ -148,11 +152,11 @@ mod tests {
         config.server.auth_token = "my-secret-token".into();
 
         let standalone = render_ui(&config);
-        assert!(!standalone.contains("__ROUTER_HUB_VERSION__"));
-        assert!(!standalone.contains("__ROUTER_HUB_VERSION_JSON__"));
-        assert!(!standalone.contains("__ROUTER_HUB_API_BASE_JSON__"));
-        assert!(!standalone.contains("__ROUTER_HUB_TOKEN_JSON__"));
-        assert!(!standalone.contains("__ROUTER_HUB_LOGO_DATA_URI__"));
+        assert!(!standalone.contains("__MAESTRO_VERSION__"));
+        assert!(!standalone.contains("__MAESTRO_VERSION_JSON__"));
+        assert!(!standalone.contains("__MAESTRO_API_BASE_JSON__"));
+        assert!(!standalone.contains("__MAESTRO_TOKEN_JSON__"));
+        assert!(!standalone.contains("__MAESTRO_LOGO_DATA_URI__"));
         assert!(standalone.contains("data:image/svg+xml;base64,"));
         assert!(!standalone.contains("my-secret-token"));
         assert_eq!(standalone.matches("<html").count(), 1);
@@ -197,7 +201,7 @@ mod tests {
         let rendered = render_asus_ui(&config);
         assert!(rendered.contains("my-secret-token"));
         assert!(!rendered.contains("<!-- contents -->"));
-        assert!(!rendered.contains("<!-- router-hub-head -->"));
+        assert!(!rendered.contains("<!-- maestro-head -->"));
         assert!(rendered.contains("rel=\"icon\" href=\"images/favicon.png\""));
         assert!(rendered.contains("<div id=\"TopBanner\"></div>"));
         assert_eq!(rendered.matches("<html").count(), 1);
@@ -234,9 +238,9 @@ mod tests {
 
         let updated = fs::read_to_string(menu_tree).unwrap();
         assert!(updated.contains(
-            "menuName: \"Router Hub\",\nindex: \"menu_Alexa_IFTTT\",\ntab: [\n{url: \"user20.asp\", tabName: \"__INHERIT__\"},\n{url: \"NULL\", tabName: \"__INHERIT__\"}"
+            "menuName: \"Maestro\",\nindex: \"menu_Alexa_IFTTT\",\ntab: [\n{url: \"user20.asp\", tabName: \"__INHERIT__\"},\n{url: \"NULL\", tabName: \"__INHERIT__\"}"
         ));
-        assert!(!updated.contains("tabName: \"Router Hub\""));
+        assert!(!updated.contains("tabName: \"Maestro\""));
         assert_eq!(updated.matches("index: \"menu_Alexa_IFTTT\"").count(), 1);
     }
 }

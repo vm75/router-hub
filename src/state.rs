@@ -202,7 +202,7 @@ impl AppState {
 
     fn dehydrated_process_running(&self) -> bool {
         // Detect operations started outside this process (for example, after a
-        // Router Hub restart), including active shell-based DNS hooks.
+        // Maestro restart), including active shell-based DNS hooks.
         #[cfg(target_os = "linux")]
         {
             let executable = self.config.commands.dehydrated.to_string_lossy();
@@ -757,7 +757,7 @@ pub async fn download_latest_dehydrated(config: &AppConfig) -> Result<Dehydrated
         .timeout(Duration::from_secs(
             config.certificates.command_timeout_seconds,
         ))
-        .user_agent("router-hub/dehydrated-updater")
+        .user_agent("maestro/dehydrated-updater")
         .build()
         .context("failed to create GitHub download client")?;
     let response = client

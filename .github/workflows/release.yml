@@ -50,7 +50,7 @@ jobs:
           fi
 
           version=$(cargo +1.85.0 metadata --no-deps --locked --format-version 1 |
-            jq -r '.packages[] | select(.name == "router-hub") | .version')
+            jq -r '.packages[] | select(.name == "maestro") | .version')
           if [[ "$RELEASE_TAG" != "v$version" ]]; then
             echo "Tag $RELEASE_TAG does not match Cargo.toml version $version." >&2
             exit 1
@@ -97,12 +97,12 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/package-release.sh "$RELEASE_TAG" aarch64-unknown-linux-musl
-          package="router-hub-$RELEASE_TAG-aarch64-unknown-linux-musl"
+          package="maestro-$RELEASE_TAG-aarch64-unknown-linux-musl"
           (
             cd dist
             sha256sum -c "$package.tar.gz.sha256"
           )
-          tar -tzf "dist/$package.tar.gz" | grep -Fx "$package/router-hub"
+          tar -tzf "dist/$package.tar.gz" | grep -Fx "$package/maestro"
           tar -tzf "dist/$package.tar.gz" | grep -Fx "$package/scripts/install-merlin.sh"
 
       - name: Create and verify stable Entware IPK
@@ -114,7 +114,7 @@ jobs:
           if [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             bash scripts/package-ipk.sh "$RELEASE_TAG" aarch64-unknown-linux-musl
             version="${RELEASE_TAG#v}"
-            ipk="router-hub_${version}-1_aarch64-3.10.ipk"
+            ipk="maestro_${version}-1_aarch64-3.10.ipk"
             (cd dist && sha256sum -c "$ipk.sha256")
             tar -tzf "dist/$ipk" | grep -Fx './control.tar.gz'
             tar -xzOf "dist/$ipk" ./control.tar.gz | tar -xzO ./control | grep -Fx 'Architecture: aarch64-3.10'

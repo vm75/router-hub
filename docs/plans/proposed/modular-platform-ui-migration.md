@@ -1,10 +1,10 @@
-# Modular platform and UI migration: Router Hub to Server Man
+# Modular platform and UI migration: Router Hub to Maestro
 
-**Status:** Phase 1 source implementation on `refactor/modular-architecture`; M1 validation and hardware sign-off pending  
-**Implementation branch:** `refactor/modular-architecture`  
+**Status:** Phase 1 merged to `main` as v0.10.5; Phase 1.5 Maestro rebrand implemented on its own branch, M1.5 validation pending  
+**Phase 1.5 branch:** `refactor/rebrand-maestro`  
 **Baseline:** `vm75/router-hub` `main` at `5e2013f031c965cf0381f868c541d60bb5eac602` (v0.10.4)  
 **Source projects:** [router-hub](https://github.com/vm75/router-hub), [server-man](https://github.com/vm75/server-man)  
-**Proposed eventual product name:** **Server Man** (`server-man`), subject to the explicit Phase 1.5 rebrand decision and migration checks.
+**Selected product name:** **Maestro** (`maestro`). The existing Go/Svelte **Server Man** remains a separate Phase 2 reference, not the chosen Rust project name.
 
 ## Executive decision and stopping points
 
@@ -198,24 +198,45 @@ Run validation only after Steps 1–3 are implemented. The first GitHub CI run i
 
 **Exit requirements:** local checks + manually invoked GitHub CI pass, regression fixtures pass, matching ASUS router hardware is tested, operator signs off behavior and footprint, rollback/recovery instructions are verified, and Phase 1 commits are reviewed. **No Phase 2 code or rebrand is mixed into M1.** Once validated, Phase 1 can merge to `main` (which intentionally invokes the normal main CI/release policy) and receive its own stable tag/release before rebranding.
 
-## Phase 1.5 — rebrand the validated project (before Phase 2)
+## Phase 1.5 — Maestro rebrand (implementation completed; validation pending)
 
-This is a **separate, explicit step between M1 and Phase 2**. Proposed final name: **Server Man** (`server-man`), keeping `man` as short for manager. Reconfirm name before carrying out the rename, but do not defer technical name-collision planning.
+Phase 1 is merged on `main` as v0.10.5. This rebrand is implemented on
+`refactor/rebrand-maestro` and must not be mistaken for a released, hardware-validated package.
+The new Rust project identity is **Maestro**, including the `maestro` crate, binary,
+Entware IPK, `S99maestro` init script, new-install config path and UI. The
+existing artwork is merely renamed and can be replaced by the maintainer.
 
-**Critical GitHub conflict:** `vm75/server-man` already exists and contains the **original Go/Svelte reference implementation**. A GitHub repository cannot be renamed from `vm75/router-hub` directly to that occupied name. Plan the disposition and permanent accessible reference to the original repository **before** any rename: for example, move it to `vm75/server-man-go` (or another explicitly selected archival/reference name), verify old links/remote references, and only then rename `vm75/router-hub` to `vm75/server-man`. Archive or mirror the Go reference only after ensuring its history/tests remain accessible. GitHub redirects help but are not a substitute for validating release, automation, docs and remote URLs. This may also impact existing Server Man users; do not silently replace their installation/update source.
+The GitHub repository is **still** `vm75/router-hub`. Renaming a repository is a
+separate GitHub administrative action after merge and release readiness; source
+code branches cannot perform that rename. Both the Rust self-updater and the
+custom NGINX updater retain the currently reachable release endpoint until
+the repository is actually renamed. The unrelated Go project at
+`vm75/server-man` remains untouched and may be used as a Phase 2 port reference.
+The earlier Server Man repository-name collision is no longer relevant.
 
-**Deliverables and change order**
+**Migration strategy:** ship the new `maestro` package with an explicit
+`Conflicts: router-hub` constraint, and a CLI-only `router-hub` symlink.
+Operators first back up then remove the old Entware package, then install a
+verified published Maestro IPK. On first install only, the setup helper
+adopts the legacy TOML into the new configuration file, preserving tokens,
+NGINX inputs, policy/state paths and legacy firewall ownership identifiers;
+it copies legacy dehydrated binary data when available, and rewrites
+packaged dehydrated hook references in the *new* configuration only.
+Original user data and config remain untouched for rollback. Old JFFS
+reconciliation hooks are updated to call `S99maestro` without duplication.
+No automatic legacy package uninstall, force-overwrite, state relocation,
+or change to the exposed API endpoints is permitted.
 
-1. **Decision + migration inventory:** confirm final product/repo/CLI/package names; inventory all existing Router Hub and Server Man install/service/config paths, binaries, GitHub URLs, release tags, IPK package control metadata, update endpoints, UI labels, browser state and tests. Identify coexistence and conflicts (including a currently installed Go `server-man` binary/service).
-2. **Secure the old Go reference:** rename/archive/mirror the original Server Man repo under a distinct stable name; preserve its code/history, documentation, test fixtures and a clear link from the replacement repository. Preserve existing users' upgrade options and distinguish legacy Go releases from the new Rust releases.
-3. **Rename source/project identity:** Rust package/bin, CLI help, web titles/icons, documentation, CI workflow/release paths and installer messages as appropriate. Keep the ASUS ASP integration working under its new name. Keep the separate manually triggered NGINX IPK/release channel compatible.
-4. **Backward compatibility:** explicit command alias/shim or documented transition for `router-hub` CLI and `S99router-hub`; idempotent config/data migration from `/opt/etc/router-hub` and previous Linux paths without overwriting; preserve tokens and existing sites/policies/state; ensure running-process replacement, upgrade detection and `opkg` package ownership do not orphan or duplicate installs. Guard against collision with legacy Go `server-man` paths.
-5. **Release and upgrade strategy:** define whether the Entware IPK changes package name or retains a compatibility transitional package. Verify install/upgrade/remove scripts, dependency metadata, file ownership and rollbacks. Change GitHub release lookup only when tagged releases and migration path exist; keep current Router Hub installs upgradable. Avoid a newly named release accidentally being mistaken for a custom NGINX `nginx-v*` release.
-6. **Validation:** repeat API/auth/UI/ASP, CLI, installation, upgrade/rollback, persisted-data and release checks on both fresh and existing router installations. Validate Linux paths and original Server Man reference preservation. Update docs/links/changelog.
+Full instructions and rollback procedures:
+[Maestro migration guide](../../maestro-migration.md).
 
-**M1.5 exit gate:** new name/repository/install paths operational; existing Router Hub installations have a tested safe migration or compatibility path; old Go Server Man remains inspectable and is not silently overwritten; router parity still passes. CI may run normally after M1, but do not start porting Go features until M1.5 is accepted.
+**M1.5 exit gate:** Verify fresh install, Router Hub v0.10.5 upgrade,
+restart/boot, API/auth/UI/ASP and router feature parity, existing NGINX
+configuration and certificates, firewall state continuity, native Linux smoke,
+Entware metadata and safe rollback. Run local CI/tests and release packaging.
+Do not start porting the Go Server Man capabilities until acceptance.
 
-## Phase 2 — port Server Man features into the now-rebranded Rust project
+## Phase 2 — port Server Man features into Maestro
 
 Keep the Go implementation available as the behavior/specification reference. Implement vertical slices, each with Rust domain tests, API contract tests, frontend integration and native Linux acceptance. Do not translate Go line by line or erase its native recovery guarantees.
 
@@ -286,11 +307,11 @@ The final acceptance matrix must cover:
 
 ## Workflow, PRs, and CI discipline
 
-- **This branch is for the plan and Phase 1 implementation.** Use small feature-oriented commits; split into reviewable PRs if desired without merging incomplete work into `main`. Draft PRs do not trigger the current CI workflow because `pull_request` is not configured.
+- **Phase 1 branch was for the plan and Phase 1 implementation.** Use small feature-oriented commits; split into reviewable PRs if desired without merging incomplete work into `main`. Draft PRs do not trigger the current CI workflow because `pull_request` is not configured.
 - During Steps 1–3, run tests **locally** as needed and record results. GitHub Actions CI stays untriggered on `refactor/modular-architecture`. Do not use auto-CI branch names (`ci/**`) or manual dispatch.
 - After Steps 1–3 are complete, request a **manual** CI run for the branch or PR using the existing workflow dispatch. Fix failures before M1 acceptance. No automatic trigger is added.
-- On approval of M1, merge Phase 1 and tag/release under the existing name **before the rebrand**. A push to `main` normally triggers CI and may trigger auto-version tagging; coordinate version and release policy accordingly.
-- Do the Phase 1.5 rename in a new dedicated branch/PR/release, not in the Phase 1 parity branch. Re-run all relevant tests and acceptance.
+- Phase 1 was merged and tagged v0.10.5 under Router Hub before this rebrand. A push to `main` normally triggers CI and may trigger auto-version tagging; coordinate version and release policy accordingly.
+- The Maestro Phase 1.5 rename is in its own dedicated branch and will require a separate PR and release. Re-run all relevant tests and acceptance.
 - Start Phase 2 only after both M1 and M1.5 are accepted. Use separate implementation branches for Linux features/providers.
 - The NGINX standalone build (`.github/workflows/build-nginx.yml`) and toolchain-image build remain **manual only**, unrelated to Phase 1 CI policy.
 - If workflow triggers are changed in the future, re-audit these assumptions **before pushing**, because branch name alone is not an enforcement control against repository-level automation.
@@ -304,7 +325,7 @@ The final acceptance matrix must cover:
 | UI hides feature operations | Inventory all existing screens, command handlers, modal flows and deep links; matrix-based browser tests |
 | Platform abstraction changes firewall/NGINX semantics | Extract adapters without rewriting operations; stable API and rollback fixtures |
 | Existing config/data or upgrade break | Keep paths/schemas through M1; separate versioned rebrand migration with rollback |
-| Naming collision with live Go Server Man | Resolve repo and installed binary/service/config collisions in Phase 1.5 before rename |
+| Legacy installed Router Hub IPK collides with Maestro alias | Explicit package conflict, remove old package only after backup, non-destructive config adoption and rollback instructions |
 | Go workload port loses transactional safety | Preserve revision, ownership, preflight, journal and review gates; native guest acceptance |
 | CI accidentally runs before M1 | Keep branch outside `main`/`ci/**`, no tags or manual dispatch; audit changed workflows |
 
@@ -316,9 +337,9 @@ The final acceptance matrix must cover:
 - [ ] Phase 1 step 3: ASUS dashboard and tabs modularized, still offline/build-free.
 - [ ] M1: local suite and manually initiated CI pass after implementation.
 - [ ] M1: ASUS hardware, package upgrade and resource parity accepted.
-- [ ] Phase 1 release merged/tagged under original name.
-- [ ] Phase 1.5: final name and original `vm75/server-man` repository disposition approved.
-- [ ] Phase 1.5: source, UI, CLI, package and repository rebrand with migrations implemented.
+- [x] Phase 1 release merged/tagged under original name (v0.10.5).
+- [x] Phase 1.5: Maestro selected; original `vm75/server-man` untouched as a Phase 2 reference.
+- [x] Phase 1.5: source, UI, CLI and package rebrand with controlled migration implemented (GitHub repository rename deferred).
 - [ ] M1.5: rebrand compatibility and router deployment validated.
 - [ ] Phase 2: Svelte shell + operation registry and Linux auth.
 - [ ] Phase 2: systemd Services + monitoring + Linux package updates.

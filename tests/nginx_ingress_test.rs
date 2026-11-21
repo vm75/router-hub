@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use router_hub::{
+use maestro::{
     api, certificate_http,
     config::AppConfig,
     firewall::FirewallManager,
@@ -226,7 +226,7 @@ async fn old_hostname_collisions_can_be_repaired_through_the_api() {
     .await;
     assert_eq!(code, StatusCode::OK, "{reply}");
     let sites = nginx_sites::load(&state.config).unwrap();
-    router_hub::nginx_ingress::validate_tree(
+    maestro::nginx_ingress::validate_tree(
         &nginx_render::load_global(&state.config).unwrap(),
         &sites,
     )
@@ -1499,7 +1499,7 @@ async fn live_nginx_separates_ingress_and_blocks_paths_before_upstream() {
     );
     assert_eq!(fs::read_to_string(custom_path).unwrap(), custom_content);
     assert_eq!(
-        router_hub::nginx_ingress::mode(&nginx_render::load_global(config).unwrap()),
+        maestro::nginx_ingress::mode(&nginx_render::load_global(config).unwrap()),
         HttpMode::Always,
         "failed adoption must restore the legacy HTTP policy"
     );
@@ -1663,7 +1663,7 @@ async fn documented_ingress_inputs_validate_and_render() {
     .unwrap();
     let global = nginx_render::load_global(&state.config).unwrap();
     let mut sites = nginx_sites::load(&state.config).unwrap();
-    router_hub::nginx_ingress::validate_tree(&global, &sites).unwrap();
+    maestro::nginx_ingress::validate_tree(&global, &sites).unwrap();
     let site = sites.sites.values().next().unwrap();
     let output = nginx_render::render_site(
         &global,
@@ -1680,7 +1680,7 @@ async fn documented_ingress_inputs_validate_and_render() {
     let mut without_profile = global.clone();
     without_profile.listener_profiles.remove("private");
     assert!(
-        router_hub::nginx_ingress::runtime_files(&state.config, &without_profile).is_err(),
+        maestro::nginx_ingress::runtime_files(&state.config, &without_profile).is_err(),
         "disabled sites still protect their profile references"
     );
     let legacy_settings = json!({"access_policy":"public", "disable_root":false})
@@ -1709,7 +1709,7 @@ async fn documented_ingress_inputs_validate_and_render() {
         .root_dir
         .join("ban-shield/default-drop.conf");
     assert!(
-        router_hub::nginx_ingress::runtime_files(&state.config, &global).unwrap()[&defaults_path]
+        maestro::nginx_ingress::runtime_files(&state.config, &global).unwrap()[&defaults_path]
             .contains("127.0.0.2:19443")
     );
     let mut duplicate = site.clone();
@@ -1717,13 +1717,13 @@ async fn documented_ingress_inputs_validate_and_render() {
     duplicate.domain = "alias.example.test".into();
     sites.sites.insert("alias.example.test".into(), duplicate);
     assert!(
-        router_hub::nginx_ingress::validate_tree(&global, &sites)
+        maestro::nginx_ingress::validate_tree(&global, &sites)
             .unwrap_err()
             .to_string()
             .contains("belongs to both")
     );
     fs::write(nginx_sites::path(&state.config), "[sites]\n").unwrap();
-    let files = router_hub::nginx_ingress::runtime_files(&state.config, &without_profile).unwrap();
+    let files = maestro::nginx_ingress::runtime_files(&state.config, &without_profile).unwrap();
     assert!(
         !files[&defaults_path].contains("127.0.0.2:19443"),
         "removing the last reference and profile removes its rejecting listener too"

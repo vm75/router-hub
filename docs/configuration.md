@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-Use [`config/router-hub.example.toml`](../config/router-hub.example.toml) as the
+Use [`config/maestro.example.toml`](../config/maestro.example.toml) as the
 reference. The main sections are:
 
 - `[server]` — bind address, port, bearer token, CORS origins, and request
@@ -10,14 +10,14 @@ reference. The main sections are:
 - `[paths]` — persistent data, runtime, configurable `hosts.add` path, and
   `jffs_scripts_dir` for router backups;
 - `[commands]` — absolute paths to nginx, Entware utilities, firewall tools,
-  dehydrated (defaults to `/opt/var/lib/router-hub/dehydrated/dehydrated`), OpenSSL,
+  dehydrated (defaults to `/opt/var/lib/maestro/dehydrated/dehydrated`), OpenSSL,
   NVRAM, network commands, and `tar` for backups;
 - `[asus_ui]` — extension-page rendering and ASUS menu integration;
 - `[services]` — Entware init directory, log roots, and timeouts;
 - `[nginx]` — nginx root/configuration, managed object trees, generated
   includes, and log limits;
 - `[certificates]` — dehydrated certificate directory, default DNS-01 hook
-  (`dns01_hook`, defaults to `/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh`),
+  (`dns01_hook`, defaults to `/opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh`),
   and renewal policy;
 - `[firewall]` — matching, scoring, retention, subnet promotion, resource
   bounds, and command limits.
@@ -26,7 +26,7 @@ The Ban Shield tab can edit the attack thresholds, score/promotion/reputation
 retention, reputation-aware re-promotion threshold, and ban durations. Those
 edits are stored as an optional `tuning` override in `firewall-policy.json` and
 are applied to the running ban engine immediately. When no override exists,
-`router-hub.toml` remains the source of those values. Prefix sizes, command
+`maestro.toml` remains the source of those values. Prefix sizes, command
 paths, and resource caps stay TOML-only because changing them live has broader
 runtime consequences.
 
@@ -78,7 +78,7 @@ definitions and deployed nginx certificates can be imported at startup.
   `asus_ui.api_base_url` to an HTTPS reverse proxy to avoid mixed-content
   blocking.
 - External programs are invoked with configured executable paths and separate
-  arguments. Router Hub does not accept arbitrary shell command strings from
+  arguments. Maestro does not accept arbitrary shell command strings from
   the API.
 - Nginx edits validate paths, reject unsafe symlink/traversal cases, write
   atomically, and restore the previous state when `nginx -t` fails.
@@ -92,9 +92,9 @@ definitions and deployed nginx certificates can be imported at startup.
 
 
 Port existing nginx configuration manually to the current
-[`config/nginx` bundle](../config/nginx/README.md) **before deploying Router Hub**.
+[`config/nginx` bundle](../config/nginx/README.md) **before deploying Maestro**.
 The service contains no legacy template renderer or old map migration.
-The installer runs `init-nginx` to install Router Hub's main configuration,
+The installer runs `init-nginx` to install Maestro's main configuration,
 saving a different existing file as `nginx.conf.before-router-hub-<unique-id>`.
 It creates missing shared files, site directories, and a self-signed fallback
 certificate. Re-running it leaves an identical main configuration unchanged.
@@ -108,14 +108,14 @@ media servers, plus upload guidance and route examples for SPA/API exclusions,
 login protection, and SSE. The same guide opens from each site editor while
 keeping unsaved settings in place.
 
-`[nginx].inputs_dir` defaults to `/opt/etc/router-hub/nginx`. This directory
+`[nginx].inputs_dir` defaults to `/opt/etc/maestro/nginx`. This directory
 holds `nginx.toml`, `sites.toml`, and render-data fragments such as
 `access_log_suppress.conf` and `security_trap_allow.conf`. Edit input fragments
 there; generated copies under nginx's tree are replaced on regeneration.
 `nginx.root_dir` remains `/opt/etc/nginx` and contains final configuration,
 runtime includes, and administrator-authored custom sites. Jinja templates remain
 embedded in the binary and are not installed as editable configuration.
-Relative `inputs_dir` values resolve against `router-hub.toml`'s directory.
+Relative `inputs_dir` values resolve against `maestro.toml`'s directory.
 Back up both the inputs directory and custom nginx files. For existing installs,
 follow the [0.9 input relocation procedure](migration.md#nginx-input-relocation-in-09).
 
@@ -135,7 +135,7 @@ root-level `allowed_ips` and `free_subdomains` arrays contain the allowlists.
 Text allowlist fragments are generated from TOML. Relative fallback
 certificate directories resolve beneath the configured nginx root; traversal
 is rejected. Global settings also save `nginx_daemon`, `nginx_user`, and
-`temp_dir`. When Router Hub runs as non-root, generated nginx configuration omits
+`temp_dir`. When Maestro runs as non-root, generated nginx configuration omits
 `user`. When it runs as root, nginx uses `nginx_user`, falling back to `nobody`
 when blank or unset. Only the temporary parent folder is configurable: nginx
 uses `client-body`, `proxy`, `fastcgi`, `uwsgi`, and `scgi` beneath it. Linux mode
@@ -174,4 +174,4 @@ Upstream input fragments are `domains.conf`, `subdomains.conf`, and
 `subfolders.conf` under `nginx.inputs_dir`; unrelated entries are retained.
 Final copies under `<nginx.root_dir>/settings/` are runtime includes.
 Listener and filesystem choices must match the nginx paths configured in TOML.
-Python is needed only for lab setup and bundle tests, not by Router Hub at runtime.
+Python is needed only for lab setup and bundle tests, not by Maestro at runtime.

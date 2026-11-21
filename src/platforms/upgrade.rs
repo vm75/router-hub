@@ -68,7 +68,7 @@ fn ipk_name(tag: &str) -> Result<String> {
         stable_version(tag).is_some(),
         "invalid stable release tag: {tag}"
     );
-    Ok(format!("router-hub_{}-1_{ARCH}.ipk", &tag[1..]))
+    Ok(format!("maestro_{}-1_{ARCH}.ipk", &tag[1..]))
 }
 
 fn checksum_digest(contents: &str, filename: &str) -> Result<String> {
@@ -138,7 +138,7 @@ pub async fn run(
     // The runtime guard is also enforced by the CLI before starting this operation.
     let opkg_available = check_opkg_architecture()?;
     let client = reqwest::Client::builder()
-        .user_agent(concat!("router-hub/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("maestro/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(120))
         .build()?;
     let release: Release = client
@@ -152,10 +152,10 @@ pub async fn run(
     let latest = stable_version(&release.tag_name)
         .context("latest GitHub release does not have a stable vMAJOR.MINOR.PATCH tag")?;
     let current = stable_version(concat!("v", env!("CARGO_PKG_VERSION")))
-        .context("invalid compiled Router Hub version")?;
+        .context("invalid compiled Maestro version")?;
     if latest <= current {
         println!(
-            "Router Hub {} is up to date (latest stable: {}).",
+            "Maestro {} is up to date (latest stable: {}).",
             env!("CARGO_PKG_VERSION"),
             release.tag_name
         );
@@ -236,7 +236,7 @@ pub async fn run(
         return Ok(());
     }
 
-    // The prerm hook stops all processes named router-hub. Replace this CLI
+    // The prerm hook stops all processes named maestro. Replace this CLI
     // process with opkg so it cannot kill the process performing the upgrade.
     println!("Installing {} through Entware...", release.tag_name);
     println!("If installation fails, the verified IPK remains in /tmp. Retry: {command}");
@@ -263,7 +263,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let directory = temp.path().join("config");
         std::fs::create_dir(&directory).unwrap();
-        let path = directory.join("router-hub.toml");
+        let path = directory.join("maestro.toml");
         let mut config = AppConfig::default();
         config.apply_test_mode(&path).unwrap();
         config.test_mode = false;
@@ -290,14 +290,14 @@ mod tests {
         }
         assert_eq!(
             ipk_name("v0.10.2").unwrap(),
-            "router-hub_0.10.2-1_aarch64-3.10.ipk"
+            "maestro_0.10.2-1_aarch64-3.10.ipk"
         );
     }
 
     #[test]
     fn checksum_validation() {
         let hex = "a".repeat(64);
-        let name = "router-hub_0.10.2-1_aarch64-3.10.ipk";
+        let name = "maestro_0.10.2-1_aarch64-3.10.ipk";
         assert_eq!(
             checksum_digest(&format!("{hex}  {name}\n"), name).unwrap(),
             hex

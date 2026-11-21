@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md)
 
-Router Hub follows [Semantic Versioning](https://semver.org/). Set the version
+Maestro follows [Semantic Versioning](https://semver.org/). Set the version
 in `Cargo.toml` and commit the matching `Cargo.lock`; Git tags use the
 `vMAJOR.MINOR.PATCH` convention (or a prerelease such as `v0.8.0-rc.1`).
 The [GitHub Releases page](https://github.com/vm75/router-hub/releases) offers
@@ -49,7 +49,7 @@ PR and opt-in branch checks have no release credentials.
    GitHub Apps**. Use the repository URL as its homepage, disable webhooks, and
    restrict installation to your account. No App server or OAuth callback is needed.
 2. Set **Repository permissions → Contents → Read and write** and install the App
-   on **only Router Hub**.
+   on **only Maestro**.
 3. In the repository's **Settings → Secrets and variables → Actions → Variables**,
    create `RELEASE_APP_CLIENT_ID` with the App's **Client ID**.
 4. Generate a PEM private key in the App's **Credentials → Key pairs** section
@@ -71,7 +71,7 @@ Release publication. Tags must match Cargo's version and point to commits
 already merged into `main`. A prerelease tag publishes a GitHub prerelease.
 IPKs are published only for strict stable `vMAJOR.MINOR.PATCH` tags; prerelease
 tags continue to publish tarballs only. The IPK builder uses the existing
-static musl binary and gzip-tar IPK archives supported by Entware. `router-hub upgrade` on a
+static musl binary and gzip-tar IPK archives supported by Entware. `maestro upgrade` on a
 live Asuswrt-Merlin router verifies the stable IPK checksum before invoking
 `opkg install`, or prints the manual command if it cannot install.
 No release workflow installs anything onto a router automatically.
@@ -105,9 +105,9 @@ creation without publishing a release. Each release has a unique tag such as
 `nginx-v1.30.6-run123456789-a1`; repeated builds of the same NGINX version
 never overwrite one another. These `nginx-v*` tags cannot trigger the Router
 Hub `v*` release workflow. The NGINX release is explicitly marked
-`--latest=false`, leaving the existing Router Hub release workflow and its
-`releases/latest` endpoint (used by `router-hub upgrade`) untouched.
-On an Asuswrt-Merlin router, `/opt/bin/router-hub upgrade-nginx` discovers,
+`--latest=false`, leaving the existing Maestro release workflow and its
+`releases/latest` endpoint (used by `maestro upgrade`) untouched.
+On an Asuswrt-Merlin router, `/opt/bin/maestro upgrade-nginx` discovers,
 verifies, and installs these published NGINX packages (stable by default;
 `--channel mainline` is optional). It distinguishes rebuilds by checking the
 installed executable and modules against published checksums, requires
@@ -137,7 +137,7 @@ verify configuration and startup on the router before switching traffic.
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v0.8.1 -m "Router Hub v0.8.1"
+git tag -a v0.8.1 -m "Maestro v0.8.1"
 git push origin v0.8.1
 ```
 

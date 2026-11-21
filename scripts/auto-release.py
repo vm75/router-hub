@@ -22,7 +22,7 @@ def plan(expected):
     with open("Cargo.toml", "rb") as source:
         version = tomllib.load(source)["package"]["version"]
     with open("Cargo.lock", "rb") as source:
-        locked = [p["version"] for p in tomllib.load(source)["package"] if p["name"] == "router-hub"]
+        locked = [p["version"] for p in tomllib.load(source)["package"] if p["name"] == "maestro"]
     if locked != [version]:
         raise ValueError("Cargo.toml and Cargo.lock versions do not match")
     if not STABLE.fullmatch(version):
@@ -59,8 +59,8 @@ def main():
         if tag:
             print(f"Ready to tag {expected} as {tag} after successful main CI.")
     elif tag:
-        git("-c", "user.name=router-hub-release[bot]", "-c", "user.email=router-hub-release@users.noreply.github.com",
-            "tag", "-a", tag, expected, "-m", f"Router Hub {tag}")
+        git("-c", "user.name=maestro-release[bot]", "-c", "user.email=maestro-release@users.noreply.github.com",
+            "tag", "-a", tag, expected, "-m", f"Maestro {tag}")
         # Never force a tag update. The App token is supplied by the runner's
         # gh credential helper, not embedded in a remote URL or command line.
         git("push", "origin", f"refs/tags/{tag}")

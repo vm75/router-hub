@@ -857,7 +857,7 @@ pub(crate) fn atomic_write_with_permissions(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let temp = path.with_extension(format!("router-hub.tmp-{}", Uuid::new_v4().simple()));
+    let temp = path.with_extension(format!("maestro.tmp-{}", Uuid::new_v4().simple()));
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)

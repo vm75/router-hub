@@ -18,19 +18,19 @@ MIPS compatibility is
 not promised; a target is supported only after testing it on the matching
 router CPU and firmware.
 
-For older installations, read the [migration guide](migration.md) before upgrading.
+For Router Hub 0.10.5 installations, follow the [Maestro migration guide](maestro-migration.md) before uninstalling anything. Historical schema migrations are in [legacy upgrading](migration.md).
 
 ## Install a published version
 
 ### Entware IPK (recommended for the router)
 
 Stable GitHub releases include a `.ipk` and `.ipk.sha256` pair. For example,
-after `v0.10.2` is published, download both assets from
+after `v0.11.0` is published, download both assets from
 [GitHub Releases](https://github.com/vm75/router-hub/releases) and verify:
 
 ```sh
-VERSION=0.10.2
-PACKAGE="router-hub_${VERSION}-1_aarch64-3.10.ipk"
+VERSION=0.11.0
+PACKAGE="maestro_${VERSION}-1_aarch64-3.10.ipk"
 BASE="https://github.com/vm75/router-hub/releases/download/v${VERSION}"
 cd /tmp
 curl -fLO "${BASE}/${PACKAGE}"
@@ -39,17 +39,17 @@ sha256sum -c "${PACKAGE}.sha256"
 /opt/bin/opkg install "/tmp/${PACKAGE}"
 ```
 
-Use a root shell. The package owns the Router Hub binary, Entware init script,
+Use a root shell. The package owns the Maestro binary, Entware init script,
 example configuration, and shared setup helper, but **not** runtime settings or
 state. The `postinst` hook initializes first-install configuration, migrates
 current-format nginx inputs where needed, installs JFFS reconciliation hooks,
 validates configuration and starts the service. `prerm` stops the service
 before an upgrade or removal; it does not delete persistent data.
 
-**Migrating from a tarball installation:** Make a backup and read the
-[migration guide](migration.md) first. The IPK can take ownership of the existing
-binary and init script. Existing `/opt/etc/router-hub` settings, certificate
-files and persistent state are left intact. Removing the IPK also intentionally
+**Migrating from a Router Hub package or tarball:** Make a backup and follow the
+[Maestro migration guide](maestro-migration.md) first. The Maestro IPK declares a conflict with the old Router Hub package. Remove the
+old package only after backing up and follow the documented data adoption steps.
+The new package does not delete legacy administrator-created state. Removing the IPK also intentionally
 leaves administrator-created configuration, data and JFFS hooks in place.
 
 ### Backups
@@ -57,23 +57,23 @@ leaves administrator-created configuration, data and JFFS hooks in place.
 Create a backup from the installed binary:
 
 ```sh
-/opt/bin/router-hub backup
+/opt/bin/maestro backup
 ```
 
-On routers this writes `/tmp/router-hub-backup-YYYYMMDD-HHMMSS.tar.gz` using
+On routers this writes `/tmp/maestro-backup-YYYYMMDD-HHMMSS.tar.gz` using
 local time. Copy it off the router before rebooting, since `/tmp` is temporary.
 On native Linux (`platform = "linux"` or `--linux-mode`), the archive is saved
 alongside the configuration file selected by `--config`:
 
 ```sh
-router-hub --config /etc/router-hub/router-hub.toml --linux-mode backup
+maestro --config /etc/maestro/maestro.toml --linux-mode backup
 # Optional existing destination directory on either platform:
-router-hub --config /etc/router-hub/router-hub.toml --linux-mode backup --output-dir /srv/backups
+maestro --config /etc/maestro/maestro.toml --linux-mode backup --output-dir /srv/backups
 ```
 
 The archive includes the configuration directory, running executable, configured
 persistent state, nginx root and separately configured nginx inputs/includes,
-certificate store, dehydrated executable, and existing `S99router-hub` init script.
+certificate store, dehydrated executable, and existing `S99maestro` init script.
 Router backups also include `paths.jffs_scripts_dir` (default `/jffs/scripts`),
 `paths.hosts_add` and `paths.dnsmasq_conf_add`. Missing optional inputs are skipped;
 an existing configuration file is required. Configured root symlink targets are
@@ -83,27 +83,27 @@ them. Archives use paths relative to `/` for manual extraction and restore.
 The command uses `commands.tar` (default `/bin/tar`) with gzip support and a
 five-minute timeout. Archives have mode `0600` because they contain tokens and
 private keys. Failed archives are removed, existing archives are never overwritten,
-and prior `router-hub-backup-*.tar.gz` archives are excluded to prevent recursive
+and prior `maestro-backup-*.tar.gz` archives are excluded to prevent recursive
 backups. A second backup in the same second fails rather than replacing the first.
 Test mode only prints the planned destination and does not create an archive.
 
 Backups read files without stopping services or freezing writes. Avoid editing
-settings or renewing certificates during a backup; stop Router Hub before a manual
+settings or renewing certificates during a backup; stop Maestro before a manual
 backup when a consistent cross-file snapshot is required. Review and restore the
 needed files from an extracted archive or use the restore command below while
 services are stopped.
 
 ### Restore a backup
 
-Use a trusted backup from the same installation. Stop Router Hub and any other
+Use a trusted backup from the same installation. Stop Maestro and any other
 services whose configuration or certificates will be restored. On a router:
 
 ```sh
-/opt/etc/init.d/S99router-hub stop
-/opt/bin/router-hub restore /tmp/router-hub-backup-YYYYMMDD-HHMMSS.tar.gz
+/opt/etc/init.d/S99maestro stop
+/opt/bin/maestro restore /tmp/maestro-backup-YYYYMMDD-HHMMSS.tar.gz
 # After a successful restore, validate before starting the service:
-/opt/bin/router-hub --config /opt/etc/router-hub/router-hub.toml check-config
-/opt/etc/init.d/S99router-hub start
+/opt/bin/maestro --config /opt/etc/maestro/maestro.toml check-config
+/opt/etc/init.d/S99maestro start
 ```
 
 Replace the archive name with your actual backup. Restore does not load the
@@ -116,12 +116,12 @@ To restore into a separate tree for inspection first, create a private destinati
 and use `--root` on either platform:
 
 ```sh
-mkdir -m 700 /tmp/router-hub-recovery
-router-hub restore /tmp/router-hub-backup-YYYYMMDD-HHMMSS.tar.gz --root /tmp/router-hub-recovery
+mkdir -m 700 /tmp/maestro-recovery
+maestro restore /tmp/maestro-backup-YYYYMMDD-HHMMSS.tar.gz --root /tmp/maestro-recovery
 ```
 
-Paths in the archive are relative to `/`; for example `etc/router-hub/router-hub.toml`
-is restored beneath `/tmp/router-hub-recovery/etc/router-hub/router-hub.toml` in this
+Paths in the archive are relative to `/`; for example `etc/maestro/maestro.toml`
+is restored beneath `/tmp/maestro-recovery/etc/maestro/maestro.toml` in this
 example. The default root is `/`, restoring original locations. Symbolic links
 retain their archived targets, including absolute targets; inspection-tree links
 can therefore still point outside that tree. Restore never writes through those
@@ -147,17 +147,17 @@ version; package-manager records are not rolled back by the command.
 ### Router-only upgrade command
 
 ```sh
-/opt/bin/router-hub upgrade
+/opt/bin/maestro upgrade
 # Download and verify without attempting opkg installation:
-/opt/bin/router-hub upgrade --download-only
+/opt/bin/maestro upgrade --download-only
 # Explicitly skip the pre-upgrade backup:
-/opt/bin/router-hub upgrade --no-backup
+/opt/bin/maestro upgrade --no-backup
 ```
 
 The CLI checks GitHub's **latest stable** release and compares it against its
 compiled version. If newer, it downloads the matching AArch64 Entware IPK and
 its SHA-256 checksum, verifies the checksum, then stages the file as
-`/tmp/router-hub_<version>-1_aarch64-3.10.ipk`. When called as root with an
+`/tmp/maestro_<version>-1_aarch64-3.10.ipk`. When called as root with an
 available compatible `/opt/bin/opkg`, it replaces the one-shot upgrade process
 with `opkg install` so the package lifecycle can safely stop the running Router
 Hub daemon.
@@ -186,16 +186,16 @@ releases cannot be installed through this command.
 ### Router-only NGINX upgrade command
 
 ```sh
-/opt/bin/router-hub upgrade-nginx
-/opt/bin/router-hub upgrade-nginx --channel mainline
-/opt/bin/router-hub upgrade-nginx --check
-/opt/bin/router-hub upgrade-nginx --download-only
-/opt/bin/router-hub upgrade-nginx --no-backup
-/opt/bin/router-hub upgrade-nginx --version 1.30.7
-/opt/bin/router-hub upgrade-nginx --tag nginx-v1.30.7-run44684227015-a1
-/opt/bin/router-hub upgrade-nginx --force
+/opt/bin/maestro upgrade-nginx
+/opt/bin/maestro upgrade-nginx --channel mainline
+/opt/bin/maestro upgrade-nginx --check
+/opt/bin/maestro upgrade-nginx --download-only
+/opt/bin/maestro upgrade-nginx --no-backup
+/opt/bin/maestro upgrade-nginx --version 1.30.7
+/opt/bin/maestro upgrade-nginx --tag nginx-v1.30.7-run44684227015-a1
+/opt/bin/maestro upgrade-nginx --force
 # Explicitly allow moving from newer mainline to older stable:
-/opt/bin/router-hub upgrade-nginx --channel stable --allow-downgrade
+/opt/bin/maestro upgrade-nginx --channel stable --allow-downgrade
 ```
 
 The CLI discovers manually published `nginx-v*` GitHub releases, selecting
@@ -210,13 +210,13 @@ The downloader verifies `SHA256SUMS` and all four matching Entware IPKs:
 `nginx-ssl`, `nginx-mod-brotli`, `nginx-mod-stream`, and
 `nginx-mod-headers-more`. It verifies the old NGINX configuration, checks
 available temporary space, stages the bundle in a unique private directory,
-and takes a full Router Hub backup by default (including `--download-only`).
+and takes a full Maestro backup by default (including `--download-only`).
 Use `--no-backup` only when you have a current external backup.
 
 A live router upgrade also saves the previous executable, module directory,
 module load directives and `S80nginx` in a **separate private rollback
 snapshot** under `/tmp/.nginx-rollback-*`. These files are important because
-Router Hub's normal backup does not include NGINX package binaries. Both
+Maestro's normal backup does not include NGINX package binaries. Both
 the staged IPKs and rollback snapshot remain in temporary storage after the
 command; copy them off the router before rebooting if needed.
 
@@ -234,7 +234,7 @@ no NGINX processes exist. A malformed nonempty PID file or an empty file with
 NGINX processes still running blocks installation for administrator review.
 
 When opkg returns a definite failure or post-install verification fails,
-Router Hub attempts to restore the previous NGINX binary, modules and module
+Maestro attempts to restore the previous NGINX binary, modules and module
 configuration from the snapshot and validates them. If opkg cannot be launched
 or times out, the installer state may be uncertain, so no automatic rollback
 is attempted: first ensure opkg and its package hooks have exited.
@@ -277,7 +277,7 @@ published:
 ```sh
 VERSION=v0.10.1
 TARGET=aarch64-unknown-linux-musl
-PACKAGE="router-hub-${VERSION}-${TARGET}"
+PACKAGE="maestro-${VERSION}-${TARGET}"
 URL="https://github.com/vm75/router-hub/releases/download/${VERSION}"
 
 curl -fLO "${URL}/${PACKAGE}.tar.gz"
@@ -286,12 +286,12 @@ sha256sum -c "${PACKAGE}.tar.gz.sha256"
 tar -xzf "${PACKAGE}.tar.gz"
 cd "${PACKAGE}"
 # Run as root on the router:
-./scripts/install-merlin.sh ./router-hub
+./scripts/install-merlin.sh ./maestro
 ```
 
 The package includes the executable, `config/`, `scripts/`, and release
 documentation. Back up the router's configuration and persistent data before
-upgrading; the installer preserves existing `router-hub.toml` and should be
+upgrading; the installer preserves existing `maestro.toml` and should be
 reviewed for your environment. AArch64 musl compatibility requires validation
 on your router CPU and firmware.
 
@@ -314,23 +314,23 @@ Or copy the resulting binary, `config/`, and `scripts/` to the router, then run
 the installer as root from that copied repository:
 
 ```sh
-./scripts/install-merlin.sh ./router-hub-aarch64-unknown-linux-musl --mosquitto-user admin --mosquitto-pass mysecretpassword
+./scripts/install-merlin.sh ./maestro-aarch64-unknown-linux-musl --mosquitto-user admin --mosquitto-pass mysecretpassword
 ```
 
 The installer:
 
-1. installs the binary as `/opt/bin/router-hub` and the Entware init script as
-   `/opt/etc/init.d/S99router-hub`;
-2. creates `/opt/etc/router-hub/router-hub.toml` and a random authentication
+1. installs the binary as `/opt/bin/maestro` and the Entware init script as
+   `/opt/etc/init.d/S99maestro`;
+2. creates `/opt/etc/maestro/maestro.toml` and a random authentication
    token on first install;
-3. installs Router Hub's main nginx configuration, saving a different existing
+3. installs Maestro's main nginx configuration, saving a different existing
    file as `nginx.conf.before-router-hub-<unique-id>` and printing its path;
    preserves saved inputs and existing shared/custom files, creates missing
    bundled files and runtime/data directories;
 4. configures Mosquitto credentials in `/opt/etc/mosquitto/passwd` if `--mosquitto-user` and `--mosquitto-pass` (or `MOSQUITTO_USER` / `MOSQUITTO_PASS` env vars) are supplied;
 5. adds token-free reconciliation calls to `/jffs/scripts/post-mount` and
    `/jffs/scripts/firewall-start` (with a background retry loop);
-6. validates the configuration and restarts Router Hub.
+6. validates the configuration and restarts Maestro.
 
 Review the generated TOML before starting. In particular, set the correct
 Asuswrt extension page (`user1.asp` through `user20.asp`), `menu_tree`,
@@ -341,10 +341,10 @@ layout, not proof that every firmware image uses the same layout.
 The service supports the usual Entware init actions:
 
 ```sh
-/opt/etc/init.d/S99router-hub start
-/opt/etc/init.d/S99router-hub stop
-/opt/etc/init.d/S99router-hub restart
-/opt/etc/init.d/S99router-hub status
+/opt/etc/init.d/S99maestro start
+/opt/etc/init.d/S99maestro stop
+/opt/etc/init.d/S99maestro restart
+/opt/etc/init.d/S99maestro status
 ```
 
 `reconcile` requests an immediate firewall reconciliation from the running

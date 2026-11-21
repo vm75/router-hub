@@ -37,14 +37,14 @@ proxying, preserve query strings, and use the original `$request_uri` to select
 the upstream. Configure upstreams in `settings/domains.conf`,
 `settings/subdomains.conf`, and `settings/subfolders.conf` as appropriate.
 
-Router Hub installs persistent render inputs under `nginx.inputs_dir` (default
-`/opt/etc/router-hub/nginx`). `nginx.toml`, `sites.toml`, upstream map fragments,
+Maestro installs persistent render inputs under `nginx.inputs_dir` (default
+`/opt/etc/maestro/nginx`). `nginx.toml`, `sites.toml`, upstream map fragments,
 and administrator-owned log/security exception fragments live there. Final nginx
 files and generated `.conf` includes remain under `nginx.root_dir` (default
 `/opt/etc/nginx`). The `settings/` paths below describe bundle/template names;
 source data files are resolved from `inputs_dir` without that prefix at runtime.
 TOML, text lists, and Jinja templates are not installed into nginx's runtime tree.
-Templates remain embedded in Router Hub's binary. See the
+Templates remain embedded in Maestro's binary. See the
 [upgrade procedure](../../docs/migration.md#nginx-input-relocation-in-09) before
 using 0.9 with an existing installation.
 
@@ -57,7 +57,7 @@ establish compatibility with a particular router firmware.
 
 ## Managed ingress and access
 
-Router Hub adds named listener profiles, reusable source rules, deny routes and
+Maestro adds named listener profiles, reusable source rules, deny routes and
 HTTP-01 renewal windows through its Rust renderer. Configure them with the UI;
 the standalone Python template renderer covers the legacy template context.
 See [configuration and operating limits](../../docs/nginx-ingress.md) and the
@@ -164,7 +164,7 @@ allowed:
 its entries to produce `allow <IP/CIDR>;`, followed by `deny all;`. An empty list
 renders only `deny all;`. Re-render that snippet after changes; nginx includes the
 rendered snippet at configuration load time. The settings input is no longer
-included directly by nginx. Router Hub writes this format directly and renders the access snippet after changes.
+included directly by nginx. Maestro writes this format directly and renders the access snippet after changes.
 
 `settings/free_subdomains.txt` likewise contains one shared/free domain suffix
 per line, such as `shared.example.test` or `ddns.example.test`. Blank lines and comments are
@@ -248,7 +248,7 @@ a fallback server, backend authentication, quiet control paths, private admin an
 rate-limited login routes, and production/development SPA/PWA mounts.
 `kind` selects the template; `upstream` records the corresponding map target.
 The remaining fields are render context. Actual per-site values belong in
-`<nginx.inputs_dir>/sites.toml`. Router Hub reads this file as the source
+`<nginx.inputs_dir>/sites.toml`. Maestro reads this file as the source
 of managed site inputs and saves API/UI changes there atomically. Each entry has
 `kind`, `domain`, `server_name`, `upstream`, `enabled`, and policy overrides;
 `name` identifies subdomains and `subfolder` identifies mounts. Deployment keys
@@ -401,7 +401,7 @@ deployment override. Allowlisted paths still do not bypass scanner-agent rules.
 ## Ban Shield integration
 
 [ban-shield/README.md](ban-shield/README.md) describes the intentionally retained
-nginx integration for Router Hub Ban Config. Its log formats, classifiers, gates,
+nginx integration for Maestro Ban Config. Its log formats, classifiers, gates,
 rate-limit zones and unknown-host server live together under `ban-shield/`.
 `conf.d/00-ban-shield.conf` loads the HTTP declarations once; generated servers
 include its server guard. General HTTP performance settings stay in
@@ -415,7 +415,7 @@ not hardcoded hostnames inside this module.
 ## Custom configurations and shared runtime files
 
 Keep full custom `.conf` objects as authored files. Do not regenerate them from
-managed site defaults or implicitly treat them as Jinja. The custom API mode remains separate from managed settings. Router Hub preserves
+managed site defaults or implicitly treat them as Jinja. The custom API mode remains separate from managed settings. Maestro preserves
 custom text, atomic writes, combined-tree `nginx -t` validation and rollback.
 Only the new Jinja-based configuration is supported. Custom configurations use
 current runtime includes or their own explicit nginx directives; obsolete proxy,
@@ -443,7 +443,7 @@ source filenames; nginx includes reference rendered `.conf` filenames.
 
 All other snippet templates are expanded into each managed site; they are not
 independent runtime files. The route renderer uses Jinja macros: MiniJinja users
-must enable `builtins`, `multi_template`, **`macros`**, and `serde`. Router Hub
+must enable `builtins`, `multi_template`, **`macros`**, and `serde`. Maestro
 implements only the four Python string methods used by this bundle, avoiding
 the general Python compatibility extension.
 Keep the upstream map settings, `mime.types` and `dhparams.pem` available to nginx.
@@ -469,7 +469,7 @@ The fallback server's `default_certificate_dir` defaults to `certs/default` via
 Re-render the HTTP redirect when its server list changes. Supply certificates,
 modules and writable runtime/log paths appropriate to the installation.
 The bundle tests never install or reload configuration on a deployment router.
-Saving settings through Router Hub renders the shared runtime files, regenerates
+Saving settings through Maestro renders the shared runtime files, regenerates
 managed sites, validates the tree, and reloads nginx when running. Template and
 root-file editing and legacy conversions are not available.
 

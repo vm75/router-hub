@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ENABLED=yes
-PROCS=router-hub
+PROCS=maestro
 ARGS=""
 PREARGS=""
 DESC=$PROCS

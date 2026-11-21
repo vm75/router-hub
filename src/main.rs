@@ -48,9 +48,9 @@ use crate::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "router-hub", version, about)]
+#[command(name = "maestro", version, about)]
 struct Cli {
-    #[arg(long, default_value = "/opt/etc/router-hub/router-hub.toml")]
+    #[arg(long, default_value = "/opt/etc/maestro/maestro.toml")]
     config: PathBuf,
 
     #[arg(long, global = true)]
@@ -135,7 +135,7 @@ fn main() -> Result<()> {
         .with_ansi(false)
         .with_env_filter(
             EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "router_hub=info,tower_http=info".into()),
+                .unwrap_or_else(|_| "maestro=info,tower_http=info".into()),
         )
         .init();
 
@@ -215,9 +215,9 @@ fn main() -> Result<()> {
             println!(
                 "{}",
                 if created {
-                    "installed Router Hub nginx configuration"
+                    "installed Maestro nginx configuration"
                 } else {
-                    "Router Hub nginx configuration is already current"
+                    "Maestro nginx configuration is already current"
                 }
             );
             Ok(())
@@ -363,7 +363,7 @@ async fn serve(config: AppConfig) -> Result<()> {
         .context("invalid server bind address")?;
     let address = SocketAddr::new(bind_ip, config.server.port);
     let listener = TcpListener::bind(address).await?;
-    info!(%address, version = env!("CARGO_PKG_VERSION"), test_mode = config.test_mode, "router-hub listening");
+    info!(%address, version = env!("CARGO_PKG_VERSION"), test_mode = config.test_mode, "maestro listening");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal(state))
         .await?;
@@ -455,7 +455,7 @@ mod cli_tests {
 
     #[test]
     fn backup_and_upgrade_flags() {
-        let cli = Cli::try_parse_from(["router-hub", "upgrade"]).unwrap();
+        let cli = Cli::try_parse_from(["maestro", "upgrade"]).unwrap();
         assert!(matches!(
             cli.command,
             Some(Command::Upgrade {
@@ -463,8 +463,8 @@ mod cli_tests {
                 ..
             })
         ));
-        let cli = Cli::try_parse_from(["router-hub", "upgrade", "--no-backup", "--download-only"])
-            .unwrap();
+        let cli =
+            Cli::try_parse_from(["maestro", "upgrade", "--no-backup", "--download-only"]).unwrap();
         assert!(matches!(
             cli.command,
             Some(Command::Upgrade {
@@ -473,9 +473,9 @@ mod cli_tests {
             })
         ));
         let cli = Cli::try_parse_from([
-            "router-hub",
+            "maestro",
             "--config",
-            "/lab/router-hub.toml",
+            "/lab/maestro.toml",
             "--linux-mode",
             "backup",
             "--output-dir",
@@ -487,7 +487,7 @@ mod cli_tests {
             matches!(cli.command, Some(Command::Backup { output_dir: Some(path) }) if path == Path::new("/lab/backups"))
         );
         let cli = Cli::try_parse_from([
-            "router-hub",
+            "maestro",
             "restore",
             "/tmp/backup.tar.gz",
             "--root",
@@ -499,7 +499,7 @@ mod cli_tests {
         );
 
         // upgrade-nginx default flags
-        let cli = Cli::try_parse_from(["router-hub", "upgrade-nginx"]).unwrap();
+        let cli = Cli::try_parse_from(["maestro", "upgrade-nginx"]).unwrap();
         assert!(matches!(
             cli.command,
             Some(Command::UpgradeNginx {
@@ -516,7 +516,7 @@ mod cli_tests {
 
         // upgrade-nginx with alias update-nginx and mainline channel
         let cli = Cli::try_parse_from([
-            "router-hub",
+            "maestro",
             "update-nginx",
             "--channel",
             "mainline",
@@ -541,7 +541,7 @@ mod cli_tests {
 
         // upgrade-nginx with explicit tag and check
         let cli = Cli::try_parse_from([
-            "router-hub",
+            "maestro",
             "upgrade-nginx",
             "--tag",
             "nginx-v1.30.7-run44684227015-a1",
@@ -563,8 +563,7 @@ mod cli_tests {
         ));
 
         // upgrade-nginx with explicit version
-        let cli =
-            Cli::try_parse_from(["router-hub", "upgrade-nginx", "--version", "1.30.7"]).unwrap();
+        let cli = Cli::try_parse_from(["maestro", "upgrade-nginx", "--version", "1.30.7"]).unwrap();
         assert!(matches!(
             cli.command,
             Some(Command::UpgradeNginx {
@@ -580,7 +579,7 @@ mod cli_tests {
         ));
         assert!(
             Cli::try_parse_from([
-                "router-hub",
+                "maestro",
                 "upgrade-nginx",
                 "--tag",
                 "nginx-v1.30.7",
@@ -590,7 +589,7 @@ mod cli_tests {
             .is_err()
         );
         let cli = Cli::try_parse_from([
-            "router-hub",
+            "maestro",
             "upgrade-nginx",
             "--channel",
             "stable",

@@ -1,8 +1,8 @@
 [package]
-name = "router-hub"
-version = "0.10.5"
+name = "maestro"
+version = "0.11.0"
 edition = "2024"
-description = "A lightweight management hub for Asuswrt-Merlin routers"
+description = "Modular host management for Asuswrt-Merlin and Linux"
 license = "MIT"
 rust-version = "1.85"
 

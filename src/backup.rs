@@ -68,7 +68,7 @@ fn inputs(config: &AppConfig, config_path: &Path) -> Result<Vec<PathBuf>> {
         config.certificates.certs_dir.clone(),
         config.commands.dehydrated.clone(),
         config.certificates.dns01_hook.clone(),
-        config.services.init_dir.join("S99router-hub"),
+        config.services.init_dir.join("S99maestro"),
     ];
     if config.platform == Platform::Asuswrt {
         candidates.extend([
@@ -129,7 +129,7 @@ pub async fn run(config: &AppConfig, config_path: &Path, output_dir: Option<&Pat
         .map(Path::to_path_buf)
         .unwrap_or_else(|| output_directory(config, config_path));
     let filename = format!(
-        "router-hub-backup-{}.tar.gz",
+        "maestro-backup-{}.tar.gz",
         Local::now().format("%Y%m%d-%H%M%S")
     );
     let target = directory.join(filename);
@@ -142,7 +142,7 @@ pub async fn run(config: &AppConfig, config_path: &Path, output_dir: Option<&Pat
         .canonicalize()
         .context("backup output directory must exist")?;
     let target = directory.join(target.file_name().unwrap());
-    let staging = directory.join(format!(".router-hub-backup-{}", Uuid::new_v4()));
+    let staging = directory.join(format!(".maestro-backup-{}", Uuid::new_v4()));
     DirBuilder::new().mode(0o700).create(&staging)?;
     let staging = Staging(staging);
     let archive = staging.0.join("archive.tar.gz");
@@ -154,8 +154,8 @@ pub async fn run(config: &AppConfig, config_path: &Path, output_dir: Option<&Pat
     let mut args: Vec<OsString> = vec![
         "-czf".into(),
         archive.as_os_str().into(),
-        "--exclude=router-hub-backup-*.tar.gz".into(),
-        "--exclude=.router-hub-backup-*".into(),
+        "--exclude=maestro-backup-*.tar.gz".into(),
+        "--exclude=.maestro-backup-*".into(),
         "-C".into(),
         "/".into(),
         "--".into(),
@@ -297,7 +297,7 @@ mod tests {
         let (config, path) = fixture(temp.path());
         let parent = path.parent().unwrap();
         fs::write(
-            parent.join("router-hub-backup-20000101-000000.tar.gz"),
+            parent.join("maestro-backup-20000101-000000.tar.gz"),
             "old backup",
         )
         .unwrap();
@@ -310,7 +310,7 @@ mod tests {
                 p.file_name()
                     .unwrap()
                     .to_string_lossy()
-                    .starts_with("router-hub-backup-")
+                    .starts_with("maestro-backup-")
                     && !p
                         .file_name()
                         .unwrap()
@@ -348,7 +348,7 @@ mod tests {
             fs::read_link(restored(&config.nginx.root_dir.join("enabled.conf"))).unwrap(),
             Path::new("nginx.conf")
         );
-        assert!(!restored(&parent.join("router-hub-backup-20000101-000000.tar.gz")).exists());
+        assert!(!restored(&parent.join("maestro-backup-20000101-000000.tar.gz")).exists());
         assert!(
             fs::metadata(restored(&std::env::current_exe().unwrap()))
                 .unwrap()
@@ -359,7 +359,7 @@ mod tests {
             e.unwrap()
                 .file_name()
                 .to_string_lossy()
-                .starts_with(".router-hub-backup-")
+                .starts_with(".maestro-backup-")
         }));
     }
 

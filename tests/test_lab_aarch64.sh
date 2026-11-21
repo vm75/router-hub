@@ -127,12 +127,12 @@ echo "QEMU project share checks passed."
 echo "=== Testing lab initialization and media caching ==="
 # Use a private checkout and package so initialization never changes real artifacts.
 INIT_REPO="$TMP/init-repo"
-mkdir -p "$INIT_REPO/lab/aarch64" "$INIT_REPO/dist" "$TMP/ipk-data/opt/libexec/router-hub"
+mkdir -p "$INIT_REPO/lab/aarch64" "$INIT_REPO/dist" "$TMP/ipk-data/opt/libexec/maestro"
 cp lab/aarch64/init.sh lab/aarch64/run.sh "$INIT_REPO/lab/aarch64/"
 cp -R lab/aarch64/installer "$INIT_REPO/lab/aarch64/"
-cp scripts/setup-merlin.sh "$TMP/ipk-data/opt/libexec/router-hub/"
+cp scripts/setup-merlin.sh "$TMP/ipk-data/opt/libexec/maestro/"
 tar -czf "$TMP/data.tar.gz" -C "$TMP/ipk-data" .
-TEST_PACKAGE="$INIT_REPO/dist/router-hub_0.0.1-1_aarch64-3.10.ipk"
+TEST_PACKAGE="$INIT_REPO/dist/maestro_0.0.1-1_aarch64-3.10.ipk"
 tar -czf "$TEST_PACKAGE" -C "$TMP" ./data.tar.gz
 (cd "$(dirname "$TEST_PACKAGE")" && sha256sum "$(basename "$TEST_PACKAGE")" > "$(basename "$TEST_PACKAGE").sha256")
 INIT_SCRIPT="$INIT_REPO/lab/aarch64/init.sh"
@@ -221,7 +221,7 @@ printf '%s  %s\n' "${iso_hash%% *}" "$iso_name" > "$MEDIA_FIXTURES/installer.sha
     mv "$TEST_PACKAGE" "$TMP/saved.ipk"
     cp "$CURL_CALLS" "$TMP/previous-curl-calls"
     if "$INIT_SCRIPT" >"$TMP/init-error" 2>&1; then
-        echo 'Initialization unexpectedly accepted a missing Router Hub package' >&2
+        echo 'Initialization unexpectedly accepted a missing Maestro package' >&2
         exit 1
     fi
     cmp "$CURL_CALLS" "$TMP/previous-curl-calls"
@@ -231,7 +231,7 @@ printf '%s  %s\n' "${iso_hash%% *}" "$iso_name" > "$MEDIA_FIXTURES/installer.sha
     "$INIT_SCRIPT" >/dev/null
     # Old package hooks must be rebuilt before automatic chroot provisioning.
     mv "$TMP/saved.ipk" "$TEST_PACKAGE"
-    printf '#!/bin/sh\nexit 0\n' > "$TMP/ipk-data/opt/libexec/router-hub/setup-merlin.sh"
+    printf '#!/bin/sh\nexit 0\n' > "$TMP/ipk-data/opt/libexec/maestro/setup-merlin.sh"
     tar -czf "$TMP/data.tar.gz" -C "$TMP/ipk-data" .
     tar -czf "$TEST_PACKAGE" -C "$TMP" ./data.tar.gz
     (cd "$(dirname "$TEST_PACKAGE")" && sha256sum "$(basename "$TEST_PACKAGE")" > "$(basename "$TEST_PACKAGE").sha256")
@@ -251,29 +251,29 @@ AUTH_TOKEN="0123456789abcdef0123456789abcdef"
 sed -e "s|__AUTH_TOKEN__|$AUTH_TOKEN|" \
     -e "s|__OPENSSL_BIN__|/usr/bin/openssl|" \
     -e "s|__IP_BIN__|/sbin/ip|" \
-    lab/aarch64/files/router-hub.toml.template > "$TMP/router-hub.toml"
+    lab/aarch64/files/maestro.toml.template > "$TMP/maestro.toml"
 
-# Run check-config subcommand using target/release/router-hub or target/debug/router-hub
-ROUTER_HUB=""
-for candidate in target/debug/router-hub target/release/router-hub; do
+# Run check-config subcommand using target/release/maestro or target/debug/maestro
+MAESTRO=""
+for candidate in target/debug/maestro target/release/maestro; do
     if [[ -x "$candidate" ]]; then
-        ROUTER_HUB="$candidate"
+        MAESTRO="$candidate"
         break
     fi
 done
 
-if [[ -n "$ROUTER_HUB" ]]; then
+if [[ -n "$MAESTRO" ]]; then
     # Create test directories needed for validation
     mkdir -p "$TMP/certs" "$TMP/nginx" "$TMP/www" "$TMP/var/wwwext"
     cp lab/aarch64/files/menuTree.js "$TMP/www/menuTree.js"
-    sed -i "s|/www/require/modules/menuTree.js|$TMP/www/menuTree.js|" "$TMP/router-hub.toml"
-    sed -i "s|/tmp/var/wwwext/user20.asp|$TMP/var/wwwext/user20.asp|" "$TMP/router-hub.toml"
+    sed -i "s|/www/require/modules/menuTree.js|$TMP/www/menuTree.js|" "$TMP/maestro.toml"
+    sed -i "s|/tmp/var/wwwext/user20.asp|$TMP/var/wwwext/user20.asp|" "$TMP/maestro.toml"
 
-    "$ROUTER_HUB" --config "$TMP/router-hub.toml" check-config >/dev/null
+    "$MAESTRO" --config "$TMP/maestro.toml" check-config >/dev/null
     echo "Configuration template check-config passed."
 
     echo "=== 9. Testing ASUS UI mounting and rendering with lab fixtures ==="
-    "$ROUTER_HUB" --config "$TMP/router-hub.toml" mount-ui >/dev/null
+    "$MAESTRO" --config "$TMP/maestro.toml" mount-ui >/dev/null
     test -f "$TMP/var/wwwext/user20.asp"
     grep -F "user20.asp" "$TMP/www/menuTree.js" >/dev/null
     grep -F "$AUTH_TOKEN" "$TMP/var/wwwext/user20.asp" >/dev/null

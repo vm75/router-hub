@@ -1,5 +1,7 @@
 # Upgrading older Router Hub installations
 
+**Moving from Router Hub 0.10.5 to Maestro 0.11.0?** Follow the [Maestro rebrand migration](maestro-migration.md) first. This page documents older Router Hub schema migrations, which remain relevant to legacy inputs.
+
 Current releases read versioned ban state and current nginx settings only. They do
 not convert older document schemas. Back up the installed binary, Router Hub configuration
 and state directory, and the nginx configuration tree before upgrading. Use the

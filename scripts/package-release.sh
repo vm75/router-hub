@@ -8,7 +8,7 @@ fi
 
 TAG=$1
 TARGET=$2
-BINARY=${3:-target/$TARGET/release/router-hub}
+BINARY=${3:-target/$TARGET/release/maestro}
 
 if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
   echo "Invalid release tag: $TAG" >&2
@@ -27,12 +27,12 @@ if [[ ! -f "$BINARY" ]]; then
   exit 1
 fi
 
-NAME="router-hub-$TAG-$TARGET"
+NAME="maestro-$TAG-$TARGET"
 STAGING=$(mktemp -d)
 trap 'rm -rf "$STAGING"' EXIT
 
 mkdir -p "$STAGING/$NAME" dist
-install -m 0755 "$BINARY" "$STAGING/$NAME/router-hub"
+install -m 0755 "$BINARY" "$STAGING/$NAME/maestro"
 cp -R config scripts docs "$STAGING/$NAME/"
 cp README.md CHANGELOG.md LICENSE "$STAGING/$NAME/"
 

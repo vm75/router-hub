@@ -10,8 +10,8 @@ allowed_origins = ["https://router.example.com", "http://192.168.1.1:8443", "htt
 max_request_bytes = 1048576
 
 [paths]
-data_dir = "/opt/etc/router-hub"
-runtime_dir = "/opt/var/run/router-hub"
+data_dir = "/opt/etc/maestro"
+runtime_dir = "/opt/var/run/maestro"
 hosts_add = "/jffs/configs/hosts.add"
 dnsmasq_conf_add = "/jffs/configs/dnsmasq.conf.add"
 # Included in router backups; ignored on native Linux.
@@ -28,9 +28,9 @@ service = "/sbin/service"
 ipset = "/opt/sbin/ipset"
 iptables = "/usr/sbin/iptables"
 ip6tables = "/usr/sbin/ip6tables"
-dehydrated = "/opt/var/lib/router-hub/dehydrated/dehydrated"
-# Optional DNS-01 hook script path override (defaults to /opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh)
-# dehydrated_dns01_hook = "/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh"
+dehydrated = "/opt/var/lib/maestro/dehydrated/dehydrated"
+# Optional DNS-01 hook script path override (defaults to /opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh)
+# dehydrated_dns01_hook = "/opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh"
 openssl = "/usr/sbin/openssl"
 logread = "/opt/sbin/logread"
 nvram = "/bin/nvram"
@@ -48,7 +48,7 @@ menu_tree = "/www/require/modules/menuTree.js"
 menu_index = "menu_Alexa_IFTTT"
 # Empty means http://<current-router-host>:<server.port>.
 # When the ASUS UI is served over HTTPS, use an HTTPS reverse-proxy URL here.
-api_base_url = "https://router-hub.example.com"
+api_base_url = "https://maestro.example.com"
 
 [services]
 init_dir = "/opt/etc/init.d"
@@ -58,15 +58,15 @@ action_timeout_seconds = 30
 log_tail_lines = 300
 
 [nginx]
-inputs_dir = "/opt/etc/router-hub/nginx"
+inputs_dir = "/opt/etc/maestro/nginx"
 root_dir = "/opt/etc/nginx"
 config_path = "/opt/etc/nginx/nginx.conf"
 # Optional isolated nginx -p prefix for native Linux integration.
-# prefix_path = "/tmp/router-hub-linux/nginx"
+# prefix_path = "/tmp/maestro-linux/nginx"
 pid_path = "/opt/var/run/nginx.pid"
 domains_available_dir = "/opt/etc/nginx/domains-available"
 domains_enabled_dir = "/opt/etc/nginx/domains-enabled"
-# Router Hub updates these includes when sites are created or edited.
+# Maestro updates these includes when sites are created or edited.
 subdomain_upstream_map_path = "/opt/etc/nginx/conf.d/03_subdomain_upstream_map.conf"
 domain_upstream_map_path = "/opt/etc/nginx/conf.d/02_domain_upstream_map.conf"
 subfolder_upstream_map_path = "/opt/etc/nginx/conf.d/04_subfolder_upstream_map.conf"
@@ -76,8 +76,8 @@ log_read_bytes = 524288
 reload_timeout_seconds = 15
 
 [certificates]
-certs_dir = "/opt/var/lib/router-hub/dehydrated/certs"
-dns01_hook = "/opt/var/lib/router-hub/dehydrated/dehydrated-dns01-hook.sh"
+certs_dir = "/opt/var/lib/maestro/dehydrated/certs"
+dns01_hook = "/opt/var/lib/maestro/dehydrated/dehydrated-dns01-hook.sh"
 renew_interval_hours = 12
 renew_before_days = 30
 # Allow for DNS provider propagation delays (NameSilo hook defaults to 600 seconds).
@@ -86,8 +86,8 @@ command_timeout_seconds = 3600
 [firewall]
 poll_interval_ms = 1000
 cleanup_interval_seconds = 60
-set_name_v4 = "router_hub_bans4"
-set_name_v6 = "router_hub_bans6"
+set_name_v4 = "maestro_bans4"
+set_name_v6 = "maestro_bans6"
 subnet_prefix_v4 = 24
 subnet_prefix_v6 = 64
 ip_failures = 4

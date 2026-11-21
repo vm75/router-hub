@@ -7,8 +7,8 @@ case $- in
             if [ -f /etc/router-lab/httpd-credentials.txt ]; then
                 printf 'ASUS httpd Basic Auth: %s\n' "$(tr '\n' ' ' < /etc/router-lab/httpd-credentials.txt)"
             fi
-            if [ -f /opt/etc/router-hub/auth-token.txt ]; then
-                printf 'Router Hub API Token:  %s\n' "$(cat /opt/etc/router-hub/auth-token.txt)"
+            if [ -f /opt/etc/maestro/auth-token.txt ]; then
+                printf 'Maestro API Token:  %s\n' "$(cat /opt/etc/maestro/auth-token.txt)"
             fi
             printf '\n%s\n' \
                 'Access from host browser:' \
