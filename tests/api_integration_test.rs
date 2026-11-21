@@ -1647,8 +1647,7 @@ async fn emulated_fixture_sites_survive_shared_settings_regeneration() {
     for (key, site) in &sites.sites {
         let name = site.object_name(key).unwrap();
         let source =
-            maestro::nginx::available_path(&state.config, site.kind, &site.domain, &name)
-                .unwrap();
+            maestro::nginx::available_path(&state.config, site.kind, &site.domain, &name).unwrap();
         let relative = source.strip_prefix(&state.config.nginx.root_dir).unwrap();
         std::fs::create_dir_all(source.parent().unwrap()).unwrap();
         std::fs::copy(fixture.join(relative), &source).unwrap();

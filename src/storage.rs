@@ -54,11 +54,7 @@ impl Stores {
         let firewall_policy_path = data_dir.join("firewall-policy.json");
         let policy_config_path = firewall_policy_config_path(&data_dir);
         let firewall_policy = if config.platform == Platform::Asuswrt {
-            load_json_with_fallback(
-                &firewall_policy_path,
-                policy_config_path,
-            )
-            .await?
+            load_json_with_fallback(&firewall_policy_path, policy_config_path).await?
         } else {
             // Linux integration must not read the host's Entware/router policy.
             load_json(&firewall_policy_path).await?

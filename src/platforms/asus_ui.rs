@@ -40,10 +40,7 @@ pub fn render_asus_ui(config: &AppConfig) -> String {
     let contents = fragment_between(&rendered_ui, "<body class=\"rh-page\">", "</body>");
 
     ASP_TEMPLATE
-        .replace(
-            "<!-- maestro-head -->",
-            &format!("<style>{styles}</style>"),
-        )
+        .replace("<!-- maestro-head -->", &format!("<style>{styles}</style>"))
         .replace("<!-- contents -->", contents)
 }
 

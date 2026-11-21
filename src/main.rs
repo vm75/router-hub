@@ -463,8 +463,8 @@ mod cli_tests {
                 ..
             })
         ));
-        let cli = Cli::try_parse_from(["maestro", "upgrade", "--no-backup", "--download-only"])
-            .unwrap();
+        let cli =
+            Cli::try_parse_from(["maestro", "upgrade", "--no-backup", "--download-only"]).unwrap();
         assert!(matches!(
             cli.command,
             Some(Command::Upgrade {
@@ -563,8 +563,7 @@ mod cli_tests {
         ));
 
         // upgrade-nginx with explicit version
-        let cli =
-            Cli::try_parse_from(["maestro", "upgrade-nginx", "--version", "1.30.7"]).unwrap();
+        let cli = Cli::try_parse_from(["maestro", "upgrade-nginx", "--version", "1.30.7"]).unwrap();
         assert!(matches!(
             cli.command,
             Some(Command::UpgradeNginx {

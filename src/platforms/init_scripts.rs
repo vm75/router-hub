@@ -403,7 +403,7 @@ fn log_candidates(state: &AppState, name: &str) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_adguard_home_service, is_nginx_service, is_maestro_service};
+    use super::{is_adguard_home_service, is_maestro_service, is_nginx_service};
 
     #[test]
     fn recognizes_router_hub_service_by_suffix() {
